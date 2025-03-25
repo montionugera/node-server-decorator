@@ -54,20 +54,33 @@ class ExampleService {
   }
 }
 ```
+### EmitOnSuccess Decorator
 
-## Scripts
+The `EmitOnSuccess` decorator emits an event whenever the decorated method completes successfully.
 
-- `build`: Compiles the TypeScript code.
-- `test`: Runs the tests using Jest.
-- `publish-package`: Publishes the package to npm.
+```ts
 
-## Running Tests
+import { EmitOnSuccess } from 'server-decorator';
 
-To run the tests, use the following command:
+class ExampleService {
+    @EmitOnSuccess()
+    syncMethod(data: string) {
+        return `Hello, ${data}`;
+    }
 
-```sh
-npm run test
+    @EmitOnSuccess()
+    async asyncMethod(data: string) {
+        return Promise.resolve(`Hello, ${data}`);
+    }
+
+    @EmitOnSuccess({ transform: (res) => ({ greeting: res }) })
+    transformedMethod(data: string) {
+        return `Hello, ${data}`;
+    }
+}
 ```
+How It Works
+The decorator emits an event named ClassName.methodName when the method completes successfully. If the method returns a promise, the event is emitted after the promise resolves.
 
 or
 

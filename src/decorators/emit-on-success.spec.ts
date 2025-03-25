@@ -14,9 +14,25 @@ class ExampleService {
         return Promise.resolve(`Hello, ${data}`)
     }
 
+
+    @EmitOnSuccess()
+    syncMethodObj(data: string) {
+        return {greeting: `Hello, ${data}`}
+    }
+
+    @EmitOnSuccess()
+    async asyncMethodObj(data: string) {
+        return Promise.resolve({greeting: `Hello, ${data}`})
+    }
+
     @EmitOnSuccess({transform: (res) => ({greeting: res})})
     transformedMethod(data: string) {
         return `Hello, ${data}`
+    }
+
+    @EmitOnSuccess({transform: (res) => ({greeting: res.greeting})})
+    transformedMethodObj(data: string) {
+        return {greeting: `Hello, ${data}`}
     }
 }
 
@@ -34,34 +50,93 @@ describe('EmitOnSuccess Decorator', () => {
 
     it('should emit event for sync method', () => {
         const result = service.syncMethod('John')
+        const result2 = service.syncMethodObj('Andy')
 
-        expect(result).toBe('Hello, John')
-        expect(globalEmitter.emit).toHaveBeenCalledTimes(1)
-        expect(globalEmitter.emit).toHaveBeenCalledWith(
-            'ExampleService.syncMethod',
-            'Hello, John'
-        )
+        expect({
+            result,
+            result2,
+            emitCalls: (globalEmitter.emit as any).mock.calls
+        }).toMatchInlineSnapshot(`
+{
+  "emitCalls": [
+    [
+      "ExampleService.syncMethod",
+      "Hello, John",
+    ],
+    [
+      "ExampleService.syncMethodObj",
+      {
+        "greeting": "Hello, Andy",
+      },
+    ],
+  ],
+  "result": "Hello, John",
+  "result2": {
+    "greeting": "Hello, Andy",
+  },
+}
+`)
     })
 
     it('should emit event for async method', async () => {
         const result = await service.asyncMethod('Jane')
+        const result2 = await service.asyncMethodObj('Jane')
 
-        expect(result).toBe('Hello, Jane')
-        expect(globalEmitter.emit).toHaveBeenCalledTimes(1)
-        expect(globalEmitter.emit).toHaveBeenCalledWith(
-            'ExampleService.asyncMethod',
-            'Hello, Jane'
-        )
+        expect({
+            result,
+            result2,
+            emitCalls: (globalEmitter.emit as any).mock.calls
+        }).toMatchInlineSnapshot(`
+{
+  "emitCalls": [
+    [
+      "ExampleService.asyncMethod",
+      "Hello, Jane",
+    ],
+    [
+      "ExampleService.asyncMethodObj",
+      {
+        "greeting": "Hello, Jane",
+      },
+    ],
+  ],
+  "result": "Hello, Jane",
+  "result2": {
+    "greeting": "Hello, Jane",
+  },
+}
+`)
     })
 
     it('should apply transform before emitting', () => {
         const result = service.transformedMethod('Bob')
+        const result2 = service.transformedMethodObj('Bob')
 
-        expect(result).toBe('Hello, Bob')
-        expect(globalEmitter.emit).toHaveBeenCalledTimes(1)
-        expect(globalEmitter.emit).toHaveBeenCalledWith(
-            'ExampleService.transformedMethod',
-            {greeting: 'Hello, Bob'}
-        )
+        expect({
+  result,
+  result2,
+  emitCalls: (globalEmitter.emit as any).mock.calls
+}).toMatchInlineSnapshot(`
+{
+  "emitCalls": [
+    [
+      "ExampleService.transformedMethod",
+      {
+        "greeting": "Hello, Bob",
+      },
+    ],
+    [
+      "ExampleService.transformedMethodObj",
+      {
+        "greeting": "Hello, Bob",
+      },
+    ],
+  ],
+  "result": "Hello, Bob",
+  "result2": {
+    "greeting": "Hello, Bob",
+  },
+}
+`)
     })
 })
