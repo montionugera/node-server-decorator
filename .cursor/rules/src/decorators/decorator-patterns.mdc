@@ -1,0 +1,49 @@
+---
+description: Specific patterns for method decorators in the decorators directory
+globs: ["src/decorators/**/*.ts"]
+alwaysApply: false
+---
+
+# 🎯 Decorator Implementation Patterns
+
+## Standard Decorator Structure
+```typescript
+export function decoratorName(options?: DecoratorOptions) {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    const originalMethod = descriptor.value;
+    
+    descriptor.value = async function (...args: any[]) {
+      // Pre-execution logic
+      try {
+        const result = await originalMethod.apply(this, args);
+        // Post-execution logic
+        return result;
+      } catch (error) {
+        // Error handling
+        throw error;
+      } finally {
+        // Cleanup logic
+      }
+    };
+    
+    return descriptor;
+  };
+}
+```
+
+## Required Imports
+- Import `globalLogger` for error logging
+- Import `globalTracker` for metrics collection
+- Use relative imports for project utilities
+
+## Key Generation
+- Always use format: `${target.constructor.name}.${propertyKey}`
+- Include method arguments in cache keys when needed
+- Keep keys consistent across decorators
+
+## Async/Sync Handling
+- Check `originalMethod.constructor.name.includes('AsyncFunction')` for async detection
+- Handle both patterns in cache decorator
+- Always await async methods properly
+
+@decorator-template.ts

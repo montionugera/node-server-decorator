@@ -1,0 +1,44 @@
+---
+description: Jest testing standards for decorator testing
+globs: ["**/*.spec.ts", "**/*.test.ts"]
+alwaysApply: false
+---
+
+# 🧪 Testing Standards
+
+## Test Structure
+- Use `describe` blocks for grouping related tests
+- Test both sync and async method decoration
+- Create mock classes for testing decorators
+- Verify original method behavior is preserved
+
+## Required Test Cases
+- Test successful method execution
+- Test error handling and propagation
+- Test metric collection (latency, error tracking)
+- Test decorator options and configuration
+- Test both sync and async methods when applicable
+
+## Mock Patterns
+```typescript
+const mockLogger = {
+  error: jest.fn(),
+  info: jest.fn(),
+  debug: jest.fn()
+};
+
+const mockTracker = {
+  track: jest.fn()
+};
+```
+
+## Assertions
+- Verify original method was called with correct arguments
+- Check error logging when methods throw
+- Validate tracker calls with correct parameters
+- Ensure decorated methods return expected results
+
+## Test Naming
+- Use descriptive test names: "should track latency when method succeeds"
+- Group by decorator functionality
+- Include edge cases: "should handle methods that throw errors"
