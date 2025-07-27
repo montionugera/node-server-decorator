@@ -1,0 +1,114 @@
+name: 🚀 Publish Package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 📋 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run tests
+        run: npm test
+
+      - name: 🔨 Build package
+        run: npm run build
+
+      - name: ✅ Verify dist files
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed - dist directory not found"
+            exit 1
+          fi
+          if [ ! -f "dist/index.js" ]; then
+            echo "❌ Build failed - index.js not found"
+            exit 1
+          fi
+          if [ ! -f "dist/index.d.ts" ]; then
+            echo "❌ Build failed - index.d.ts not found"
+            exit 1
+          fi
+          echo "✅ Build verification passed"
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 📋 Install dependencies
+        run: npm ci
+
+      - name: 🔨 Build package
+        run: npm run build
+
+      - name: 🔍 Check if version changed
+        id: version-check
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if this version exists on NPM
+          if npm view server-decorator@$CURRENT_VERSION version 2>/dev/null; then
+            echo "version-exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Version $CURRENT_VERSION already exists on NPM"
+          else
+            echo "version-exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Version $CURRENT_VERSION is new, ready to publish"
+          fi
+
+      - name: 🚀 Publish to NPM
+        if: steps.version-check.outputs.version-exists == 'false'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: 📢 Create Release
+        if: steps.version-check.outputs.version-exists == 'false'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version-check.outputs.current-version }}
+          release_name: Release v${{ steps.version-check.outputs.current-version }}
+          body: |
+            🎉 **New Release: v${{ steps.version-check.outputs.current-version }}**
+            
+            📦 Published to NPM: `npm install server-decorator@${{ steps.version-check.outputs.current-version }}`
+            
+            ## Changes
+            - Auto-generated from commit: ${{ github.sha }}
+            
+            ## Installation
+            ```bash
+            npm install server-decorator@latest
+            ```
+          draft: false
+          prerelease: false
+
+      - name: ⏭️ Skip publish
+        if: steps.version-check.outputs.version-exists == 'true'
+        run: echo "📋 Skipping publish - version already exists on NPM" 
