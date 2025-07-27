@@ -4,7 +4,6 @@
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
-    "emitDeclarationOnly": true,
     "module": "commonjs",
     "target": "es6",
     "strict": true,
