@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+  packages: write
+  pull-requests: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -88,26 +93,25 @@ jobs:
 
       - name: 📢 Create Release
         if: steps.version-check.outputs.version-exists == 'false'
-        uses: actions/create-release@v1
+        run: |
+          git tag v${{ steps.version-check.outputs.current-version }}
+          git push origin v${{ steps.version-check.outputs.current-version }}
+          
+          gh release create v${{ steps.version-check.outputs.current-version }} \
+            --title "Release v${{ steps.version-check.outputs.current-version }}" \
+            --notes "🎉 **New Release: v${{ steps.version-check.outputs.current-version }}**
+
+          📦 Published to NPM: \`npm install server-decorator@${{ steps.version-check.outputs.current-version }}\`
+
+          ## Changes
+          - Auto-generated from commit: ${{ github.sha }}
+
+          ## Installation
+          \`\`\`bash
+          npm install server-decorator@latest
+          \`\`\`"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.version-check.outputs.current-version }}
-          release_name: Release v${{ steps.version-check.outputs.current-version }}
-          body: |
-            🎉 **New Release: v${{ steps.version-check.outputs.current-version }}**
-            
-            📦 Published to NPM: `npm install server-decorator@${{ steps.version-check.outputs.current-version }}`
-            
-            ## Changes
-            - Auto-generated from commit: ${{ github.sha }}
-            
-            ## Installation
-            ```bash
-            npm install server-decorator@latest
-            ```
-          draft: false
-          prerelease: false
 
       - name: ⏭️ Skip publish
         if: steps.version-check.outputs.version-exists == 'true'
