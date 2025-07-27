@@ -3,7 +3,7 @@
 
 # Server Decorator
 
-A TypeScript library for server-side decorators.
+A TypeScript library for server-side decorators with support for tracking, caching, events, and queuing.
 
 ## Installation
 
@@ -19,91 +19,176 @@ or
 yarn add server-decorator
 ```
 
+## Features
+
+- 🔍 **Method Tracking** - Track execution time and errors
+- 💾 **Method Caching** - Cache method results with TTL
+- 📢 **Event Emission** - Emit events on successful method execution  
+- 🚀 **Queue Publishing** - Publish to queues (Redis, RabbitMQ, etc.)
+- 🎯 **TypeScript Support** - Full type safety
+- 🧪 **Well Tested** - Comprehensive test coverage
+
 ## Usage
 
 ### Importing the Decorators
 
 ```typescript
-import { cache, tracking } from 'server-decorator';
+import { 
+  tracking, 
+  cache, 
+  EmitOnSuccess,
+  setGlobalQueue,
+  BullMQAdapter 
+} from 'server-decorator';
 ```
 
-### Example
+## Decorators
 
-#### Cache Decorator
+### 🔍 Tracking Decorator
 
-```typescript
-import { cache } from 'server-decorator';
-
-class ExampleService {
-  @cache()
-  getData() {
-    // Your implementation here
-  }
-}
-```
-
-#### Tracking Decorator
+Track method execution time and errors:
 
 ```typescript
 import { tracking } from 'server-decorator';
 
 class ExampleService {
-  @tracking()
-  trackData() {
+  @tracking
+  async getData() {
     // Your implementation here
+    return { data: 'example' };
   }
 }
 ```
-### EmitOnSuccess Decorator
 
-The `EmitOnSuccess` decorator emits an event whenever the decorated method completes successfully.
+### 💾 Cache Decorator
 
-```ts
+Cache method results with TTL:
 
-import { EmitOnSuccess } from 'server-decorator';
+```typescript
+import { cache } from 'server-decorator';
 
 class ExampleService {
-    @EmitOnSuccess()
-    syncMethod(data: string) {
-        return `Hello, ${data}`;
-    }
-
-    @EmitOnSuccess()
-    async asyncMethod(data: string) {
-        return Promise.resolve(`Hello, ${data}`);
-    }
-
-    @EmitOnSuccess({ transform: (res) => ({ greeting: res }) })
-    transformedMethod(data: string) {
-        return `Hello, ${data}`;
-    }
+  @cache(cacheAdapter, 300) // 5 minutes TTL
+  async getData() {
+    // Expensive operation
+    return { data: 'cached result' };
+  }
 }
 ```
-How It Works
-The decorator emits an event named ClassName.methodName when the method completes successfully. If the method returns a promise, the event is emitted after the promise resolves.
 
-or
+### 📢 EmitOnSuccess Decorator
 
-```sh
-yarn run test
+Emit events and/or publish to queues when methods succeed:
+
+#### Basic Event Emission
+```typescript
+import { EmitOnSuccess } from 'server-decorator';
+
+class UserService {
+  @EmitOnSuccess()
+  async createUser(userData: any) {
+    // Creates user and emits 'UserService.createUser' event
+    return { id: 1, ...userData };
+  }
+}
 ```
 
-## Publishing
-
-To publish the package, use the following command:
-
-```sh
-npm run publish-package
+#### Queue Publishing Only
+```typescript
+class UserService {
+  @EmitOnSuccess({ 
+    useQueue: true, 
+    useEvents: false,
+    queueMetadata: { priority: 'high' }
+  })
+  async sendWelcomeEmail(userId: number) {
+    // Publishes to queue instead of emitting event
+    return { sent: true, userId };
+  }
+}
 ```
 
-or
-
-```sh
-yarn run publish-package
+#### Both Events and Queues
+```typescript
+class UserService {
+  @EmitOnSuccess({ 
+    useQueue: true, 
+    useEvents: true,
+    transform: (result) => ({ ...result, processed: true }),
+    queueMetadata: { source: 'user-service' }
+  })
+  async updateProfile(userId: number, data: any) {
+    // Both emits event AND publishes to queue
+    return { userId, ...data };
+  }
+}
 ```
 
-Make sure you have configured your npm token in the `.npmrc` file.
+## Queue Configuration
+
+### Redis/BullMQ Setup
+```typescript
+import { Queue } from 'bullmq';
+import { BullMQAdapter, setGlobalQueue } from 'server-decorator';
+
+const redisQueue = new Queue('events', {
+  connection: { host: 'localhost', port: 6379 }
+});
+
+const queueAdapter = new BullMQAdapter(redisQueue);
+setGlobalQueue(queueAdapter);
+```
+
+### RabbitMQ Setup
+```typescript
+import amqp from 'amqplib';
+import { RabbitMQAdapter, setGlobalQueue } from 'server-decorator';
+
+const connection = await amqp.connect('amqp://localhost');
+const channel = await connection.createChannel();
+await channel.assertQueue('events', { durable: true });
+
+const queueAdapter = new RabbitMQAdapter(channel, 'events');
+setGlobalQueue(queueAdapter);
+```
+
+### In-Memory Queue (Testing)
+```typescript
+import { InMemoryQueueAdapter, setGlobalQueue } from 'server-decorator';
+
+const queueAdapter = new InMemoryQueueAdapter();
+setGlobalQueue(queueAdapter);
+```
+
+## Configuration
+
+### Global Logger
+```typescript
+import { setGlobalLogger } from 'server-decorator';
+
+setGlobalLogger({
+  debug: (msg) => console.debug(msg),
+  info: (msg) => console.info(msg),
+  warn: (msg) => console.warn(msg),
+  error: (msg) => console.error(msg),
+});
+```
+
+### Global Tracker
+```typescript
+import { setGlobalTracker } from 'server-decorator';
+
+setGlobalTracker({
+  track: (key: string, latency: number, isError: boolean) => {
+    // Send metrics to your monitoring system
+  }
+});
+```
+
+## TypeScript Support
+
+All decorators are fully typed and provide excellent TypeScript intellisense and type checking.
 
 ## License
 
-This project is licensed under the ISC License.
+ISC
