@@ -21,7 +21,7 @@ jobs:
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: 8
+        version: 9
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -68,7 +68,7 @@ jobs:
     - name: Setup pnpm
       uses: pnpm/action-setup@v4
       with:
-        version: 8
+        version: 9
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -139,7 +139,7 @@ jobs:
   notify-slack:
     needs: [build-and-test, publish]
     runs-on: ubuntu-latest
-    if: always() && needs.publish.result == 'success'
+    if: always() && needs.publish.result == 'success' && vars.SLACK_WEBHOOK_URL != ''
 
     steps:
     - name: Notify Slack on Success
@@ -196,7 +196,7 @@ jobs:
   notify-slack-failure:
     needs: [build-and-test, publish]
     runs-on: ubuntu-latest
-    if: always() && (needs.build-and-test.result == 'failure' || needs.publish.result == 'failure')
+    if: always() && (needs.build-and-test.result == 'failure' || needs.publish.result == 'failure') && vars.SLACK_WEBHOOK_URL != ''
 
     steps:
     - name: Notify Slack on Failure
