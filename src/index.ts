@@ -1,21 +1,35 @@
+// Decorators
 export { tracking } from './decorators/tracking';
 export { cache } from './decorators/cache';
 export { EmitOnSuccess } from './decorators/emit-on-success';
-export { globalLogger, setGlobalLogger } from './logger';
-export { globalTracker, setGlobalTracker } from './tracker';
 
-// Queue functionality
+// Global utilities
+export { setGlobalLogger, globalLogger } from './logger';
+export { setGlobalTracker, globalTracker } from './tracker';
+export { globalEmitter } from './decorators/global-emitter';
+
+// Queue system
 export { 
   globalQueue, 
   setGlobalQueue, 
-  hasGlobalQueue,
-  QueueAdapter,
-  QueueMessage,
-  NoOpQueueAdapter 
+  hasGlobalQueue, 
+  QueueAdapter, 
+  QueueMessage 
 } from './decorators/global-queue';
 
 export { 
+  QueueRegistry,
+  QueueConfig,
+  globalQueueRegistry 
+} from './decorators/queue-registry';
+
+// Queue adapters
+export { 
   BullMQAdapter, 
   RabbitMQAdapter, 
+  KafkaAdapter,
   InMemoryQueueAdapter 
 } from './decorators/queue-adapters';
+
+// NoOp adapter for fallback
+export { NoOpQueueAdapter } from './decorators/global-queue';
