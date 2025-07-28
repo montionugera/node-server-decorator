@@ -1,149 +1,218 @@
 # Integration Tests
 
-This directory contains integration tests for the server-decorator library using real infrastructure.
+This directory contains end-to-end (e2e) integration tests that validate the complete decorator workflow with real external services.
 
-## Prerequisites
+## 📁 Test Files
 
-- Docker (for Testcontainers)
-- pnpm package manager
-- Node.js 20+
+### `emit-on-success-redis-testcontainers.e2e.spec.ts`
+**Purpose**: Tests `@EmitOnSuccess` decorator with real Redis containers via Testcontainers
+- 🐳 Spins up actual Redis container
+- 🔄 Tests BullMQ job processing
+- 🎯 Validates topic routing
+- ⚡ Tests high-volume concurrent processing
+- 🛡️ Error handling and recovery scenarios
 
-## Dependencies Installed
+### `queue-registry-redis-integration.e2e.spec.ts`
+**Purpose**: Tests QueueRegistry and BullMQ adapter integration without complex decorator stacking
+- 📊 Direct queue registry API testing
+- 🚀 BullMQ adapter feature validation
+- 🎯 Multi-topic message routing
+- ⏱️ Performance and latency measurement
+- 🛡️ Error resilience testing
 
-```bash
-pnpm add -D testcontainers bullmq amqplib @types/amqplib
+### `multi-decorator-workflow.e2e.spec.ts`  
+**Purpose**: Tests complete workflows with multiple decorators using in-memory queues
+- 🛒 E-commerce order flow simulation
+- 📚 Multiple decorator stacking (`@tracking`, `@cache`, `@EmitOnSuccess`)
+- 🎛️ Multi-queue configuration testing
+- 💾 In-memory queue validation (no Docker required)
+
+## 🏗️ Test Infrastructure
+
+### Prerequisites
+- **Docker**: Required for Testcontainers-based tests
+- **Node.js 20+**: For running tests
+- **pnpm**: Package manager
+
+### Dependencies
+```json
+{
+  "testcontainers": "^11.4.0",
+  "bullmq": "^5.34.0",
+  "amqplib": "^0.10.4",
+  "kafkajs": "^2.2.4"
+}
 ```
 
-## Test Infrastructure
+## 🚀 Running Tests
 
-### Testcontainers
-- **Redis**: `redis:7-alpine` - for BullMQ queue testing
-- **RabbitMQ**: `rabbitmq:3-management-alpine` - for AMQP queue testing
-
-### Test Scenarios Planned
-
-#### 🔄 Queue Integration Tests
-- **Redis/BullMQ Integration**
-  - Real Redis container with BullMQ
-  - EmitOnSuccess decorator with queue publishing
-  - Job processing with workers
-  - Concurrent processing tests
-  - Error handling
-
-- **RabbitMQ Integration**  
-  - Real RabbitMQ container with AMQP
-  - Message publishing and consuming
-  - Durable queues and persistent messages
-  - Connection error handling
-
-#### 📊 Performance Tests
-- High-throughput processing (50+ concurrent operations)
-- Large payload handling (1000+ item datasets)
-- Memory usage with real infrastructure
-- Latency measurements
-
-#### 🎯 Multi-Decorator Integration
-- Combining `@tracking`, `@cache`, and `@EmitOnSuccess`
-- Decorator order verification
-- Error propagation through decorator stack
-
-## Running Integration Tests
-
-### Full Test Suite
+### All E2E Tests
 ```bash
-pnpm test
+pnpm test:e2e
 ```
 
-### Unit Tests Only
+### Specific Test Suites
 ```bash
-pnpm jest --selectProjects unit
+# Redis-specific tests (requires Docker)
+pnpm test:e2e:redis
+
+# Multi-decorator workflow (no Docker required)
+pnpm test:e2e --testPathPattern=multi-decorator
+
+# Queue registry integration  
+pnpm test:e2e --testPathPattern=queue-registry
 ```
 
-### Integration Tests Only  
+### Individual Test Files
 ```bash
-pnpm jest --selectProjects integration
+# EmitOnSuccess + Redis + Testcontainers
+pnpm test:e2e --testPathPattern=emit-on-success-redis-testcontainers
+
+# Queue Registry + Redis integration
+pnpm test:e2e --testPathPattern=queue-registry-redis-integration
+
+# Multi-decorator workflows
+pnpm test:e2e --testPathPattern=multi-decorator-workflow
 ```
 
-### With Docker Containers
-```bash
-# Ensure Docker is running
-docker info
+## 📊 Test Scenarios
 
-# Run integration tests (will start containers automatically)
-pnpm jest src/integration --testTimeout=60000
+### 🛒 E-Commerce Flow
+1. **Order Creation** → `@EmitOnSuccess` → Redis queue → `orders` topic
+2. **Payment Processing** → Transform → Redis queue → `payments` topic  
+3. **Analytics Tracking** → Queue only → `analytics` topic
+4. **Notifications** → Events + Queue → `notifications` topic
+
+### 🔄 Error Scenarios
+- Redis connection failures
+- Invalid queue configurations
+- Decorator method errors
+- High-volume stress testing
+
+### ⚡ Performance Tests
+- **Concurrent Processing**: 25+ simultaneous operations
+- **Latency Measurement**: End-to-end timing
+- **Throughput Testing**: High-volume message handling
+- **Memory Usage**: Resource efficiency validation
+
+## 🐳 Docker Setup
+
+### Redis Container
+```javascript
+const redisContainer = await new GenericContainer('redis:7-alpine')
+  .withExposedPorts(6379)
+  .withWaitStrategy(Wait.forLogMessage('Ready to accept connections'))
+  .start();
 ```
 
-## Manual Integration Testing
-
-### Redis Setup
-```bash
-# Start Redis container
-docker run -d -p 6379:6379 redis:7-alpine
-
-# Test with BullMQ
-node -e "
-const { Queue } = require('bullmq');
-const { BullMQAdapter, setGlobalQueue } = require('./dist/index');
-
-const queue = new Queue('test', { connection: { host: 'localhost', port: 6379 } });
-const adapter = new BullMQAdapter(queue);
-setGlobalQueue(adapter);
-console.log('Redis integration ready');
-"
+### RabbitMQ Container (Future)
+```javascript
+const rabbitmqContainer = await new GenericContainer('rabbitmq:3-management')
+  .withExposedPorts(5672, 15672)
+  .withEnvironment({
+    RABBITMQ_DEFAULT_USER: 'admin',
+    RABBITMQ_DEFAULT_PASS: 'password'
+  })
+  .start();
 ```
 
-### RabbitMQ Setup
-```bash
-# Start RabbitMQ container
-docker run -d -p 5672:5672 -p 15672:15672 \
-  -e RABBITMQ_DEFAULT_USER=admin \
-  -e RABBITMQ_DEFAULT_PASS=admin \
-  rabbitmq:3-management-alpine
+## 📈 Test Architecture
 
-# Access management UI: http://localhost:15672 (admin/admin)
-
-# Test with AMQP
-node -e "
-const amqp = require('amqplib');
-const { RabbitMQAdapter, setGlobalQueue } = require('./dist/index');
-
-(async () => {
-  const conn = await amqp.connect('amqp://admin:admin@localhost');
-  const channel = await conn.createChannel();
-  const adapter = new RabbitMQAdapter(channel, 'test-queue');
-  setGlobalQueue(adapter);
-  console.log('RabbitMQ integration ready');
-})();
-"
+```
+E2E Tests
+├── Testcontainers Layer
+│   ├── Redis (BullMQ)
+│   ├── RabbitMQ (planned)
+│   └── Kafka (planned)
+├── Integration Layer  
+│   ├── QueueRegistry
+│   ├── Queue Adapters
+│   └── Topic Routing
+└── Decorator Layer
+    ├── @EmitOnSuccess
+    ├── @tracking
+    └── @cache
 ```
 
-## Current Status
+## 🎯 Test Coverage
 
-✅ **Dependencies Installed**: testcontainers, bullmq, amqplib  
-✅ **Jest Configuration**: Extended timeouts for container tests  
-✅ **Test Architecture**: Separate unit and integration test projects  
-⏳ **Test Implementation**: Ready for development  
+### ✅ Currently Implemented
+- **Redis/BullMQ Integration**: Full workflow testing
+- **Queue Registry**: Multi-queue management
+- **Topic Routing**: Message organization
+- **Error Handling**: Graceful degradation
+- **Performance**: Concurrent processing
 
-## Implementation Notes
+### 🚧 Planned Extensions
+- **RabbitMQ Integration**: AMQP message testing
+- **Kafka Integration**: Stream processing validation
+- **Database Integration**: Persistent cache testing
+- **Load Testing**: Stress and performance limits
 
-- TypeScript decorator stacking requires careful type handling
-- Testcontainers handle automatic container lifecycle
-- Tests run sequentially to avoid resource conflicts
-- Extended timeouts account for container startup time
-- Error scenarios test graceful degradation
+## 🎛️ Configuration
 
-## Benefits of Integration Testing
+### Jest Configuration
+```javascript
+projects: [
+  {
+    displayName: 'e2e',
+    testMatch: ['<rootDir>/src/integration/**/*.e2e.spec.ts'],
+    testTimeout: 60000,
+    preset: 'ts-jest',
+    testEnvironment: 'node'
+  }
+]
+```
 
-1. **Real Infrastructure**: Tests against actual Redis/RabbitMQ
-2. **Confidence**: Validates decorator behavior in real conditions  
-3. **Performance**: Measures actual throughput and latency
-4. **Error Handling**: Tests connection failures and recovery
-5. **Compatibility**: Ensures queue adapter implementations work
+### Running Specific Tests
+```bash
+# Test naming pattern: {feature}-{technology}-{type}.e2e.spec.ts
+# Examples:
+# - emit-on-success-redis-testcontainers.e2e.spec.ts
+# - queue-registry-redis-integration.e2e.spec.ts  
+# - multi-decorator-workflow.e2e.spec.ts
+```
 
-## Future Enhancements
+## 🏃‍♂️ Manual Testing Setup
 
-- [ ] Implement actual test cases
-- [ ] Add Kafka integration tests
-- [ ] Performance benchmarking
-- [ ] Chaos engineering scenarios
-- [ ] Multi-service integration tests 
+### Local Redis
+```bash
+# Start Redis locally
+docker run -d --name test-redis -p 6379:6379 redis:7-alpine
+
+# Run integration tests
+pnpm test:e2e:redis
+
+# Cleanup
+docker stop test-redis && docker rm test-redis
+```
+
+## 📋 Current Status
+
+### ✅ Implemented
+- **Test Infrastructure**: Complete setup with Testcontainers
+- **Redis Integration**: Full BullMQ workflow testing
+- **Multi-Queue Support**: QueueRegistry validation
+- **Performance Testing**: Concurrent and latency tests
+- **Error Scenarios**: Connection failures and recovery
+
+### 🎯 Benefits
+- **Real Infrastructure**: Tests against actual services
+- **Comprehensive Coverage**: Full decorator workflow validation
+- **CI/CD Ready**: Automated testing in GitHub Actions
+- **Performance Validation**: Actual throughput and latency measurement
+- **Production Confidence**: Real-world scenario testing
+
+## 🔧 Implementation Notes
+
+### Testcontainers Best Practices
+- **Container Lifecycle**: Proper startup/shutdown in `beforeAll`/`afterAll`
+- **Port Mapping**: Dynamic port allocation for parallel tests
+- **Wait Strategies**: Ensure services are ready before testing
+- **Resource Cleanup**: Automatic container cleanup on test completion
+
+### Performance Considerations
+- **Sequential Execution**: E2E tests run one at a time (`maxConcurrency: 1`)
+- **Longer Timeouts**: 60-second timeout for container startup
+- **Resource Management**: Proper cleanup to prevent resource leaks
+- **Parallel Testing**: Unit tests run separately from E2E tests 
