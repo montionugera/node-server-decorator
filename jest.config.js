@@ -7,6 +7,22 @@ module.exports = {
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
-  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/integration/'],
-  testTimeout: 10000
+  // Configure different test patterns
+  projects: [
+    {
+      displayName: 'unit',
+      testMatch: ['<rootDir>/src/**/*.spec.ts'],
+      testPathIgnorePatterns: ['/node_modules/', '/dist/', '/integration/'],
+      testTimeout: 10000,
+      preset: 'ts-jest',
+      testEnvironment: 'node'
+    },
+    {
+      displayName: 'e2e',
+      testMatch: ['<rootDir>/src/integration/**/*.spec.ts'],
+      testTimeout: 60000,
+      preset: 'ts-jest',
+      testEnvironment: 'node'
+    }
+  ]
 };

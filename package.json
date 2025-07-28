@@ -10,6 +10,9 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
+    "test:unit": "jest --selectProjects unit",
+    "test:e2e": "jest --selectProjects e2e",
+    "test:e2e:redis": "jest --selectProjects e2e --testPathPattern=redis-e2e",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm test && pnpm run build",
