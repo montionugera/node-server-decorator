@@ -14,7 +14,7 @@ export interface QueueAdapter {
 
 export let globalQueue: QueueAdapter | null = null;
 
-export function setGlobalQueue(queue: QueueAdapter) {
+export function setGlobalQueue(queue: QueueAdapter | null) {
   globalQueue = queue;
 }
 
