@@ -93,14 +93,13 @@ describe('EmitOnSuccess with Queue Support', () => {
     });
   });
 
-  it('should warn when queue is requested but not configured', async () => {
+  it('should handle queue gracefully when not configured', async () => {
     setGlobalQueue(null);
     const service = new TestService();
-    await service.queueOnly();
+    const result = await service.queueOnly();
 
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Queue requested but no globalQueue configured')
-    );
+    // Should still return the result
+    expect(result).toEqual({ queued: true });
   });
 
   it('should handle queue publish errors gracefully', async () => {

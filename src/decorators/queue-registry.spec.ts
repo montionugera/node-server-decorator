@@ -121,8 +121,8 @@ describe('QueueRegistry', () => {
       expect(messages[0]).toEqual(message);
     });
 
-    it('should publish message with topic', async () => {
-             const message = {
+         it('should publish message with topic', async () => {
+       const message = {
          eventName: 'test.event',
          payload: { test: true },
          timestamp: Date.now(),
@@ -131,10 +131,14 @@ describe('QueueRegistry', () => {
 
        await registry.publish(message, 'test-queue', 'user-events');
 
-       const messages = adapter.getMessages();
-       expect(messages).toHaveLength(1);
-       expect(messages[0].metadata?.topic).toBe('user-events');
-    });
+       // Check messages in 'user-events' topic since that's where it gets routed
+       const defaultMessages = adapter.getMessages('default');
+       const topicMessages = adapter.getMessages('user-events');
+       
+       // Should be in the user-events topic
+       expect(topicMessages).toHaveLength(1);
+       expect(topicMessages[0].metadata?.topic).toBe('user-events');
+     });
 
     it('should handle publishing to non-existent queue', async () => {
              const message = {
