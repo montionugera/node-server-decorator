@@ -3,11 +3,9 @@
 
 # Server Decorator
 
-A TypeScript library for server-side decorators with support for tracking, caching, events, and queuing.
+A TypeScript library for server-side decorators with support for tracking, caching, events, and multi-queue messaging.
 
 ## Installation
-
-To install the package, use npm or yarn:
 
 ```sh
 # pnpm (recommended)
@@ -20,113 +18,128 @@ npm install server-decorator
 yarn add server-decorator
 ```
 
-or
-
-```sh
-yarn add server-decorator
-```
-
 ## Features
 
 - 🔍 **Method Tracking** - Track execution time and errors
 - 💾 **Method Caching** - Cache method results with TTL
 - 📢 **Event Emission** - Emit events on successful method execution  
-- 🚀 **Queue Publishing** - Publish to queues (Redis, RabbitMQ, etc.)
-- 🎯 **TypeScript Support** - Full type safety
-- 🧪 **Well Tested** - Comprehensive test coverage
+- 🚀 **Queue Publishing** - Publish to multiple queues (Redis, RabbitMQ, Kafka)
+- 🎯 **Multi-Queue Support** - Route messages to different queue backends
+- 📊 **Topic Routing** - Organize messages by topics within queues
+- ⚡ **Performance Optimized** - Built with pnpm and modern tooling
+- 🧪 **Well Tested** - Unit tests + E2E tests with real infrastructure
+- 🎨 **TypeScript Support** - Full type safety
+
+## Quick Start
+
+```typescript
+import { tracking, cache, EmitOnSuccess, globalQueueRegistry, BullMQAdapter } from 'server-decorator';
+import { Queue } from 'bullmq';
+
+// Setup Redis queue
+const redisQueue = new Queue('events', { connection: { host: 'localhost', port: 6379 } });
+globalQueueRegistry.register('redis', new BullMQAdapter(redisQueue));
+
+class OrderService {
+  @tracking
+  @cache({ ttl: 300 })
+  @EmitOnSuccess({ 
+    queue: 'redis',
+    topic: 'orders',
+    useQueue: true,
+    useEvents: true 
+  })
+  async createOrder(customerId: string, items: any[], total: number) {
+    // Your business logic
+    return {
+      id: `ord-${Date.now()}`,
+      customerId,
+      items,
+      total,
+      status: 'created'
+    };
+  }
+}
+```
 
 ## Usage
 
-### Importing the Decorators
+### Basic Decorators
 
 ```typescript
-import { 
-  tracking, 
-  cache, 
-  EmitOnSuccess,
-  setGlobalQueue,
-  BullMQAdapter 
-} from 'server-decorator';
-```
+import { tracking, cache } from 'server-decorator';
 
-## Decorators
-
-### 🔍 Tracking Decorator
-
-Track method execution time and errors:
-
-```typescript
-import { tracking } from 'server-decorator';
-
-class ExampleService {
+class MyService {
   @tracking
-  async getData() {
-    // Your implementation here
-    return { data: 'example' };
+  async processData(data: any) {
+    // Automatically tracks execution time and errors
+    return processedData;
+  }
+
+  @cache({ ttl: 300 }) // Cache for 5 minutes
+  async expensiveOperation(id: string) {
+    // Result cached automatically
+    return await heavyComputation(id);
   }
 }
 ```
 
-### 💾 Cache Decorator
+### Event Emission
 
-Cache method results with TTL:
-
-```typescript
-import { cache } from 'server-decorator';
-
-class ExampleService {
-  @cache(cacheAdapter, 300) // 5 minutes TTL
-  async getData() {
-    // Expensive operation
-    return { data: 'cached result' };
-  }
-}
-```
-
-### 📢 EmitOnSuccess Decorator
-
-Emit events and/or publish to queues when methods succeed:
-
-#### Basic Event Emission
 ```typescript
 import { EmitOnSuccess } from 'server-decorator';
 
 class UserService {
-  @EmitOnSuccess()
+  @EmitOnSuccess() // Events only
   async createUser(userData: any) {
-    // Creates user and emits 'UserService.createUser' event
-    return { id: 1, ...userData };
+    return newUser;
   }
-}
-```
 
-#### Queue Publishing Only
-```typescript
-class UserService {
   @EmitOnSuccess({ 
-    useQueue: true, 
-    useEvents: false,
-    queueMetadata: { priority: 'high' }
-  })
-  async sendWelcomeEmail(userId: number) {
-    // Publishes to queue instead of emitting event
-    return { sent: true, userId };
-  }
-}
-```
-
-#### Both Events and Queues
-```typescript
-class UserService {
-  @EmitOnSuccess({ 
-    useQueue: true, 
     useEvents: true,
-    transform: (result) => ({ ...result, processed: true }),
-    queueMetadata: { source: 'user-service' }
+    transform: (user) => ({ userId: user.id, email: user.email })
   })
-  async updateProfile(userId: number, data: any) {
-    // Both emits event AND publishes to queue
-    return { userId, ...data };
+  async updateProfile(userId: string, data: any) {
+    return updatedUser;
+  }
+}
+```
+
+### Multi-Queue Configuration
+
+```typescript
+import { globalQueueRegistry, BullMQAdapter, RabbitMQAdapter } from 'server-decorator';
+
+// Setup multiple queues
+globalQueueRegistry.register('analytics', {
+  adapter: new BullMQAdapter(redisQueue),
+  topics: ['user-events', 'page-views'],
+  priority: 1
+});
+
+globalQueueRegistry.register('notifications', {
+  adapter: new RabbitMQAdapter(rabbitmqChannel, 'notifications'),
+  topics: ['email', 'sms', 'push'],
+  priority: 2
+});
+
+class ECommerceService {
+  @EmitOnSuccess({ 
+    queue: 'analytics', 
+    topic: 'user-events',
+    useQueue: true 
+  })
+  async trackUserAction(userId: string, action: string) {
+    return { userId, action, timestamp: Date.now() };
+  }
+
+  @EmitOnSuccess({ 
+    queue: 'notifications', 
+    topic: 'email',
+    useQueue: true 
+  })
+  async sendWelcomeEmail(email: string) {
+    return { email, sent: true };
   }
 }
 ```
@@ -136,66 +149,135 @@ class UserService {
 ### Redis/BullMQ Setup
 ```typescript
 import { Queue } from 'bullmq';
-import { BullMQAdapter, setGlobalQueue } from 'server-decorator';
+import { BullMQAdapter, globalQueueRegistry } from 'server-decorator';
 
-const redisQueue = new Queue('events', {
+const queue = new Queue('my-events', {
   connection: { host: 'localhost', port: 6379 }
 });
 
-const queueAdapter = new BullMQAdapter(redisQueue);
-setGlobalQueue(queueAdapter);
+globalQueueRegistry.register('redis', new BullMQAdapter(queue));
+globalQueueRegistry.setDefault('redis');
 ```
 
 ### RabbitMQ Setup
 ```typescript
-import amqp from 'amqplib';
-import { RabbitMQAdapter, setGlobalQueue } from 'server-decorator';
+import * as amqp from 'amqplib';
+import { RabbitMQAdapter, globalQueueRegistry } from 'server-decorator';
 
 const connection = await amqp.connect('amqp://localhost');
 const channel = await connection.createChannel();
-await channel.assertQueue('events', { durable: true });
 
-const queueAdapter = new RabbitMQAdapter(channel, 'events');
-setGlobalQueue(queueAdapter);
+globalQueueRegistry.register('rabbitmq', new RabbitMQAdapter(channel, 'events'));
 ```
 
 ### In-Memory Queue (Testing)
 ```typescript
-import { InMemoryQueueAdapter, setGlobalQueue } from 'server-decorator';
+import { InMemoryQueueAdapter, globalQueueRegistry } from 'server-decorator';
 
-const queueAdapter = new InMemoryQueueAdapter();
-setGlobalQueue(queueAdapter);
+globalQueueRegistry.register('memory', new InMemoryQueueAdapter());
 ```
 
-## Configuration
+## Development
 
-### Global Logger
-```typescript
-import { setGlobalLogger } from 'server-decorator';
+### Package Manager
+This project uses **pnpm** for dependency management:
 
-setGlobalLogger({
-  debug: (msg) => console.debug(msg),
-  info: (msg) => console.info(msg),
-  warn: (msg) => console.warn(msg),
-  error: (msg) => console.error(msg),
-});
+```bash
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm test
+
+# Run unit tests only
+pnpm test:unit
+
+# Run e2e tests (requires Docker)
+pnpm test:e2e
+
+# Build
+pnpm run build
+
+# Development mode
+pnpm run dev
 ```
 
-### Global Tracker
-```typescript
-import { setGlobalTracker } from 'server-decorator';
+### Testing
 
-setGlobalTracker({
-  track: (key: string, latency: number, isError: boolean) => {
-    // Send metrics to your monitoring system
+#### Unit Tests
+```bash
+pnpm test:unit
+```
+Runs fast unit tests for all decorators and core functionality.
+
+#### E2E Tests
+```bash
+# Requires Docker to be running
+pnpm test:e2e
+
+# Redis-specific e2e tests
+pnpm test:e2e:redis
+```
+
+The E2E tests use **Testcontainers** to spin up real Redis and RabbitMQ instances, providing comprehensive integration testing.
+
+#### Test Infrastructure
+- **Unit Tests**: Jest with ts-jest for TypeScript
+- **E2E Tests**: Testcontainers for real infrastructure
+- **Coverage**: Comprehensive test coverage with real queue backends
+- **CI/CD**: GitHub Actions with pnpm for fast builds
+
+### Architecture
+
+#### Multi-Queue System
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   @EmitOnSuccess │───▶│  QueueRegistry  │───▶│   Queue Adapters │
+│   Decorator     │    │                 │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                              │                        │
+                              ▼                        ▼
+                       ┌─────────────┐         ┌─────────────┐
+                       │Topic Routing│         │Redis/RabbitMQ│
+                       │             │         │   /Kafka    │
+                       └─────────────┘         └─────────────┘
+```
+
+#### Decorator Stacking
+```typescript
+class Service {
+  @tracking           // 3. Performance monitoring
+  @cache({ ttl: 300 }) // 2. Caching layer  
+  @EmitOnSuccess({    // 1. Event/Queue publishing
+    useQueue: true,
+    topic: 'orders'
+  })
+  async processOrder(data: any) {
+    // Your business logic
   }
-});
+}
 ```
 
-## TypeScript Support
+## GitHub Actions & CI/CD
 
-All decorators are fully typed and provide excellent TypeScript intellisense and type checking.
+The project includes automated CI/CD with GitHub Actions:
+
+- **✅ Automated Testing**: Unit and E2E tests on every PR
+- **🚀 Auto-Publishing**: NPM package publishing on version changes
+- **⚡ pnpm Optimization**: Fast installs with intelligent caching
+- **🐳 Container Tests**: Real Redis/RabbitMQ testing in CI
+
+### Workflows
+- `.github/workflows/publish.yml` - Build, test, and publish
+- `.github/workflows/version-bump.yml` - Version management
+
+## Contributing
+
+1. Ensure Docker is running for E2E tests
+2. Use pnpm for dependency management
+3. Run `pnpm test` before committing
+4. Follow the existing decorator patterns
 
 ## License
 
-ISC
+MIT
