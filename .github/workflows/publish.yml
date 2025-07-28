@@ -139,11 +139,10 @@ jobs:
   notify-slack:
     needs: [build-and-test, publish]
     runs-on: ubuntu-latest
-    if: always() && needs.publish.result == 'success' && secrets.SLACK_WEBHOOK_URL != ''
+    if: always() && needs.publish.result == 'success'
 
     steps:
     - name: Notify Slack on Success
-      if: secrets.SLACK_WEBHOOK_URL != ''
       run: |
         curl -X POST -H 'Content-type: application/json' \
           --data '{
@@ -192,11 +191,10 @@ jobs:
   notify-slack-failure:
     needs: [build-and-test, publish]
     runs-on: ubuntu-latest
-    if: always() && (needs.build-and-test.result == 'failure' || needs.publish.result == 'failure') && secrets.SLACK_WEBHOOK_URL != ''
+    if: always() && (needs.build-and-test.result == 'failure' || needs.publish.result == 'failure')
 
     steps:
     - name: Notify Slack on Failure
-      if: secrets.SLACK_WEBHOOK_URL != ''
       run: |
         curl -X POST -H 'Content-type: application/json' \
           --data '{
