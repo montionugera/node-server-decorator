@@ -29,6 +29,7 @@ yarn add server-decorator
 - ⚡ **Performance Optimized** - Built with pnpm and modern tooling
 - 🧪 **Well Tested** - Unit tests + E2E tests with real infrastructure
 - 🎨 **TypeScript Support** - Full type safety
+- 💬 **Slack Notifications** - Automated release notifications to your team
 
 ## Quick Start
 
@@ -264,12 +265,28 @@ The project includes automated CI/CD with GitHub Actions:
 
 - **✅ Automated Testing**: Unit and E2E tests on every PR
 - **🚀 Auto-Publishing**: NPM package publishing on version changes
+- **💬 Slack Notifications**: Team notifications for releases and failures
 - **⚡ pnpm Optimization**: Fast installs with intelligent caching
 - **🐳 Container Tests**: Real Redis/RabbitMQ testing in CI
 
 ### Workflows
-- `.github/workflows/publish.yml` - Build, test, and publish
+- `.github/workflows/publish.yml` - Build, test, publish, and notify
 - `.github/workflows/version-bump.yml` - Version management
+
+### Slack Integration
+Get notified when new versions are published! The CI/CD pipeline automatically sends rich notifications to your Slack channels.
+
+```bash
+🚀 New Release Published!
+📦 Package: server-decorator v1.2.3
+📦 NPM: View on NPM
+💾 Install: pnpm add server-decorator@1.2.3
+📖 Release Notes: View Release Notes
+```
+
+**Setup Instructions**: See [`.github/SLACK_SETUP.md`](.github/SLACK_SETUP.md) for complete setup guide.
+
+**Required**: Add `SLACK_WEBHOOK_URL` secret to your GitHub repository settings.
 
 ## Contributing
 
