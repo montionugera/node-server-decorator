@@ -10,7 +10,14 @@ A TypeScript library for server-side decorators with support for tracking, cachi
 To install the package, use npm or yarn:
 
 ```sh
+# pnpm (recommended)
+pnpm add server-decorator
+
+# npm
 npm install server-decorator
+
+# yarn
+yarn add server-decorator
 ```
 
 or
