@@ -148,7 +148,9 @@ async function handleSuccess(
 
       // Use QueueRegistry for multi-queue support
       if (queueName || topic) {
-        await globalQueueRegistry.publish(message, queueName, topic);
+        // Auto-generate topic from ClassName.methodName if not specified
+        const autoTopic = topic || `${className}.${propertyKey}`;
+        await globalQueueRegistry.publish(message, queueName, autoTopic);
       } else {
         // Fallback to global queue for backward compatibility
         if (globalQueue) {
