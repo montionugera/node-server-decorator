@@ -377,18 +377,20 @@ describe('RabbitMQ E2E - Testcontainers', () => {
     it('should support routing keys and exchanges', async () => {
       // Create topic exchange
       const exchangeName = 'e2e-topic-exchange';
-      await channel.assertExchange(exchangeName, 'topic', { durable: false });
+      await channel.assertExchange(exchangeName, 'topic', { durable: false, autoDelete: true });
 
-      // Create queues bound to different routing patterns
-      await channel.assertQueue('e2e-orders-urgent', { durable: false });
-      await channel.assertQueue('e2e-orders-normal', { durable: false });
+      // Create queues bound to different routing patterns  
+      await channel.assertQueue('e2e-orders-urgent', { durable: false, autoDelete: true });
+      await channel.assertQueue('e2e-orders-normal', { durable: false, autoDelete: true });
       
       await channel.bindQueue('e2e-orders-urgent', exchangeName, 'orders.urgent.*');
       await channel.bindQueue('e2e-orders-normal', exchangeName, 'orders.normal.*');
 
       const adapter = new RabbitMQAdapter(channel, '', {
         exchange: exchangeName,
-        routingKeyPrefix: 'orders'
+        routingKeyPrefix: 'orders',
+        durable: false,
+        autoDelete: true
       });
 
       const urgentMessages: any[] = [];
@@ -414,14 +416,14 @@ describe('RabbitMQ E2E - Testcontainers', () => {
         eventName: 'UrgentOrder',
         payload: { priority: 'urgent' },
         timestamp: Date.now(),
-        metadata: { topic: 'urgent.payment' }
+        metadata: { topic: 'urgent' }
       });
 
       await adapter.publish({
         eventName: 'NormalOrder',
         payload: { priority: 'normal' },
         timestamp: Date.now(),
-        metadata: { topic: 'normal.creation' }
+        metadata: { topic: 'normal' }
       });
 
       // Wait for routing

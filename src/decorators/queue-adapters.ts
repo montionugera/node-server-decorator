@@ -64,8 +64,8 @@ export class RabbitMQAdapter implements QueueAdapter {
       
       // Create routing key from topic and event name
       const routingKey = topic 
-        ? `${routingKeyPrefix}${topic}.${message.eventName}`
-        : `${routingKeyPrefix}${message.eventName}`;
+        ? `${routingKeyPrefix}.${topic}.${message.eventName}`
+        : `${routingKeyPrefix}.${message.eventName}`;
       
       await this.channel.publish(
         exchange, 
