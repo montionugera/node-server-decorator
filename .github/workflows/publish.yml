@@ -15,6 +15,11 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    outputs:
+      version-changed: ${{ steps.version-check.outputs.version-changed }}
+      current-version: ${{ steps.version-check.outputs.current-version }}
+      published-version: ${{ steps.version-check.outputs.published-version }}
+
     steps:
     - uses: actions/checkout@v4
 
