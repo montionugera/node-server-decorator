@@ -64,7 +64,8 @@ export class QueueRegistry {
    * Publish to a specific queue with topic routing
    */
   async publish(message: QueueMessage, queueName?: string, topic?: string): Promise<void> {
-    const adapter = this.get(queueName);
+    const queueConfig = queueName ? this.queues.get(queueName) : (this.defaultQueue ? this.queues.get(this.defaultQueue) : null);
+    const adapter = queueConfig?.adapter;
     
     if (!adapter) {
       globalLogger.error(`❌ No queue available for: ${queueName || 'default'}`);
@@ -72,17 +73,20 @@ export class QueueRegistry {
     }
 
     try {
-      // Add topic to message if specified
-      const enrichedMessage = topic ? {
+      // Use provided topic, or fallback to queue's defaultTopic, or 'default'
+      const effectiveTopic = topic || queueConfig?.defaultTopic || 'default';
+      
+      // Add effective topic to message metadata
+      const enrichedMessage = {
         ...message,
         metadata: {
           ...message.metadata,
-          topic
+          topic: effectiveTopic
         }
-      } : message;
+      };
 
       await adapter.publish(enrichedMessage);
-      globalLogger.debug(`📮 Published to queue: ${queueName || 'default'}, topic: ${topic || 'default'}`);
+      globalLogger.debug(`📮 Published to queue: ${queueName || 'default'}, topic: ${effectiveTopic}`);
     } catch (error) {
       globalLogger.error(`❌ Failed to publish to queue '${queueName}': ${error}`);
     }

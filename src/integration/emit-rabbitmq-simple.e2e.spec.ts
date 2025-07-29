@@ -63,7 +63,7 @@ describe('🐰 EmitOnSuccess + RabbitMQ (Simple)', () => {
             @EmitOnSuccess({
                 useQueue: true,
                 queue: 'orders',
-                topic: 'orders',
+                // ✅ No topic needed - uses defaultTopic automatically!
                 queueMetadata: { test: true }
             })
             async processOrder(orderId: string): Promise<any> {
