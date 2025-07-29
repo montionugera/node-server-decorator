@@ -148,6 +148,13 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       });
 
       console.log('✅ RabbitMQ basic messaging test passed!');
+      
+      // Cleanup: Unregister to prevent contamination
+      try {
+        globalQueueRegistry.unregister('rabbitmq');
+      } catch (error) {
+        // Ignore unregister errors
+      }
     });
 
     it('should handle multiple queues with topic routing', async () => {
@@ -238,6 +245,15 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       expect(queueMessages.notifications[0].eventName).toBe('EmailQueued');
 
       console.log('✅ Multi-queue routing test passed!');
+      
+      // Cleanup: Unregister all test queues to prevent contamination
+      try {
+        globalQueueRegistry.unregister('orders-queue');
+        globalQueueRegistry.unregister('analytics-queue');
+        globalQueueRegistry.unregister('notifications-queue');
+      } catch (error) {
+        // Ignore unregister errors
+      }
     });
 
     it('should handle high-volume concurrent messaging', async () => {
@@ -290,6 +306,13 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       });
 
       console.log(`✅ Processed ${receivedMessages.length} messages in ${publishTime}ms`);
+      
+      // Cleanup: Unregister to prevent contamination
+      try {
+        globalQueueRegistry.unregister('rabbitmq');
+      } catch (error) {
+        // Ignore unregister errors
+      }
     });
   });
 
@@ -323,6 +346,13 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       );
 
       console.log('✅ RabbitMQ connection failure handling passed!');
+
+      // Cleanup: Unregister to prevent contamination
+      try {
+        globalQueueRegistry.unregister('rabbitmq');
+      } catch (error) {
+        // Ignore unregister errors
+      }
 
       // Reconnect for cleanup
       const amqpPort = rabbitmqContainer.getMappedPort(5672);
@@ -494,6 +524,13 @@ describe('RabbitMQ E2E - Testcontainers', () => {
 
       console.log(`⏱️ RabbitMQ Latency Stats: avg=${avgLatency.toFixed(2)}ms, min=${minLatency}ms, max=${maxLatency}ms`);
       console.log('✅ RabbitMQ performance monitoring test passed!');
+      
+      // Cleanup: Unregister to prevent contamination
+      try {
+        globalQueueRegistry.unregister('rabbitmq');
+      } catch (error) {
+        // Ignore unregister errors
+      }
     });
   });
 }); 
