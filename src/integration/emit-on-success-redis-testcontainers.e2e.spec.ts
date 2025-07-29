@@ -48,7 +48,8 @@ describe('Redis E2E Tests', () => {
             return {processed: true, jobId: job.id};
         }, {
             connection: {host: redisHost, port: redisPort},
-            concurrency: 10
+            concurrency: 10,
+            autorun: true
         });
 
         // Clean any existing jobs
@@ -114,7 +115,7 @@ describe('Redis E2E Tests', () => {
                     queueMetadata: {
                         service: 'order-service',
                         version: '1.0.0',
-                        priority: 'high'
+                        priority: 10
                     }
                 })
                 async createOrder(customerId: string, items: any[], total: number) {
@@ -376,6 +377,9 @@ describe('Redis E2E Tests', () => {
 
     describe('🎯 Multi-Topic Routing', () => {
         it('should route messages to correct topics in Redis', async () => {
+            // Clear previous jobs
+            processedJobs = [];
+            
             class MultiTopicService {
                 @EmitOnSuccess({
                     queue: 'redis',
