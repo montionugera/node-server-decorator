@@ -53,7 +53,6 @@ describe('🐰 EmitOnSuccess + RabbitMQ (Simple)', () => {
         const rabbitAdapter = new RabbitMQAdapter(channel, 'test-orders', { autoDelete: true });
         globalQueueRegistry.register('orders', {
             adapter: rabbitAdapter,
-            topics: ['orders'],
             defaultTopic: 'orders'
         });
         globalQueueRegistry.setDefault('orders');

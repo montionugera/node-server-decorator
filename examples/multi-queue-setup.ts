@@ -25,7 +25,6 @@ async function setupMultipleQueues() {
       topicField: 'category',
       defaultPriority: 3 
     }),
-    topics: ['user-events', 'page-views', 'clicks'],
     defaultTopic: 'user-events',
     priority: 1
   });
@@ -40,7 +39,6 @@ async function setupMultipleQueues() {
       routingKeyPrefix: 'notify.',
       durable: true
     }),
-    topics: ['email', 'sms', 'push', 'slack'],
     defaultTopic: 'email',
     priority: 2
   });
@@ -58,7 +56,6 @@ async function setupMultipleQueues() {
       defaultTopic: 'order-events',
       keyField: 'orderId'
     }),
-    topics: ['order-created', 'order-updated', 'order-cancelled'],
     priority: 3
   });
   */
@@ -66,7 +63,6 @@ async function setupMultipleQueues() {
   // 4. Testing Queue (In-Memory) - for development
   globalQueueRegistry.register('testing', {
     adapter: new InMemoryQueueAdapter({ logMessages: true }),
-    topics: ['test-events'],
     priority: 4
   });
 
@@ -278,7 +274,7 @@ async function demonstrateMultiQueueUsage() {
   console.log('\n📊 Queue Statistics:');
   const stats = globalQueueRegistry.getStats();
   Object.entries(stats).forEach(([name, config]) => {
-    console.log(`  ${name}: ${config.isDefault ? '⭐ default' : ''} topics=${config.topics?.join(',') || 'any'}`);
+    console.log(`  ${name}: ${config.isDefault ? '⭐ default' : ''}`);
   });
 
   console.log('\n✅ Multi-queue demonstration complete!');

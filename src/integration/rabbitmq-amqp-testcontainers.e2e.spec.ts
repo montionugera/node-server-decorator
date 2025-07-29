@@ -133,7 +133,6 @@ describe('RabbitMQ E2E - Testcontainers', () => {
             const adapter = new RabbitMQAdapter(channel, 'e2e-orders', {autoDelete: true});
             globalQueueRegistry.register('rabbitmq', {
                 adapter,
-                topics: ['orders', 'payments'],
                 defaultTopic: 'orders'
             });
 
@@ -184,19 +183,16 @@ describe('RabbitMQ E2E - Testcontainers', () => {
 
             globalQueueRegistry.register('orders-queue', {
                 adapter: ordersAdapter,
-                topics: ['orders', 'payments'],
                 defaultTopic: 'orders'
             });
 
             globalQueueRegistry.register('analytics-queue', {
                 adapter: analyticsAdapter,
-                topics: ['user-events', 'page-views'],
                 defaultTopic: 'user-events'
             });
 
             globalQueueRegistry.register('notifications-queue', {
                 adapter: notificationsAdapter,
-                topics: ['email', 'sms', 'push'],
                 defaultTopic: 'email'
             });
 

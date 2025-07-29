@@ -97,7 +97,6 @@ describe('Redis E2E Tests', () => {
         globalQueueRegistry.clear();
         globalQueueRegistry.register('redis', {
             adapter: new BullMQAdapter(redisQueue),
-            topics: ['orders', 'analytics', 'notifications'],
             defaultTopic: 'orders'
         });
         globalQueueRegistry.setDefault('redis');

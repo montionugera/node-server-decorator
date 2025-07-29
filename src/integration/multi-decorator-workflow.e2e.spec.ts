@@ -45,7 +45,6 @@ describe('E2E Workflow Tests (No Docker)', () => {
     globalQueueRegistry.clear();
     globalQueueRegistry.register('in-memory', {
       adapter: queueAdapter,
-      topics: ['orders', 'analytics', 'notifications', 'payments'],
       defaultTopic: 'orders'
     });
     globalQueueRegistry.setDefault('in-memory');
@@ -422,13 +421,11 @@ describe('E2E Workflow Tests (No Docker)', () => {
 
       globalQueueRegistry.register('high-priority', {
         adapter: highPriorityAdapter,
-        topics: ['urgent', 'critical'],
         priority: 1
       });
 
       globalQueueRegistry.register('low-priority', {
         adapter: lowPriorityAdapter,
-        topics: ['batch', 'analytics'],
         priority: 2
       });
 

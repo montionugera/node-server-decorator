@@ -31,7 +31,6 @@ describe('QueueRegistry', () => {
       const adapter = new InMemoryQueueAdapter();
       const config = {
         adapter,
-        topics: ['topic1', 'topic2'],
         defaultTopic: 'topic1',
         priority: 1
       };
@@ -40,7 +39,6 @@ describe('QueueRegistry', () => {
 
       const retrievedConfig = registry.getConfig('advanced-queue');
       expect(retrievedConfig).toEqual(config);
-      expect(retrievedConfig!.topics).toEqual(['topic1', 'topic2']);
     });
 
     it('should set and use default queue', () => {
@@ -106,20 +104,23 @@ describe('QueueRegistry', () => {
       registry.register('test-queue', adapter);
     });
 
-         it('should publish message to specific queue', async () => {
-       const message = {
-         eventName: 'test.event',
-         payload: { test: true },
-         timestamp: Date.now(),
-         metadata: {}
-       };
+                  it('should publish message to specific queue', async () => {
+      const message = {
+        eventName: 'test.event',
+        payload: { test: true },
+        timestamp: Date.now(),
+        metadata: {}
+      };
 
-      await registry.publish(message, 'test-queue');
+     await registry.publish(message, 'test-queue');
 
-      const messages = adapter.getMessages();
-      expect(messages).toHaveLength(1);
-      expect(messages[0]).toEqual(message);
-    });
+     const messages = adapter.getMessages();
+     expect(messages).toHaveLength(1);
+     expect(messages[0]).toEqual({
+       ...message,
+       metadata: { topic: 'default' }
+     });
+   });
 
          it('should publish message with topic', async () => {
        const message = {
@@ -172,26 +173,7 @@ describe('QueueRegistry', () => {
     });
   });
 
-  describe('Topic Support', () => {
-    beforeEach(() => {
-      const adapter = new InMemoryQueueAdapter();
-      registry.register('topic-queue', {
-        adapter,
-        topics: ['allowed1', 'allowed2'],
-        defaultTopic: 'allowed1'
-      });
-      registry.register('open-queue', new InMemoryQueueAdapter());
-    });
 
-    it('should check topic support correctly', () => {
-      expect(registry.supportsTopic('topic-queue', 'allowed1')).toBe(true);
-      expect(registry.supportsTopic('topic-queue', 'allowed2')).toBe(true);
-      expect(registry.supportsTopic('topic-queue', 'forbidden')).toBe(false);
-      
-      // Queue without topic restrictions should support any topic
-      expect(registry.supportsTopic('open-queue', 'anything')).toBe(true);
-    });
-  });
 
   describe('Queue Management', () => {
     beforeEach(() => {
@@ -236,7 +218,6 @@ describe('QueueRegistry', () => {
       
       registry.register('queue1', {
         adapter: adapter1,
-        topics: ['topic1'],
         priority: 1
       });
       registry.register('queue2', adapter2);
@@ -247,7 +228,6 @@ describe('QueueRegistry', () => {
       expect(stats).toEqual({
         queue1: {
           adapter: adapter1,
-          topics: ['topic1'],
           priority: 1,
           isDefault: true
         },

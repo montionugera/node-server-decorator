@@ -3,7 +3,6 @@ import { globalLogger } from '../logger';
 
 export interface QueueConfig {
   adapter: QueueAdapter;
-  topics?: string[];
   defaultTopic?: string;
   priority?: number;
 }
@@ -106,14 +105,7 @@ export class QueueRegistry {
     return this.queues.get(queueName);
   }
 
-  /**
-   * Check if queue supports a topic
-   */
-  supportsTopic(queueName: string, topic: string): boolean {
-    const config = this.queues.get(queueName);
-    if (!config || !config.topics) return true; // No restrictions
-    return config.topics.includes(topic);
-  }
+
 
   /**
    * Remove a queue
