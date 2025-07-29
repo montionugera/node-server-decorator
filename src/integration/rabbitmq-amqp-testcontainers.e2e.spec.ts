@@ -14,6 +14,14 @@ describe('RabbitMQ E2E - Testcontainers', () => {
   let mockLogger: any;
   let mockTracker: any;
   let processedMessages: any[] = [];
+  let consumerTags: string[] = []; // Track all active consumers for cleanup
+  
+  // Helper function to create managed consumers
+  const createConsumer = async (queueName: string, handler: (msg: any) => void): Promise<string> => {
+    const { consumerTag } = await channel.consume(queueName, handler);
+    consumerTags.push(consumerTag);
+    return consumerTag;
+  };
 
   beforeAll(async () => {
     console.log('🐰 Starting RabbitMQ container...');
@@ -39,6 +47,16 @@ describe('RabbitMQ E2E - Testcontainers', () => {
     channel = await connection.createChannel();
     
     console.log('🔗 AMQP connection established');
+    
+    // Create ALL test queues once with consistent configuration
+    await channel.assertQueue('e2e-orders', { durable: true, autoDelete: true });
+    await channel.assertQueue('e2e-analytics', { durable: true, autoDelete: true });
+    await channel.assertQueue('e2e-notifications', { durable: true, autoDelete: true });
+    await channel.assertQueue('e2e-durable', { durable: true, autoDelete: false });
+    await channel.assertQueue('e2e-orders-urgent', { durable: false, autoDelete: true });
+    await channel.assertQueue('e2e-orders-normal', { durable: false, autoDelete: true });
+    
+    console.log('✅ All test queues created');
     
   }, 90000); // 90s timeout for container startup
 
@@ -69,6 +87,17 @@ describe('RabbitMQ E2E - Testcontainers', () => {
     jest.clearAllMocks();
     processedMessages = [];
     
+    // Recreate channel to clean up all consumers automatically
+    if (channel) {
+      try {
+        await channel.close();
+      } catch (error) {
+        // Ignore close errors
+      }
+    }
+    channel = await connection.createChannel();
+    consumerTags = []; // Reset consumer tags array
+    
     // Setup mock logger and tracker
     mockLogger = {
       debug: jest.fn(),
@@ -84,14 +113,7 @@ describe('RabbitMQ E2E - Testcontainers', () => {
     setGlobalLogger(mockLogger);
     setGlobalTracker(mockTracker);
     
-    // Setup queues
-    
-    // Create test queues with durable: true to match adapter defaults
-    await channel.assertQueue('e2e-orders', { durable: true, autoDelete: true });
-    await channel.assertQueue('e2e-analytics', { durable: true, autoDelete: true });
-    await channel.assertQueue('e2e-notifications', { durable: true, autoDelete: true });
-    
-    // Purge and delete queues to ensure clean state
+    // Purge queues to ensure clean state between tests
     try {
       await channel.purgeQueue('e2e-orders').catch(() => {});
       await channel.purgeQueue('e2e-analytics').catch(() => {});
@@ -99,7 +121,7 @@ describe('RabbitMQ E2E - Testcontainers', () => {
     } catch (error) {
       // Ignore purge errors for non-existent queues
     }
-  }, 30000); // 30s timeout for beforeEach
+  }, 60000); // 60s timeout for beforeEach
 
   describe('🚀 RabbitMQ Adapter & Queue Registry', () => {
     it('should publish and consume messages through RabbitMQ', async () => {
@@ -112,7 +134,7 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       });
 
       // Setup consumer
-      await channel.consume('e2e-orders', (msg: any) => {
+      await createConsumer('e2e-orders', (msg: any) => {
         if (msg) {
           const data = JSON.parse(msg.content.toString());
           processedMessages.push({
@@ -148,13 +170,6 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       });
 
       console.log('✅ RabbitMQ basic messaging test passed!');
-      
-      // Cleanup: Unregister to prevent contamination
-      try {
-        globalQueueRegistry.unregister('rabbitmq');
-      } catch (error) {
-        // Ignore unregister errors
-      }
     });
 
     it('should handle multiple queues with topic routing', async () => {
@@ -188,21 +203,21 @@ describe('RabbitMQ E2E - Testcontainers', () => {
         notifications: []
       };
 
-      await channel.consume('e2e-orders', (msg: any) => {
+      await createConsumer('e2e-orders', (msg: any) => {
         if (msg) {
           queueMessages.orders.push(JSON.parse(msg.content.toString()));
           channel.ack(msg);
         }
       });
 
-      await channel.consume('e2e-analytics', (msg: any) => {
+      await createConsumer('e2e-analytics', (msg: any) => {
         if (msg) {
           queueMessages.analytics.push(JSON.parse(msg.content.toString()));
           channel.ack(msg);
         }
       });
 
-      await channel.consume('e2e-notifications', (msg: any) => {
+      await createConsumer('e2e-notifications', (msg: any) => {
         if (msg) {
           queueMessages.notifications.push(JSON.parse(msg.content.toString()));
           channel.ack(msg);
@@ -245,15 +260,6 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       expect(queueMessages.notifications[0].eventName).toBe('EmailQueued');
 
       console.log('✅ Multi-queue routing test passed!');
-      
-      // Cleanup: Unregister all test queues to prevent contamination
-      try {
-        globalQueueRegistry.unregister('orders-queue');
-        globalQueueRegistry.unregister('analytics-queue');
-        globalQueueRegistry.unregister('notifications-queue');
-      } catch (error) {
-        // Ignore unregister errors
-      }
     });
 
     it('should handle high-volume concurrent messaging', async () => {
@@ -262,7 +268,7 @@ describe('RabbitMQ E2E - Testcontainers', () => {
 
       // Setup consumer
       const receivedMessages: any[] = [];
-      await channel.consume('e2e-analytics', (msg: any) => {
+      await createConsumer('e2e-analytics', (msg: any) => {
         if (msg) {
           receivedMessages.push(JSON.parse(msg.content.toString()));
           channel.ack(msg);
@@ -306,13 +312,6 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       });
 
       console.log(`✅ Processed ${receivedMessages.length} messages in ${publishTime}ms`);
-      
-      // Cleanup: Unregister to prevent contamination
-      try {
-        globalQueueRegistry.unregister('rabbitmq');
-      } catch (error) {
-        // Ignore unregister errors
-      }
     });
   });
 
@@ -347,13 +346,6 @@ describe('RabbitMQ E2E - Testcontainers', () => {
 
       console.log('✅ RabbitMQ connection failure handling passed!');
 
-      // Cleanup: Unregister to prevent contamination
-      try {
-        globalQueueRegistry.unregister('rabbitmq');
-      } catch (error) {
-        // Ignore unregister errors
-      }
-
       // Reconnect for cleanup
       const amqpPort = rabbitmqContainer.getMappedPort(5672);
       const amqpUrl = `amqp://admin:admin123@localhost:${amqpPort}`;
@@ -378,9 +370,6 @@ describe('RabbitMQ E2E - Testcontainers', () => {
 
   describe('⚙️ RabbitMQ AMQP Features', () => {
     it('should support message persistence and durability', async () => {
-      // Create durable queue
-      await channel.assertQueue('e2e-durable', { durable: true, autoDelete: false });
-      
       const adapter = new RabbitMQAdapter(channel, 'e2e-durable', {
         durable: true,
         autoDelete: false
@@ -413,10 +402,7 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       const exchangeName = 'e2e-topic-exchange';
       await channel.assertExchange(exchangeName, 'topic', { durable: false, autoDelete: true });
 
-      // Create queues bound to different routing patterns  
-      await channel.assertQueue('e2e-orders-urgent', { durable: false, autoDelete: true });
-      await channel.assertQueue('e2e-orders-normal', { durable: false, autoDelete: true });
-      
+      // Bind existing queues to different routing patterns
       await channel.bindQueue('e2e-orders-urgent', exchangeName, 'orders.urgent.*');
       await channel.bindQueue('e2e-orders-normal', exchangeName, 'orders.normal.*');
 
@@ -431,14 +417,14 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       const normalMessages: any[] = [];
 
       // Setup consumers
-      await channel.consume('e2e-orders-urgent', (msg: any) => {
+      await createConsumer('e2e-orders-urgent', (msg: any) => {
         if (msg) {
           urgentMessages.push(JSON.parse(msg.content.toString()));
           channel.ack(msg);
         }
       });
 
-      await channel.consume('e2e-orders-normal', (msg: any) => {
+      await createConsumer('e2e-orders-normal', (msg: any) => {
         if (msg) {
           normalMessages.push(JSON.parse(msg.content.toString()));
           channel.ack(msg);
@@ -487,7 +473,7 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       const messageCount = 10;
 
       // Setup consumer with latency tracking
-      await channel.consume('e2e-orders', (msg: any) => {
+      await createConsumer('e2e-orders', (msg: any) => {
         if (msg) {
           const data = JSON.parse(msg.content.toString());
           const latency = Date.now() - data.payload.startTime;
@@ -524,13 +510,6 @@ describe('RabbitMQ E2E - Testcontainers', () => {
 
       console.log(`⏱️ RabbitMQ Latency Stats: avg=${avgLatency.toFixed(2)}ms, min=${minLatency}ms, max=${maxLatency}ms`);
       console.log('✅ RabbitMQ performance monitoring test passed!');
-      
-      // Cleanup: Unregister to prevent contamination
-      try {
-        globalQueueRegistry.unregister('rabbitmq');
-      } catch (error) {
-        // Ignore unregister errors
-      }
     });
   });
 }); 
