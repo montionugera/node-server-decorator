@@ -98,6 +98,14 @@ describe('RabbitMQ E2E - Testcontainers', () => {
     channel = await connection.createChannel();
     consumerTags = []; // Reset consumer tags array
     
+    // Re-declare all queues on the new channel
+    await channel.assertQueue('e2e-orders', { durable: true, autoDelete: true });
+    await channel.assertQueue('e2e-analytics', { durable: true, autoDelete: true });
+    await channel.assertQueue('e2e-notifications', { durable: true, autoDelete: true });
+    await channel.assertQueue('e2e-durable', { durable: true, autoDelete: false });
+    await channel.assertQueue('e2e-orders-urgent', { durable: false, autoDelete: true });
+    await channel.assertQueue('e2e-orders-normal', { durable: false, autoDelete: true });
+    
     // Setup mock logger and tracker
     mockLogger = {
       debug: jest.fn(),
