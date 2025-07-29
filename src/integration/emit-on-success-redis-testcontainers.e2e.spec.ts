@@ -36,7 +36,7 @@ describe('Redis E2E Tests', () => {
             connection: {host: redisHost, port: redisPort}
         });
 
-        // Setup worker to process jobs
+        // Setup worker to process jobs (process all job types/topics)
         worker = new Worker('e2e-events', async (job: Job) => {
             console.log(`🔄 Processing job: ${job.name}`, job.data);
             processedJobs.push({
@@ -47,7 +47,8 @@ describe('Redis E2E Tests', () => {
             });
             return {processed: true, jobId: job.id};
         }, {
-            connection: {host: redisHost, port: redisPort}
+            connection: {host: redisHost, port: redisPort},
+            concurrency: 10
         });
 
         // Clean any existing jobs

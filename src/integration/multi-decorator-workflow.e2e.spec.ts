@@ -35,7 +35,8 @@ describe('E2E Workflow Tests (No Docker)', () => {
     
     // Setup event listener
     globalEmitter.removeAllListeners();
-    globalEmitter.on('*', (eventName: string, data: any) => {
+    globalEmitter.onAny((event: string | string[], data: any) => {
+      const eventName = Array.isArray(event) ? event.join('.') : event;
       emittedEvents.push({ eventName, data, timestamp: Date.now() });
     });
     
@@ -296,12 +297,12 @@ describe('E2E Workflow Tests (No Docker)', () => {
       // Check analytics topic
       const analyticsMessages = queueAdapter.getMessages('analytics');
       expect(analyticsMessages).toHaveLength(1);
-      expect(analyticsMessages[0].metadata.category).toBe('user-behavior');
+      expect(analyticsMessages[0].metadata?.category).toBe('user-behavior');
 
       // Check notifications topic
       const notificationMessages = queueAdapter.getMessages('notifications');
       expect(notificationMessages).toHaveLength(1);
-      expect(notificationMessages[0].metadata.channel).toBe('email');
+      expect(notificationMessages[0].metadata?.channel).toBe('email');
 
       console.log('📊 All verifications passed!');
     }, 30000);
@@ -350,7 +351,7 @@ describe('E2E Workflow Tests (No Docker)', () => {
       expect(mockTracker.track).toHaveBeenCalledTimes(3);
       
       // Check error was tracked
-      const errorCall = mockTracker.track.mock.calls.find(call => call[2] === true);
+      const errorCall = mockTracker.track.mock.calls.find((call: any) => call[2] === true);
       expect(errorCall).toBeDefined();
       expect(errorCall[0]).toBe('UnreliableService.unreliableMethod');
 

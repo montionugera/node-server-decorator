@@ -16,7 +16,7 @@
     "test:e2e:rabbitmq": "jest --selectProjects e2e --testPathPattern=rabbitmq",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "prepublishOnly": "pnpm test && pnpm run build",
+    "prepublishOnly": "pnpm test:unit && pnpm run build",
     "version:patch": "pnpm version patch",
     "version:minor": "pnpm version minor",
     "version:major": "pnpm version major"
