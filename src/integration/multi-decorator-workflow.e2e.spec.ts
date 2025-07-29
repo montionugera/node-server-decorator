@@ -354,8 +354,8 @@ describe('E2E Workflow Tests (No Docker)', () => {
       expect(errorCall).toBeDefined();
       expect(errorCall[0]).toBe('UnreliableService.unreliableMethod');
 
-      // Only successful operations should be queued
-      const messages = queueAdapter.getMessages();
+      // Only successful operations should be queued (check auto-generated topic)
+      const messages = queueAdapter.getMessages('UnreliableService.reliableMethod');
       expect(messages).toHaveLength(1);
       expect(messages[0].payload.processed).toBe(true);
     });
