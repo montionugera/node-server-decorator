@@ -132,7 +132,7 @@ class ECommerceService {
   })
   async trackUserAction(userId: string, action: string) {
     return { userId, action, timestamp: Date.now() };
-  }
+    }
 
   @EmitOnSuccess({ 
     queue: 'notifications', 
@@ -141,7 +141,7 @@ class ECommerceService {
   })
   async sendWelcomeEmail(email: string) {
     return { email, sent: true };
-  }
+    }
 }
 ```
 
