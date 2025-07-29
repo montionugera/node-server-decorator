@@ -1,6 +1,6 @@
 {
   "name": "server-decorator",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "TypeScript decorators for server-side applications with caching, tracking, and queue support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
