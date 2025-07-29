@@ -7,7 +7,7 @@ import {
   setGlobalTracker
 } from '../index';
 
-describe.skip('RabbitMQ E2E - Testcontainers', () => {
+describe('RabbitMQ E2E - Testcontainers', () => {
   let rabbitmqContainer: StartedTestContainer;
   let connection: any;
   let channel: any;
@@ -45,16 +45,25 @@ describe.skip('RabbitMQ E2E - Testcontainers', () => {
   afterAll(async () => {
     console.log('🧹 Cleaning up RabbitMQ...');
     
-    if (channel) {
-      await channel.close();
+    try {
+      if (channel) {
+        await channel.close().catch(() => {}); // Ignore errors
+      }
+      if (connection) {
+        await connection.close().catch(() => {}); // Ignore errors
+      }
+    } catch (error) {
+      console.log('Warning: Error during connection cleanup:', error);
     }
-    if (connection) {
-      await connection.close();
+    
+    try {
+      if (rabbitmqContainer) {
+        await rabbitmqContainer.stop();
+      }
+    } catch (error) {
+      console.log('Warning: Error stopping container:', error);
     }
-    if (rabbitmqContainer) {
-      await rabbitmqContainer.stop();
-    }
-  }, 30000); // 30s timeout for cleanup
+  }, 60000); // 60s timeout for cleanup
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -75,8 +84,7 @@ describe.skip('RabbitMQ E2E - Testcontainers', () => {
     setGlobalLogger(mockLogger);
     setGlobalTracker(mockTracker);
     
-    // Clear and setup queues
-    globalQueueRegistry.clear();
+    // Setup queues
     
     // Create test queues with durable: true to match adapter defaults
     await channel.assertQueue('e2e-orders', { durable: true, autoDelete: true });
@@ -85,18 +93,18 @@ describe.skip('RabbitMQ E2E - Testcontainers', () => {
     
     // Purge and delete queues to ensure clean state
     try {
-      await channel.purgeQueue('e2e-orders');
-      await channel.purgeQueue('e2e-analytics');
-      await channel.purgeQueue('e2e-notifications');
+      await channel.purgeQueue('e2e-orders').catch(() => {});
+      await channel.purgeQueue('e2e-analytics').catch(() => {});
+      await channel.purgeQueue('e2e-notifications').catch(() => {});
     } catch (error) {
       // Ignore purge errors for non-existent queues
     }
-  }, 10000); // 10s timeout for beforeEach
+  }, 30000); // 30s timeout for beforeEach
 
   describe('🚀 RabbitMQ Adapter & Queue Registry', () => {
     it('should publish and consume messages through RabbitMQ', async () => {
       // Setup RabbitMQ adapter
-      const adapter = new RabbitMQAdapter(channel, 'e2e-orders');
+      const adapter = new RabbitMQAdapter(channel, 'e2e-orders', { autoDelete: true });
       globalQueueRegistry.register('rabbitmq', {
         adapter,
         topics: ['orders', 'payments'],
@@ -144,9 +152,9 @@ describe.skip('RabbitMQ E2E - Testcontainers', () => {
 
     it('should handle multiple queues with topic routing', async () => {
       // Setup multiple adapters
-      const ordersAdapter = new RabbitMQAdapter(channel, 'e2e-orders');
-      const analyticsAdapter = new RabbitMQAdapter(channel, 'e2e-analytics');
-      const notificationsAdapter = new RabbitMQAdapter(channel, 'e2e-notifications');
+      const ordersAdapter = new RabbitMQAdapter(channel, 'e2e-orders', { autoDelete: true });
+      const analyticsAdapter = new RabbitMQAdapter(channel, 'e2e-analytics', { autoDelete: true });
+      const notificationsAdapter = new RabbitMQAdapter(channel, 'e2e-notifications', { autoDelete: true });
 
       globalQueueRegistry.register('orders-queue', {
         adapter: ordersAdapter,
@@ -233,7 +241,7 @@ describe.skip('RabbitMQ E2E - Testcontainers', () => {
     });
 
     it('should handle high-volume concurrent messaging', async () => {
-      const adapter = new RabbitMQAdapter(channel, 'e2e-analytics');
+      const adapter = new RabbitMQAdapter(channel, 'e2e-analytics', { autoDelete: true });
       globalQueueRegistry.register('rabbitmq', adapter);
 
       // Setup consumer
@@ -287,7 +295,7 @@ describe.skip('RabbitMQ E2E - Testcontainers', () => {
 
   describe('🛡️ Error Handling & Resilience', () => {
     it('should handle connection failures gracefully', async () => {
-      const adapter = new RabbitMQAdapter(channel, 'e2e-orders');
+      const adapter = new RabbitMQAdapter(channel, 'e2e-orders', { autoDelete: true });
       globalQueueRegistry.register('rabbitmq', adapter);
 
       // First message should work
@@ -436,7 +444,7 @@ describe.skip('RabbitMQ E2E - Testcontainers', () => {
 
   describe('📊 Performance & Monitoring', () => {
     it('should measure end-to-end latency with RabbitMQ', async () => {
-      const adapter = new RabbitMQAdapter(channel, 'e2e-orders');
+      const adapter = new RabbitMQAdapter(channel, 'e2e-orders', { autoDelete: true });
       globalQueueRegistry.register('rabbitmq', adapter);
 
       const latencies: number[] = [];

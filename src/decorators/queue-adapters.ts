@@ -50,16 +50,17 @@ export class RabbitMQAdapter implements QueueAdapter {
       exchangeType?: 'topic' | 'direct' | 'fanout' | 'headers';
       routingKeyPrefix?: string;
       durable?: boolean;
+      autoDelete?: boolean;
     }
   ) {}
 
   async publish(message: QueueMessage): Promise<void> {
-    const { exchange, exchangeType = 'topic', routingKeyPrefix = '', durable = true } = this.options || {};
+    const { exchange, exchangeType = 'topic', routingKeyPrefix = '', durable = true, autoDelete = false } = this.options || {};
     const topic = message.metadata?.topic;
     
     if (exchange) {
       // Use topic exchange for advanced routing
-      await this.channel.assertExchange(exchange, exchangeType, { durable });
+      await this.channel.assertExchange(exchange, exchangeType, { durable, autoDelete });
       
       // Create routing key from topic and event name
       const routingKey = topic 
@@ -74,7 +75,7 @@ export class RabbitMQAdapter implements QueueAdapter {
       );
     } else {
       // Simple queue publishing
-      await this.channel.assertQueue(this.queueName, { durable });
+      await this.channel.assertQueue(this.queueName, { durable, autoDelete });
       await this.channel.sendToQueue(
         this.queueName, 
         Buffer.from(JSON.stringify(message)),
