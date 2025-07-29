@@ -349,10 +349,11 @@ describe('RabbitMQ E2E - Testcontainers', () => {
   describe('⚙️ RabbitMQ AMQP Features', () => {
     it('should support message persistence and durability', async () => {
       // Create durable queue
-      await channel.assertQueue('e2e-durable', { durable: true });
+      await channel.assertQueue('e2e-durable', { durable: true, autoDelete: false });
       
       const adapter = new RabbitMQAdapter(channel, 'e2e-durable', {
-        durable: true
+        durable: true,
+        autoDelete: false
       });
 
       const message = {
@@ -363,6 +364,9 @@ describe('RabbitMQ E2E - Testcontainers', () => {
       };
 
       await adapter.publish(message);
+
+      // Small delay to ensure message is processed
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Check queue info
       const queueInfo = await channel.checkQueue('e2e-durable');
