@@ -3,8 +3,10 @@ name: Build, Test, and Publish
 on:
   push:
     branches: [ main ]
+    paths: [ 'node/**', '.github/workflows/publish.yml' ]
   pull_request:
     branches: [ main ]
+    paths: [ 'node/**', '.github/workflows/publish.yml' ]
 
 permissions:
   contents: write
@@ -14,6 +16,9 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node
 
     outputs:
       version-changed: ${{ steps.version-check.outputs.version-changed }}
@@ -33,6 +38,7 @@ jobs:
       with:
         node-version: '20'
         cache: 'pnpm'
+        cache-dependency-path: node/pnpm-lock.yaml
 
     - name: Install dependencies
       run: pnpm install --frozen-lockfile
@@ -62,7 +68,10 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && needs.build-and-test.outputs.version-changed == 'true'
-    
+    defaults:
+      run:
+        working-directory: node
+
     outputs:
       version: ${{ needs.build-and-test.outputs.current-version }}
       published: ${{ steps.publish-step.outputs.published }}
@@ -80,6 +89,7 @@ jobs:
       with:
         node-version: '20'
         cache: 'pnpm'
+        cache-dependency-path: node/pnpm-lock.yaml
         registry-url: 'https://registry.npmjs.org'
 
     - name: Install dependencies

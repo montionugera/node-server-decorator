@@ -6,7 +6,7 @@ export { EmitOnSuccess } from './decorators/emit-on-success';
 // Global utilities
 export { setGlobalLogger, globalLogger } from './logger';
 export { setGlobalTracker, globalTracker } from './tracker';
-export { globalEmitter } from './decorators/global-emitter';
+export { globalEmitter, setGlobalEmitter } from './decorators/global-emitter';
 
 // Queue system
 export { 
