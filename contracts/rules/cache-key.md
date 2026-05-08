@@ -58,6 +58,7 @@ else:
 - **Self-referential / circular structures** → `JSON.stringify` and `json.dumps` raise; the decorator MUST surface this error rather than silently producing a different key.
 - **Unicode in args** → encoded UTF-8 for the byte-length check; the key string itself stays UTF-8.
 - **Float NaN / Infinity** → not JSON-serializable per spec. Both implementations should pass `allow_nan=False` (Python) / use a strict serializer (Node) and surface the error to the caller.
+- **Whole-number floats** (e.g. `42.0`, `100.0`) → JS has no integer/float distinction at the JSON layer (`JSON.stringify(42.0) === "42"`), while Python writes `42.0`. As a result, an arg of `42.0` in Python produces a different cache key than `42.0` in Node. Cross-language consumers should treat all numeric args as canonical integers when whole-valued, OR restrict cache keys to a single language. This is an irreducible JSON edge case, not a bug.
 
 ## Migration note (v2.0.0)
 

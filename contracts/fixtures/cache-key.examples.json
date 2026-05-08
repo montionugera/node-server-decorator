@@ -11,9 +11,9 @@
     {
       "name": "primitive-args",
       "qualname": "OrderService.create",
-      "args": ["cust-1", 42.0],
+      "args": ["cust-1", 42.5],
       "kwargs": {},
-      "expected": "OrderService.create(\"cust-1\",42.0)"
+      "expected": "OrderService.create(\"cust-1\",42.5)"
     },
     {
       "name": "object-arg-stable-key-order",

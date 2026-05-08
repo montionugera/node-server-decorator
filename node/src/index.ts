@@ -1,6 +1,7 @@
 // Decorators
 export { tracking } from './decorators/tracking';
-export { cache } from './decorators/cache';
+export { cache, CACHE_MISS, type CacheAdapter, type CacheMiss } from './decorators/cache';
+export { buildCacheKey, MAX_KEY_BYTES } from './decorators/_cache_key';
 export { EmitOnSuccess } from './decorators/emit-on-success';
 
 // Global utilities
