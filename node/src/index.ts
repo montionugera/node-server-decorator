@@ -1,3 +1,6 @@
+// Contract version — mirrors `contracts/VERSION`.
+export { CONTRACT_VERSION } from './_contract';
+
 // Decorators
 export { tracking } from './decorators/tracking';
 export { cache, CACHE_MISS, type CacheAdapter, type CacheMiss } from './decorators/cache';

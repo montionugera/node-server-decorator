@@ -1,0 +1,49 @@
+name: CI - Interop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+      - 'interop/**'
+      - 'node/src/**'
+      - 'python/src/**'
+      - '.github/workflows/ci-interop.yml'
+  pull_request:
+    paths:
+      - 'contracts/**'
+      - 'interop/**'
+    types: [opened, synchronize, labeled]
+  schedule:
+    - cron: '0 6 * * 1'  # weekly Monday 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  redis-roundtrip:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-interop')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: node/pnpm-lock.yaml
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.12
+      - name: Install Node deps
+        working-directory: node
+        run: pnpm install --frozen-lockfile
+      - name: Install Python deps
+        working-directory: python
+        run: uv sync --extra dev
+      - name: Run node-producer / python-consumer
+        run: bash interop/scenarios/node-producer-python-consumer/run.sh
+      - name: Run python-producer / node-consumer
+        run: bash interop/scenarios/python-producer-node-consumer/run.sh

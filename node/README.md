@@ -344,34 +344,16 @@ class Service {
 }
 ```
 
-## GitHub Actions & CI/CD
+## CI/CD
 
-The project includes automated CI/CD with GitHub Actions:
+This package is part of the polyglot `server-decorator` repo and shares its workflows. See [`.github/workflows/`](../.github/workflows/) at the repo root for:
 
-- **✅ Automated Testing**: Unit and E2E tests on every PR
-- **🚀 Auto-Publishing**: NPM package publishing on version changes
-- **💬 Slack Notifications**: Team notifications for releases and failures
-- **⚡ pnpm Optimization**: Fast installs with intelligent caching
-- **🐳 Container Tests**: Real Redis/RabbitMQ testing in CI
+- `ci-node.yml` — unit + (label-gated) e2e on every Node-touching PR.
+- `ci-contracts.yml` — JSON-schema fixture validation + Node↔Python version-match enforcement.
+- `ci-interop.yml` — cross-language interop scenarios (heavy; runs on `push: main`, weekly schedule, or `run-interop` PR label).
+- `publish-node.yml` — tag-driven npm publish.
 
-### Workflows
-- `.github/workflows/publish.yml` - Build, test, publish, and notify
-- `.github/workflows/version-bump.yml` - Version management
-
-### Slack Integration
-Get notified when new versions are published! The CI/CD pipeline automatically sends rich notifications to your Slack channels.
-
-```bash
-🚀 New Release Published!
-📦 Package: server-decorator v1.2.3
-📦 NPM: View on NPM
-💾 Install: pnpm add server-decorator@1.2.3
-📖 Release Notes: View Release Notes
-```
-
-**Setup Instructions**: See [`.github/SLACK_SETUP.md`](.github/SLACK_SETUP.md) for complete setup guide.
-
-**Required**: Add `SLACK_WEBHOOK_URL` secret to your GitHub repository settings.
+Releasing both packages happens in lock-step via `scripts/bump-version.sh patch|minor|major` from the repo root, then `git push --tags`. See [`MIGRATION.md`](../MIGRATION.md) for the v1.x → v2.0.0 upgrade guide.
 
 ## Contributing
 

@@ -1,0 +1,47 @@
+name: CI - Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'contracts/**'
+      - 'node/src/**'
+      - 'python/src/**'
+      - '.github/workflows/ci-contracts.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+      - 'node/src/**'
+      - 'python/src/**'
+      - '.github/workflows/ci-contracts.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm i -g ajv-cli@5
+      - name: Validate fixtures against schemas
+        run: bash contracts/scripts/validate.sh
+      - name: Assert contract version match (Node ↔ Python ↔ contracts/VERSION)
+        run: |
+          contract=$(cat contracts/VERSION | tr -d '[:space:]')
+          py_v=$(grep -oP 'CONTRACT_VERSION\s*=\s*"\K[^"]+' python/src/server_decorator/_contract.py)
+          node_v=$(grep -oE "CONTRACT_VERSION\s*=\s*'[^']+'" node/src/_contract.ts | grep -oE "'[^']+'" | tr -d "'")
+          if [ "$contract" != "$py_v" ]; then
+            echo "FAIL: contracts/VERSION ($contract) != python ($py_v)" >&2
+            exit 1
+          fi
+          if [ "$contract" != "$node_v" ]; then
+            echo "FAIL: contracts/VERSION ($contract) != node ($node_v)" >&2
+            exit 1
+          fi
+          echo "OK: contract=$contract node=$node_v python=$py_v"
+      - name: Assert package version match (Node ↔ Python)
+        run: bash scripts/check-versions.sh
