@@ -1,0 +1,15 @@
+{
+  "eventName": "OrderService.createOrder",
+  "payload": {
+    "customerId": "cust-1",
+    "total": 42.5
+  },
+  "timestamp": 1746748800000,
+  "metadata": {
+    "className": "OrderService",
+    "methodName": "createOrder",
+    "topic": "OrderService.createOrder",
+    "priority": "high",
+    "trace_id": "01HXYZABCDEFGHJKLMNOPQRSTU"
+  }
+}

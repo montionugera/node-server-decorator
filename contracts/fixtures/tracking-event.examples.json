@@ -1,0 +1,26 @@
+{
+  "$comment": "Sample tracking events. Both implementations call global_tracker.track(key, latency_ms, is_error) with values that, recorded together with ts, conform to schemas/tracking-event.schema.json.",
+  "examples": [
+    {
+      "name": "method-success",
+      "key": "OrderService.create",
+      "latency_ms": 12,
+      "is_error": false,
+      "ts": 1746748800000
+    },
+    {
+      "name": "method-error",
+      "key": "OrderService.create",
+      "latency_ms": 8,
+      "is_error": true,
+      "ts": 1746748800050
+    },
+    {
+      "name": "free-function-python-only",
+      "key": "format_date",
+      "latency_ms": 0,
+      "is_error": false,
+      "ts": 1746748800100
+    }
+  ]
+}

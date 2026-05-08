@@ -1,0 +1,62 @@
+{
+  "$comment": "Golden inputs for the cache-key algorithm (rules/cache-key.md). Both implementations load this and assert build_cache_key(qualname, args, kwargs) == expected.",
+  "examples": [
+    {
+      "name": "no-args",
+      "qualname": "OrderService.list",
+      "args": [],
+      "kwargs": {},
+      "expected": "OrderService.list()"
+    },
+    {
+      "name": "primitive-args",
+      "qualname": "OrderService.create",
+      "args": ["cust-1", 42.0],
+      "kwargs": {},
+      "expected": "OrderService.create(\"cust-1\",42.0)"
+    },
+    {
+      "name": "object-arg-stable-key-order",
+      "qualname": "OrderService.upsert",
+      "args": [{"b": 2, "a": 1}],
+      "kwargs": {},
+      "expected": "OrderService.upsert({\"a\":1,\"b\":2})"
+    },
+    {
+      "name": "kwargs-sorted",
+      "qualname": "OrderService.search",
+      "args": [],
+      "kwargs": {"limit": 10, "customer_id": "cust-1"},
+      "expected": "OrderService.search(customer_id=\"cust-1\",limit=10)"
+    },
+    {
+      "name": "args-and-kwargs",
+      "qualname": "OrderService.upsert",
+      "args": [{"a": 1}],
+      "kwargs": {"force": true},
+      "expected": "OrderService.upsert({\"a\":1},force=true)"
+    },
+    {
+      "name": "free-function",
+      "qualname": "format_date",
+      "args": ["2026-05-08"],
+      "kwargs": {},
+      "expected": "format_date(\"2026-05-08\")"
+    },
+    {
+      "name": "null-arg",
+      "qualname": "Foo.bar",
+      "args": [null],
+      "kwargs": {},
+      "expected": "Foo.bar(null)"
+    },
+    {
+      "name": "long-key-hashed",
+      "$comment": "When the raw key exceeds 250 UTF-8 bytes, the parens content is replaced with sha256:<hex>. Test asserts that the prefix matches and the raw key would have been over 250 bytes; the exact hex is implementation-derived and computed at test time, NOT hard-coded here.",
+      "qualname": "Big.method",
+      "args": [{"data": "X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X-X"}],
+      "kwargs": {},
+      "expected_prefix": "Big.method(sha256:"
+    }
+  ]
+}

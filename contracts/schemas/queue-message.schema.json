@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://server-decorator.dev/schemas/queue-message/1.0.0.json",
+  "title": "QueueMessage",
+  "description": "Wire format for messages published via @EmitOnSuccess / @emit_on_success when use_queue=True. Per Decision #7, payload MUST be JSON-serializable.",
+  "type": "object",
+  "required": ["eventName", "payload", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "eventName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Logical event name. Defaults to ClassName.methodName when not overridden."
+    },
+    "payload": {
+      "description": "MUST be JSON-serializable per Decision #7. No functions, undefined, or class instances. Schema-permissive: any JSON value is allowed (including null and 0/empty-string)."
+    },
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix epoch milliseconds at which the producer built the message."
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional metadata. Built-in producers populate className, methodName, and topic; user-supplied metadata via queueMetadata is merged in.",
+      "properties": {
+        "className": {
+          "type": "string",
+          "description": "Class on which the decorated method is defined. Empty string for module-level functions."
+        },
+        "methodName": {
+          "type": "string",
+          "description": "Decorated method name."
+        },
+        "topic": {
+          "type": ["string", "null"],
+          "description": "Routing topic. May be auto-derived (ClassName.methodName) or explicit; null when neither is set."
+        }
+      }
+    }
+  }
+}
