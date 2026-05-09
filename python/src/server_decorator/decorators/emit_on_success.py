@@ -16,11 +16,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypeVar, cast
 
-from server_decorator.decorators._class_apply import apply_to_class
-from server_decorator.emitter import global_emitter
-from server_decorator.logger import global_logger
+from server_decorator import emitter as _emitter_mod
+from server_decorator import logger as _logger_mod
+from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
+from server_decorator.decorators._qualname import shorten_qualname
+from server_decorator.queue import registry as _registry_mod
 from server_decorator.queue.message import QueueMessage
-from server_decorator.queue.registry import global_queue_registry
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -67,7 +68,7 @@ def emit_on_success(
     )
 
     def decorator(fn: F) -> F:
-        qualname = fn.__qualname__
+        qualname = shorten_qualname(fn.__qualname__)
         class_name, _, method_name = qualname.rpartition(".")
         resolved_event = opts.event_name or qualname
 
@@ -75,9 +76,9 @@ def emit_on_success(
             payload = opts.transform(result) if opts.transform else result
             if opts.use_events:
                 try:
-                    global_emitter.emit(resolved_event, payload)
+                    _emitter_mod.global_emitter.emit(resolved_event, payload)
                 except Exception as e:
-                    global_logger.error(f"Failed to emit event {resolved_event}: {e!r}")
+                    _logger_mod.global_logger.error(f"Failed to emit event {resolved_event}: {e!r}")
             if opts.use_queue:
                 try:
                     msg: QueueMessage = {
@@ -93,11 +94,13 @@ def emit_on_success(
                     }
                     if opts.queue or opts.topic:
                         auto_topic = opts.topic or qualname
-                        await global_queue_registry.publish(msg, opts.queue, auto_topic)
+                        await _registry_mod.global_queue_registry.publish(
+                            msg, opts.queue, auto_topic
+                        )
                     else:
-                        await global_queue_registry.publish(msg)
+                        await _registry_mod.global_queue_registry.publish(msg)
                 except Exception as e:
-                    global_logger.error(f"Failed to publish to queue: {e!r}")
+                    _logger_mod.global_logger.error(f"Failed to publish to queue: {e!r}")
 
         if inspect.iscoroutinefunction(fn):
 
@@ -107,6 +110,7 @@ def emit_on_success(
                 await _on_success(result)
                 return result
 
+            _mark_wrapped(async_wrapper, "emit_on_success")
             return cast(F, async_wrapper)
 
         @functools.wraps(fn)
@@ -123,6 +127,7 @@ def emit_on_success(
                 _EMIT_EXECUTOR.submit(asyncio.run, _on_success(result))
             return result
 
+        _mark_wrapped(sync_wrapper, "emit_on_success")
         return cast(F, sync_wrapper)
 
     return decorator

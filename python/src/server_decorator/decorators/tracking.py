@@ -8,16 +8,17 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
-from server_decorator.decorators._class_apply import apply_to_class
-from server_decorator.logger import global_logger
-from server_decorator.tracker import global_tracker
+from server_decorator import logger as _logger_mod
+from server_decorator import tracker as _tracker_mod
+from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
+from server_decorator.decorators._qualname import shorten_qualname
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 
 def tracking(fn: F) -> F:
     """Track latency and error rate. Mirrors Node `@tracking`. Re-raises any exception."""
-    qualname = fn.__qualname__
+    qualname = shorten_qualname(fn.__qualname__)
 
     if inspect.iscoroutinefunction(fn):
 
@@ -29,12 +30,13 @@ def tracking(fn: F) -> F:
                 return await fn(*args, **kwargs)
             except Exception as e:
                 is_error = True
-                global_logger.error(f"[Tracking] {qualname} - Error: {e!r}")
+                _logger_mod.global_logger.error(f"[Tracking] {qualname} - Error: {e!r}")
                 raise
             finally:
                 latency_ms = int((time.monotonic() - start) * 1000)
-                global_tracker.track(qualname, latency_ms, is_error)
+                _tracker_mod.global_tracker.track(qualname, latency_ms, is_error)
 
+        _mark_wrapped(async_wrapper, "tracking")
         return cast(F, async_wrapper)
 
     @functools.wraps(fn)
@@ -45,12 +47,13 @@ def tracking(fn: F) -> F:
             return fn(*args, **kwargs)
         except Exception as e:
             is_error = True
-            global_logger.error(f"[Tracking] {qualname} - Error: {e!r}")
+            _logger_mod.global_logger.error(f"[Tracking] {qualname} - Error: {e!r}")
             raise
         finally:
             latency_ms = int((time.monotonic() - start) * 1000)
-            global_tracker.track(qualname, latency_ms, is_error)
+            _tracker_mod.global_tracker.track(qualname, latency_ms, is_error)
 
+    _mark_wrapped(sync_wrapper, "tracking")
     return cast(F, sync_wrapper)
 
 

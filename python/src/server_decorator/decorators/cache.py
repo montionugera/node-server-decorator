@@ -13,7 +13,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, TypeVar, cast
 
 from server_decorator.decorators._cache_key import build_cache_key
-from server_decorator.decorators._class_apply import apply_to_class
+from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
+from server_decorator.decorators._qualname import shorten_qualname
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -29,7 +30,7 @@ class CacheAdapter(Protocol):
 
 def cache(adapter: CacheAdapter, ttl: int) -> Callable[[F], F]:
     def decorator(fn: F) -> F:
-        qualname = fn.__qualname__
+        qualname = shorten_qualname(fn.__qualname__)
 
         if inspect.iscoroutinefunction(fn):
 
@@ -47,6 +48,7 @@ def cache(adapter: CacheAdapter, ttl: int) -> Callable[[F], F]:
                     await set_result
                 return result
 
+            _mark_wrapped(async_wrapper, "cache")
             return cast(F, async_wrapper)
 
         @functools.wraps(fn)
@@ -59,6 +61,7 @@ def cache(adapter: CacheAdapter, ttl: int) -> Callable[[F], F]:
             adapter.set(key, result, ttl)
             return result
 
+        _mark_wrapped(sync_wrapper, "cache")
         return cast(F, sync_wrapper)
 
     return decorator

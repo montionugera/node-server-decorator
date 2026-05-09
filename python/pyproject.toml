@@ -67,6 +67,14 @@ python_version = "3.10"
 strict = true
 files = ["src/server_decorator"]
 
+# Optional adapter dependencies don't ship `py.typed`. Treat them as untyped so
+# strict-mode still passes; the adapter wrappers keep the public-facing types
+# precise on the server-decorator side.
+[[tool.mypy.overrides]]
+module = ["aiokafka.*", "aio_pika.*", "redis.*"]
+ignore_missing_imports = true
+follow_untyped_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

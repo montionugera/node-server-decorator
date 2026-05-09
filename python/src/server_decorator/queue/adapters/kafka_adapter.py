@@ -18,7 +18,7 @@ class KafkaAdapter:
 
     async def publish(self, message: QueueMessage) -> None:
         body = json.dumps(message, separators=(",", ":")).encode("utf-8")
-        topic_raw = (message.get("metadata") or {}).get("topic")  # type: ignore[union-attr]
+        topic_raw = (message.get("metadata") or {}).get("topic")
         topic = topic_raw if isinstance(topic_raw, str) and topic_raw else self._default_topic
         key = message["eventName"].encode("utf-8")
         await self._producer.send_and_wait(topic, body, key=key)

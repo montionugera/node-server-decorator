@@ -12,7 +12,7 @@ class InMemoryQueueAdapter:
         self.messages: dict[str, list[QueueMessage]] = {}
 
     async def publish(self, message: QueueMessage) -> None:
-        topic_raw: Any = (message.get("metadata") or {}).get("topic")  # type: ignore[union-attr]
+        topic_raw: Any = (message.get("metadata") or {}).get("topic")
         topic = topic_raw if isinstance(topic_raw, str) and topic_raw else "default"
         self.messages.setdefault(topic, []).append(message)
 

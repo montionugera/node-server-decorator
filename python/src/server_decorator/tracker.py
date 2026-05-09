@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from server_decorator.logger import global_logger
+from server_decorator import logger as _logger_mod
 
 
 class Tracker(Protocol):
@@ -13,7 +13,9 @@ class Tracker(Protocol):
 
 class _DefaultTracker:
     def track(self, key: str, latency_ms: int, is_error: bool) -> None:
-        global_logger.info(f"[Tracking] key={key} latency_ms={latency_ms} is_error={is_error}")
+        _logger_mod.global_logger.info(
+            f"[Tracking] key={key} latency_ms={latency_ms} is_error={is_error}"
+        )
 
 
 global_tracker: Tracker = _DefaultTracker()
