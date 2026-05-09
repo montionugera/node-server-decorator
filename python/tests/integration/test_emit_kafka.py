@@ -30,9 +30,7 @@ async def test_emit_to_kafka_topic(kafka_container) -> None:
     await producer.start()
 
     global_queue_registry.clear()
-    global_queue_registry.register(
-        "kafka", KafkaAdapter(producer, default_topic="orders")
-    )
+    global_queue_registry.register("kafka", KafkaAdapter(producer, default_topic="orders"))
     global_queue_registry.set_default("kafka")
 
     class OrderService:

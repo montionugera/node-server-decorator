@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class RedisStreamAdapter:
-    def __init__(self, client: "Redis", stream: str = "default") -> None:
+    def __init__(self, client: Redis, stream: str = "default") -> None:
         self._client = client
         self._stream = stream
 

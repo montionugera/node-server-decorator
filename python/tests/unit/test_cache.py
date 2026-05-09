@@ -57,7 +57,7 @@ async def test_async_miss_then_hit() -> None:
     assert calls["n"] == 1
 
 
-def test_caches_falsy_values_via_CACHE_MISS_sentinel() -> None:
+def test_caches_falsy_values_via_cache_miss_sentinel() -> None:
     """D-B: None/0/""/False are valid cached values, distinct from miss."""
     a = _InMemAdapter()
     calls = {"none": 0, "zero": 0, "empty": 0, "false": 0}

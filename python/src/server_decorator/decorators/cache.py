@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import functools
 import inspect
-from typing import Any, Awaitable, Callable, Protocol, TypeVar, cast
+from collections.abc import Awaitable, Callable
+from typing import Any, Protocol, TypeVar, cast
 
 from server_decorator.decorators._cache_key import build_cache_key
 from server_decorator.decorators._class_apply import apply_to_class

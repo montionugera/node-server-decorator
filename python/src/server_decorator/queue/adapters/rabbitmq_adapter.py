@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class RabbitMQAdapter:
     def __init__(
         self,
-        channel: "AbstractChannel",
+        channel: AbstractChannel,
         queue_or_exchange: str,
         *,
         exchange: bool = False,
@@ -34,6 +34,4 @@ class RabbitMQAdapter:
             routing_key = topic_raw if isinstance(topic_raw, str) else "default"
             await exchange.publish(amqp_message, routing_key=routing_key)
         else:
-            await self._channel.default_exchange.publish(
-                amqp_message, routing_key=self._target
-            )
+            await self._channel.default_exchange.publish(amqp_message, routing_key=self._target)

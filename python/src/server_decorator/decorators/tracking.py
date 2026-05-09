@@ -5,7 +5,8 @@ from __future__ import annotations
 import functools
 import inspect
 import time
-from typing import Any, Callable, TypeVar, cast
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
 from server_decorator.decorators._class_apply import apply_to_class
 from server_decorator.logger import global_logger

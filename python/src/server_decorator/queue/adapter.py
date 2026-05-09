@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Awaitable, Protocol
+from collections.abc import Awaitable
+from typing import Protocol
 
 from server_decorator.queue.message import QueueMessage
 

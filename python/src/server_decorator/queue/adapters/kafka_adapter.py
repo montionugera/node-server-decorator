@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class KafkaAdapter:
-    def __init__(self, producer: "AIOKafkaProducer", default_topic: str = "default") -> None:
+    def __init__(self, producer: AIOKafkaProducer, default_topic: str = "default") -> None:
         self._producer = producer
         self._default_topic = default_topic
 

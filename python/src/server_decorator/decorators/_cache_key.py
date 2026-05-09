@@ -18,7 +18,11 @@ def _repr_arg(x: Any) -> str:
     return json.dumps(x, sort_keys=True, default=str, separators=(",", ":"))
 
 
-def build_cache_key(qualname: str, args: tuple[Any, ...] | list[Any], kwargs: dict[str, Any]) -> str:
+def build_cache_key(
+    qualname: str,
+    args: tuple[Any, ...] | list[Any],
+    kwargs: dict[str, Any],
+) -> str:
     arg_pieces = [_repr_arg(a) for a in args]
     if kwargs:
         for k in sorted(kwargs.keys()):

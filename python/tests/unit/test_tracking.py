@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Tuple
+from typing import Any
 
 import pytest
 
@@ -12,7 +12,7 @@ from server_decorator.tracker import set_global_tracker
 
 class _RecordingTracker:
     def __init__(self) -> None:
-        self.calls: List[Tuple[str, int, bool]] = []
+        self.calls: list[tuple[str, int, bool]] = []
 
     def track(self, key: str, latency_ms: int, is_error: bool) -> None:
         self.calls.append((key, latency_ms, is_error))

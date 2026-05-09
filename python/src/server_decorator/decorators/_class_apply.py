@@ -7,7 +7,8 @@ both class-level and method-level decoration apply (method-level wins).
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 _MARKER = "__server_decorator_wrapped_by__"
 

@@ -13,9 +13,7 @@ class Tracker(Protocol):
 
 class _DefaultTracker:
     def track(self, key: str, latency_ms: int, is_error: bool) -> None:
-        global_logger.info(
-            f"[Tracking] key={key} latency_ms={latency_ms} is_error={is_error}"
-        )
+        global_logger.info(f"[Tracking] key={key} latency_ms={latency_ms} is_error={is_error}")
 
 
 global_tracker: Tracker = _DefaultTracker()

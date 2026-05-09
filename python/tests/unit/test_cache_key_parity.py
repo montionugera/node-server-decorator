@@ -10,12 +10,7 @@ import pytest
 
 from server_decorator.decorators._cache_key import MAX_KEY_BYTES, build_cache_key
 
-FIXTURE = (
-    Path(__file__).resolve().parents[3]
-    / "contracts"
-    / "fixtures"
-    / "cache-key.examples.json"
-)
+FIXTURE = Path(__file__).resolve().parents[3] / "contracts" / "fixtures" / "cache-key.examples.json"
 
 
 def _load_examples() -> list[dict]:

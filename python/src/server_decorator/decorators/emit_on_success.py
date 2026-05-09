@@ -12,8 +12,9 @@ import concurrent.futures
 import functools
 import inspect
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from server_decorator.decorators._class_apply import apply_to_class
 from server_decorator.emitter import global_emitter
@@ -28,6 +29,10 @@ F = TypeVar("F", bound=Callable[..., Any])
 _EMIT_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=1, thread_name_prefix="server-decorator-emit"
 )
+
+# Strong references to in-flight create_task() futures so the GC doesn't drop them
+# mid-flight (RUF006). Tasks self-remove via add_done_callback.
+_BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
 
 
 @dataclass
@@ -109,7 +114,10 @@ def emit_on_success(
             result = fn(*args, **kwargs)
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(_on_success(result))
+                # Tracked in _BACKGROUND_TASKS to keep a strong reference (RUF006).
+                task = loop.create_task(_on_success(result))
+                _BACKGROUND_TASKS.add(task)
+                task.add_done_callback(_BACKGROUND_TASKS.discard)
             except RuntimeError:
                 # D-C: no running loop — submit to executor so caller doesn't block.
                 _EMIT_EXECUTOR.submit(asyncio.run, _on_success(result))

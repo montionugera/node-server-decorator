@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from server_decorator.queue.adapter import QueueAdapter
 from server_decorator.queue.message import QueueMessage
@@ -19,7 +18,7 @@ class QueueConfig:
 class QueueRegistry:
     def __init__(self) -> None:
         self._configs: dict[str, QueueConfig] = {}
-        self._default_name: Optional[str] = None
+        self._default_name: str | None = None
 
     def register(self, name: str, config: QueueConfig | QueueAdapter) -> None:
         if isinstance(config, QueueConfig):
@@ -34,7 +33,7 @@ class QueueRegistry:
             raise KeyError(f"queue {name!r} not registered")
         self._default_name = name
 
-    def get(self, name: Optional[str] = None) -> QueueConfig:
+    def get(self, name: str | None = None) -> QueueConfig:
         if name is not None:
             if name not in self._configs:
                 raise KeyError(f"queue {name!r} not registered")
@@ -52,8 +51,8 @@ class QueueRegistry:
     async def publish(
         self,
         message: QueueMessage,
-        queue_name: Optional[str] = None,
-        topic: Optional[str] = None,
+        queue_name: str | None = None,
+        topic: str | None = None,
     ) -> None:
         config = self.get(queue_name)
         meta = dict(message.get("metadata") or {})
