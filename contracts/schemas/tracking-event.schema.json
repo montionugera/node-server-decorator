@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://server-decorator.dev/schemas/tracking-event/1.0.0.json",
+  "title": "TrackingEvent",
+  "description": "The shape of an event passed to global_tracker.track(). Currently the Node @tracking decorator calls track(key, latency_ms, is_error) positionally; this schema describes the equivalent record for parity tests and downstream consumers.",
+  "type": "object",
+  "required": ["key", "latency_ms", "is_error"],
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ClassName.methodName for class methods; just methodName for free functions."
+    },
+    "latency_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall-clock latency in milliseconds, rounded down."
+    },
+    "is_error": {
+      "type": "boolean",
+      "description": "True iff the wrapped call raised/threw."
+    },
+    "ts": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional epoch-ms timestamp of when the event was recorded. Both implementations should populate this in v2.0.0."
+    }
+  }
+}

@@ -12,3 +12,18 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json  # Use pnpm-lock.yaml instead
 yarn.lock         # Use pnpm-lock.yaml instead
+
+# iCloud-style duplicate files (D-D)
+* 2
+* 2.*
+* 3
+* 3.*
+
+# Python (added during polyglot migration)
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

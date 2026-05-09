@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://server-decorator.dev/schemas/cache-entry/1.0.0.json",
+  "title": "CacheEntry",
+  "description": "Minimal schema describing the conceptual shape of a cache entry. Adapters (Redis, in-memory, etc.) serialize the value field as they please; this schema documents the invariants both implementations rely on.",
+  "type": "object",
+  "required": ["key", "value", "ttl_seconds"],
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Cache key produced by the algorithm in rules/cache-key.md."
+    },
+    "value": {
+      "description": "The cached value. Any JSON-representable value is permitted, including null/0/empty-string/false. Per D-B, adapters MUST distinguish 'absent key' from 'cached null' by returning the CACHE_MISS sentinel for the former."
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Time-to-live in seconds. 0 means 'no expiry' (adapter-specific behavior may vary)."
+    }
+  }
+}

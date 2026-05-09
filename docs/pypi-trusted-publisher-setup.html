@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PyPI Trusted Publisher setup — server-decorator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fafaf7;
+    --bg-card: #fff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --accent: #c97f4f;
+    --accent-soft: #f5e9df;
+    --border: #e5e1d8;
+    --warn-bg: #fff7e6;
+    --warn-fg: #7a4f00;
+    --warn-border: #f5c97e;
+    --code-bg: #f0ebe1;
+    --done-bg: #e8f4ea;
+    --done-fg: #1f6b34;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15140f;
+      --bg-card: #1d1c17;
+      --fg: #ebe8de;
+      --muted: #948d7d;
+      --accent: #e09a6e;
+      --accent-soft: #2c211a;
+      --border: #2e2c25;
+      --warn-bg: #2a1f0a;
+      --warn-fg: #f3c87b;
+      --warn-border: #6a4d12;
+      --code-bg: #28261f;
+      --done-bg: #1a2b1f;
+      --done-fg: #95d4a3;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    padding: 32px 16px 96px;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; margin: 0 0 12px; }
+  .subtitle { color: var(--muted); margin: 0 0 32px; font-size: 15px; }
+  .step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+    margin: 16px 0;
+    position: relative;
+  }
+  .step-number {
+    position: absolute;
+    top: 22px;
+    left: -16px;
+    width: 32px; height: 32px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  @media (max-width: 800px) {
+    .step-number { left: 12px; top: -14px; }
+    .step { padding-top: 28px; }
+  }
+  .step h2 { padding-left: 28px; }
+  @media (max-width: 800px) { .step h2 { padding-left: 0; } }
+  code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.92em;
+  }
+  a { color: var(--accent); }
+  .field {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 8px 16px;
+    margin: 12px 0;
+    align-items: baseline;
+  }
+  .field-label { color: var(--muted); font-size: 14px; }
+  .field-value code {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  @media (max-width: 600px) {
+    .field { grid-template-columns: 1fr; gap: 2px; }
+  }
+  .warn {
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+    border-left: 3px solid var(--warn-border);
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .done {
+    background: var(--done-bg);
+    color: var(--done-fg);
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin: 24px 0 0;
+    font-weight: 500;
+  }
+  .mockup {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin: 12px 0;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .mockup-input {
+    display: block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-top: 4px;
+    color: var(--fg);
+  }
+  .mockup-button {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 4px;
+    margin-top: 12px;
+    font-weight: 500;
+  }
+  .gloss {
+    color: var(--muted);
+    font-size: 13.5px;
+    margin: 4px 0 0;
+    padding-left: 28px;
+  }
+  @media (max-width: 800px) { .gloss { padding-left: 0; } }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 32px 0; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .tldr {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 0 0 28px;
+    font-size: 14.5px;
+  }
+  .tldr strong { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>PyPI Trusted Publisher setup</h1>
+<p class="subtitle">One-time configuration so <code>publish-python.yml</code> can publish <code>server-decorator</code> to PyPI without storing a token.</p>
+
+<div class="tldr">
+  <strong>tl;dr:</strong> PyPI lets you authorise a specific GitHub Actions workflow to publish on your behalf — no API token, no secret in GitHub. You add a “pending publisher” entry on PyPI <em>before</em> the project exists; the first successful publish from that workflow claims the project name.
+</div>
+
+<div class="step">
+  <span class="step-number">1</span>
+  <h2>Open the PyPI publishing page</h2>
+  <p>Go to <a href="https://pypi.org/manage/account/publishing/" target="_blank" rel="noopener">https://pypi.org/manage/account/publishing/</a> and sign in.</p>
+  <p class="gloss">If you don't have a PyPI account yet, create one at <a href="https://pypi.org/account/register/" target="_blank" rel="noopener">pypi.org/account/register</a>. Use the same email you'd use for any other open-source publishing.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">2</span>
+  <h2>Enable 2FA if you haven't already</h2>
+  <p>PyPI requires two-factor authentication on any account that publishes packages or adds publishers. The publishing page will block you with a banner if 2FA isn't on.</p>
+  <p class="gloss">If you see “Two-factor authentication is required”, follow the link in the banner — set up either an authenticator app (Authy / 1Password / Google Authenticator) or a hardware key. Takes ~2 minutes. Come back to the publishing page after.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">3</span>
+  <h2>Scroll to “Add a new pending publisher”</h2>
+  <p>The publishing page has two sections. The top one (“Manage current trusted publishers”) lists existing entries — empty for you. Below it is the form you want.</p>
+  <div class="mockup">
+    <div style="font-weight:600;color:var(--fg);">Add a new pending publisher</div>
+    <div style="margin-top:6px;">PyPI Project Name<span class="mockup-input">server-decorator</span></div>
+    <div style="margin-top:8px;">Owner<span class="mockup-input">montionugera</span></div>
+    <div style="margin-top:8px;">Repository name<span class="mockup-input">node-server-decorator</span></div>
+    <div style="margin-top:8px;">Workflow name<span class="mockup-input">publish-python.yml</span></div>
+    <div style="margin-top:8px;">Environment name<span class="mockup-input" style="color:var(--muted);">(leave blank)</span></div>
+    <span class="mockup-button">Add</span>
+  </div>
+</div>
+
+<div class="step">
+  <span class="step-number">4</span>
+  <h2>Fill the form exactly</h2>
+  <p>Copy each value below into the matching field. Spelling is case-sensitive in some fields — match exactly.</p>
+
+  <div class="field">
+    <div class="field-label">PyPI Project Name</div>
+    <div class="field-value"><code>server-decorator</code></div>
+  </div>
+  <div class="field">
+    <div class="field-label">Owner</div>
+    <div class="field-value"><code>montionugera</code></div>
+  </div>
+  <div class="field">
+    <div class="field-label">Repository name</div>
+    <div class="field-value"><code>node-server-decorator</code></div>
+  </div>
+  <div class="field">
+    <div class="field-label">Workflow name</div>
+    <div class="field-value"><code>publish-python.yml</code></div>
+  </div>
+  <div class="field">
+    <div class="field-label">Environment name</div>
+    <div class="field-value"><em>leave blank</em></div>
+  </div>
+
+  <p class="gloss">"Workflow name" is just the filename, no path — PyPI knows it lives under <code>.github/workflows/</code>. "Environment name" is for repos that gate publishes through GitHub Environments; we don't, so leave it empty.</p>
+</div>
+
+<div class="step">
+  <span class="step-number">5</span>
+  <h2>Click “Add”</h2>
+  <p>PyPI registers the entry as a <em>pending</em> publisher. It will sit in the “Pending” list at the top of the page until the first publish run from that workflow claims the project name.</p>
+  <div class="warn">
+    <strong>Name-squat risk:</strong> <code>server-decorator</code> is currently free on PyPI but anyone with an account can register it normally. Adding the pending publisher effectively reserves the name for your workflow. Don't delay this step.
+  </div>
+</div>
+
+<hr>
+
+<h2 style="margin-bottom: 8px;">After this</h2>
+<p style="color: var(--muted); font-size: 14.5px; margin-top: 0;">When you've completed step 5, tell Claude. Three things happen next:</p>
+<ul>
+  <li>CI on PR #1 finishes (Claude is monitoring it now).</li>
+  <li>Merge the PR to <code>main</code>.</li>
+  <li><code>git tag v2.0.0 &amp;&amp; git push origin v2.0.0</code> — fires <code>publish-node.yml</code> and <code>publish-python.yml</code> in parallel. <strong>This step is irreversible</strong> (npm and PyPI don't allow deleting versions), so Claude will confirm with you before pushing the tag.</li>
+</ul>
+
+<div class="done">If the PyPI page now shows <code>server-decorator</code> in the Pending publishers list, you're done with this guide.</div>
+
+</main>
+</body>
+</html>

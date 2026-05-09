@@ -1,0 +1,59 @@
+name: Publish - Node
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: node/pnpm-lock.yaml
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        run: |
+          pkg_version=$(node -p "require('./package.json').version")
+          tag_version="${GITHUB_REF#refs/tags/v}"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "FAIL: tag v$tag_version does not match node/package.json version $pkg_version" >&2
+            exit 1
+          fi
+
+      - name: Test
+        run: pnpm test:unit
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        working-directory: ${{ github.workspace }}
+        run: |
+          version="${GITHUB_REF#refs/tags/}"
+          gh release create "$version" \
+            --title "Release $version" \
+            --notes "Released $version. See [MIGRATION.md](https://github.com/${{ github.repository }}/blob/main/MIGRATION.md) for upgrade notes."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

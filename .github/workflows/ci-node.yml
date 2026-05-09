@@ -1,0 +1,49 @@
+name: CI - Node
+
+on:
+  pull_request:
+    paths: ['node/**', 'contracts/**', '.github/workflows/ci-node.yml']
+  push:
+    branches: [main]
+    paths: ['node/**', 'contracts/**', '.github/workflows/ci-node.yml']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: node/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:unit
+      - run: pnpm run build
+
+  e2e:
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-e2e')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: node/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:e2e

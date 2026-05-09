@@ -1,0 +1,17 @@
+{
+  "$comment": "Authoritative payloads both sides emit and validate. Producers create exactly these (modulo timestamp); consumers compare ignoring timestamp.",
+  "messages": [
+    {
+      "eventName": "OrderService.createOrder",
+      "payload": {"customerId": "cust-1", "total": 42.5, "status": "pending"}
+    },
+    {
+      "eventName": "OrderService.createOrder",
+      "payload": {"customerId": "cust-2", "total": 100.0, "status": "pending"}
+    },
+    {
+      "eventName": "OrderService.createOrder",
+      "payload": {"customerId": "cust-3", "total": 7.25, "status": "pending"}
+    }
+  ]
+}

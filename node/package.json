@@ -1,0 +1,85 @@
+{
+  "name": "server-decorator",
+  "version": "2.0.0",
+  "description": "TypeScript decorators for server-side applications with caching, tracking, and queue support",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:unit": "jest --selectProjects unit",
+    "test:e2e": "jest --selectProjects e2e",
+    "test:e2e:redis": "jest --selectProjects e2e --testPathPattern=redis",
+    "test:e2e:rabbitmq": "jest --selectProjects e2e --testPathPattern=rabbitmq",
+    "test:e2e:kafka": "jest --selectProjects e2e --testPathPattern=kafka",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm test:unit && pnpm run build",
+    "version:patch": "pnpm version patch",
+    "version:minor": "pnpm version minor",
+    "version:major": "pnpm version major"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/server-decorator.git",
+    "directory": "node"
+  },
+  "keywords": [
+    "typescript",
+    "decorators",
+    "caching",
+    "tracking",
+    "queue",
+    "redis",
+    "rabbitmq",
+    "kafka",
+    "server"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/your-username/server-decorator/issues"
+  },
+  "homepage": "https://github.com/your-username/server-decorator#readme",
+  "devDependencies": {
+    "@babel/plugin-proposal-class-properties": "^7.18.6",
+    "@babel/plugin-proposal-decorators": "^7.28.0",
+    "@babel/plugin-transform-private-methods": "^7.25.9",
+    "@babel/plugin-transform-private-property-in-object": "^7.25.9",
+    "@babel/preset-env": "^7.28.0",
+    "@babel/preset-typescript": "^7.27.1",
+    "@types/amqplib": "^0.10.7",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.16.5",
+    "ajv": "^8.17.1",
+    "amqplib": "^0.10.8",
+    "bullmq": "^5.56.8",
+    "ioredis": "^5.4.1",
+    "jest": "^29.7.0",
+    "kafkajs": "^2.2.4",
+    "testcontainers": "^11.4.0",
+    "ts-jest": "^29.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "eventemitter3": "^5.0.1",
+    "reflect-metadata": "^0.2.2"
+  },
+  "peerDependencies": {
+    "kafkajs": "^2.2.4"
+  },
+  "peerDependenciesMeta": {
+    "kafkajs": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.14.2"
+}
