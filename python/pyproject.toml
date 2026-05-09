@@ -71,9 +71,10 @@ files = ["src/server_decorator"]
 # strict-mode still passes; the adapter wrappers keep the public-facing types
 # precise on the server-decorator side.
 [[tool.mypy.overrides]]
-module = ["aiokafka.*", "aio_pika.*", "redis.*"]
+module = ["aiokafka.*", "aio_pika.*", "redis.*", "redis.asyncio"]
+# Make the optional adapter deps appear as Any. They don't ship `py.typed`,
+# and we don't want to vendor stubs for one thin wrapper layer.
 ignore_missing_imports = true
-follow_untyped_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

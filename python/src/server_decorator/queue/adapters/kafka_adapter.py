@@ -1,18 +1,20 @@
-"""Kafka adapter (aiokafka). Topic comes from the message metadata."""
+"""Kafka adapter (aiokafka). Topic comes from the message metadata.
+
+The producer is typed `Any` to avoid pulling aiokafka's untyped surface into
+the strict-mypy boundary. The runtime expectation is `aiokafka.AIOKafkaProducer`
+or any duck-typed equivalent with `send_and_wait(topic, value, key=...)`.
+"""
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import Any
 
 from server_decorator.queue.message import QueueMessage
 
-if TYPE_CHECKING:
-    from aiokafka import AIOKafkaProducer
-
 
 class KafkaAdapter:
-    def __init__(self, producer: AIOKafkaProducer, default_topic: str = "default") -> None:
+    def __init__(self, producer: Any, default_topic: str = "default") -> None:
         self._producer = producer
         self._default_topic = default_topic
 

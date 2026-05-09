@@ -1,20 +1,21 @@
-"""RabbitMQ adapter (aio-pika)."""
+"""RabbitMQ adapter (aio-pika).
+
+The channel is typed `Any` to avoid pulling aio-pika's untyped surface into the
+strict-mypy boundary. Runtime expectation: `aio_pika.abc.AbstractChannel`.
+"""
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import Any
 
 from server_decorator.queue.message import QueueMessage
-
-if TYPE_CHECKING:
-    from aio_pika.abc import AbstractChannel
 
 
 class RabbitMQAdapter:
     def __init__(
         self,
-        channel: AbstractChannel,
+        channel: Any,
         queue_or_exchange: str,
         *,
         exchange: bool = False,

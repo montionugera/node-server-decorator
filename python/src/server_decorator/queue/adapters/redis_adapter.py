@@ -1,18 +1,19 @@
-"""Redis Streams adapter (XADD)."""
+"""Redis Streams adapter (XADD).
+
+The client is typed `Any` to avoid pulling redis-py's untyped surface into the
+strict-mypy boundary. Runtime expectation: `redis.asyncio.Redis` or equivalent.
+"""
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import Any
 
 from server_decorator.queue.message import QueueMessage
 
-if TYPE_CHECKING:
-    from redis.asyncio import Redis
-
 
 class RedisStreamAdapter:
-    def __init__(self, client: Redis, stream: str = "default") -> None:
+    def __init__(self, client: Any, stream: str = "default") -> None:
         self._client = client
         self._stream = stream
 
