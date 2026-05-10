@@ -47,3 +47,74 @@ jobs:
           cache-dependency-path: node/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:e2e
+
+  publish:
+    name: Bump & Publish (Node + Python)
+    needs: [test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write   # required for PyPI trusted publisher
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: node/pnpm-lock.yaml
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install Node dependencies
+        working-directory: node
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python dependencies
+        working-directory: python
+        run: uv sync --extra dev
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version (Node + Python in lock-step)
+        run: bash scripts/bump-version.sh patch
+
+      - name: Update Node lockfile
+        working-directory: node
+        run: pnpm install
+
+      - name: Commit version bump
+        run: |
+          git add node/package.json node/pnpm-lock.yaml python/pyproject.toml
+          git commit -m "chore: bump patch version [skip ci]"
+          git push
+
+      - name: Build Node package
+        working-directory: node
+        run: pnpm run build
+
+      - name: Publish Node to npm
+        working-directory: node
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build Python package
+        working-directory: python
+        run: uv build
+
+      - name: Publish Python to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist
