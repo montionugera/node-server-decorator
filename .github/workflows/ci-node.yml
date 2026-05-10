@@ -70,7 +70,7 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: node/pnpm-lock.yaml
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://npm.pkg.github.com'
 
       - uses: astral-sh/setup-uv@v3
 
@@ -108,7 +108,7 @@ jobs:
         working-directory: node
         run: pnpm publish --no-git-checks --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Python package
         working-directory: python
