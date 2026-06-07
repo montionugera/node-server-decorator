@@ -27,3 +27,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# ps-release-workflow (gitignored state)
+.claude/state/
+.claude/worktrees/
