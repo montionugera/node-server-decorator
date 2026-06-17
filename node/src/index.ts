@@ -37,3 +37,16 @@ export {
 
 // NoOp adapter for fallback
 export { NoOpQueueAdapter } from './decorators/global-queue';
+
+// Config
+export { configure, getService } from './config';
+
+// Consumer system
+export {
+  ConsumerRegistry,
+  InMemoryConsumer,
+  globalConsumerRegistry,
+  type ConsumerAdapter,
+  type EventHandler,
+} from './decorators/consumer-registry';
+export { OnEvent, registerHandlers } from './decorators/on-event';
