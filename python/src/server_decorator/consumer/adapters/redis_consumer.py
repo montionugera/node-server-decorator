@@ -1,15 +1,21 @@
 """RedisStreamConsumer — at-least-once consume over a Redis stream using a consumer
 group. Reads with XREADGROUP, dispatches the JSON in the ``data`` field (matching the
 producer's RedisStreamAdapter), and XACKs only on successful dispatch. A handler that
-raises leaves the entry pending → reclaimable (at-least-once)."""
+raises leaves the entry pending (at-least-once) while the consumer keeps processing
+subsequent messages, so one poison message can't halt the pipe. Automatic reclaim of
+pending entries via XAUTOCLAIM is a future enhancement (Plan 2); today a failed entry
+stays pending until an external reclaimer or a restart picks it up."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 
 from ..adapter import Dispatch
+
+_log = logging.getLogger("server_decorator.consumer")
 
 
 class RedisStreamConsumer:
@@ -53,8 +59,15 @@ class RedisStreamConsumer:
             for _stream_key, entries in resp:
                 for entry_id, fields in entries:
                     data = fields.get(b"data") or fields.get("data")
-                    raw = json.loads(data)
-                    await dispatch(raw)  # raise here → skip XACK (stays pending)
+                    try:
+                        raw = json.loads(data)
+                        await dispatch(raw)
+                    except Exception:
+                        # Handler/decode failed: do NOT xack — entry stays pending for
+                        # reclaim (at-least-once). Keep consuming so one poison message
+                        # can't halt the pipe.
+                        _log.exception("dispatch failed for entry %s; left pending", entry_id)
+                        continue
                     await self._client.xack(self._stream, self._group, entry_id)
 
     async def stop(self) -> None:
