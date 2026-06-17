@@ -30,3 +30,6 @@ __pycache__/
 # ps-release-workflow (gitignored state)
 .claude/state/
 .claude/worktrees/
+
+# Rendered design HTML — local view artifacts only (global rule)
+docs/superpowers/**/*.html
