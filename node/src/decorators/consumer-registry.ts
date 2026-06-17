@@ -77,6 +77,7 @@ export class ConsumerRegistry {
     this.entry(options.consumer).handlers.set(eventName, handler)
   }
 
+  // Call stop() first if started — clear() does not stop/await running consumer tasks.
   clear(): void {
     this.consumers.clear()
     this.defaultConsumer = undefined
@@ -91,14 +92,23 @@ export class ConsumerRegistry {
 
   async stop(): Promise<void> {
     for (const entry of this.consumers.values()) await entry.adapter.stop()
-    await Promise.allSettled(this.tasks)
+    const results = await Promise.allSettled(this.tasks)
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        globalLogger.error(`consumer run() terminated with error: ${r.reason}`)
+      }
+    }
     this.tasks = []
   }
 
   private entry(consumer?: string): ConsumerEntry {
     const name = consumer ?? this.defaultConsumer
     if (name === undefined || !this.consumers.has(name)) {
-      throw new Error(`consumer '${consumer}' not registered`)
+      throw new Error(
+        name === undefined
+          ? 'no consumer specified and no default registered'
+          : `consumer '${name}' not registered`,
+      )
     }
     return this.consumers.get(name)!
   }
