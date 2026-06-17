@@ -1,10 +1,17 @@
 """RedisStreamConsumer — at-least-once consume over a Redis stream using a consumer
 group. Reads with XREADGROUP, dispatches the JSON in the ``data`` field (matching the
-producer's RedisStreamAdapter), and XACKs only on successful dispatch. A handler that
-raises leaves the entry pending (at-least-once) while the consumer keeps processing
-subsequent messages, so one poison message can't halt the pipe. Automatic reclaim of
-pending entries via XAUTOCLAIM is a future enhancement (Plan 2); today a failed entry
-stays pending until an external reclaimer or a restart picks it up."""
+producer's RedisStreamAdapter). Failures are handled in two phases (spec §5):
+
+- Parse/validation failures (missing ``data`` field, or ``data`` that isn't valid JSON)
+  are ACKed and skipped (with a log). Retrying never helps, and leaving them pending
+  would grow the Redis PEL unboundedly.
+- Genuine handler failures (a valid envelope whose dispatch raises) leave the entry
+  PENDING (not ACKed) for later retry, while the consumer keeps processing subsequent
+  messages so one poison message can't halt the pipe.
+
+Automatic reclaim of pending entries via XAUTOCLAIM is a future enhancement (Plan 2);
+today a handler-failed entry stays pending until an external reclaimer or a restart
+picks it up."""
 
 from __future__ import annotations
 
@@ -59,13 +66,19 @@ class RedisStreamConsumer:
             for _stream_key, entries in resp:
                 for entry_id, fields in entries:
                     data = fields.get(b"data") or fields.get("data")
+                    # Phase 1: parse. Malformed/absent-data can never succeed → ack + skip.
                     try:
+                        if data is None:
+                            raise ValueError("entry missing 'data' field")
                         raw = json.loads(data)
+                    except Exception:
+                        _log.exception("unparseable entry %s; acking + skipping", entry_id)
+                        await self._client.xack(self._stream, self._group, entry_id)
+                        continue
+                    # Phase 2: dispatch. Handler failure → leave pending for retry.
+                    try:
                         await dispatch(raw)
                     except Exception:
-                        # Handler/decode failed: do NOT xack — entry stays pending for
-                        # reclaim (at-least-once). Keep consuming so one poison message
-                        # can't halt the pipe.
                         _log.exception("dispatch failed for entry %s; left pending", entry_id)
                         continue
                     await self._client.xack(self._stream, self._group, entry_id)

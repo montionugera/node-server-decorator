@@ -81,3 +81,36 @@ async def test_failing_handler_leaves_entry_pending_and_consumer_survives(
     pending = await client.xpending(stream, group)
     assert pending["pending"] >= 1
     await client.aclose()
+
+
+async def test_acks_and_skips_unparseable_entry(redis_url: str) -> None:
+    client = redis_asyncio.from_url(redis_url)
+    stream = "test-py-malformed-stream"
+    group = "test-py-malformed-group"
+    await client.delete(stream)
+
+    got: list = []
+    reg = ConsumerRegistry()
+    reg.register("c", RedisStreamConsumer(client, stream=stream, group=group, consumer_name="w1"))
+
+    @on_event("A.ok", consumer="c", registry=reg)
+    async def handle_ok(payload, meta):
+        got.append(payload)
+
+    # Malformed entry (no `data` field) first, then a good one.
+    await client.xadd(stream, {"notdata": "garbage"})
+    good_msg = {"eventName": "A.ok", "payload": {"n": 9}, "timestamp": 1, "metadata": {}}
+    await client.xadd(stream, {"data": json.dumps(good_msg)})
+
+    await reg.start()
+    deadline = asyncio.get_event_loop().time() + 5
+    while not got and asyncio.get_event_loop().time() < deadline:  # noqa: ASYNC110
+        await asyncio.sleep(0.05)
+    await reg.stop()
+
+    # The good message was processed despite the malformed one preceding it.
+    assert got == [{"n": 9}]
+    # The malformed entry was acked (not left pending) → PEL is empty.
+    pending = await client.xpending(stream, group)
+    assert pending["pending"] == 0
+    await client.aclose()
