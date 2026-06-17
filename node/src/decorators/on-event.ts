@@ -25,18 +25,29 @@ export function OnEvent(eventName: string, options: OnEventOptions = {}) {
     propertyKey: string,
     _descriptor: PropertyDescriptor,
   ): void {
-    const list: PendingHandler[] = target[PENDING] || (target[PENDING] = [])
+    if (!Object.prototype.hasOwnProperty.call(target, PENDING)) {
+      target[PENDING] = []
+    }
+    const list: PendingHandler[] = target[PENDING]
     list.push({ eventName, propertyKey, options })
   }
 }
 
 export function registerHandlers(instance: any): void {
-  const proto = Object.getPrototypeOf(instance)
-  const list: PendingHandler[] = proto[PENDING] || []
-  for (const { eventName, propertyKey, options } of list) {
-    const registry = options.registry ?? globalConsumerRegistry
-    const handler: EventHandler = (payload, metadata) =>
-      instance[propertyKey](payload, metadata)
-    registry.on(eventName, handler, { consumer: options.consumer })
+  // Walk the prototype chain so subclass instances pick up handlers from every
+  // level of the hierarchy. Each prototype has its OWN list (guaranteed by the
+  // own-property check in OnEvent), so we never double-count inherited entries.
+  let proto = Object.getPrototypeOf(instance)
+  while (proto && proto !== Object.prototype) {
+    if (Object.prototype.hasOwnProperty.call(proto, PENDING)) {
+      const list: PendingHandler[] = proto[PENDING]
+      for (const { eventName, propertyKey, options } of list) {
+        const registry = options.registry ?? globalConsumerRegistry
+        const handler: EventHandler = (payload, metadata) =>
+          instance[propertyKey](payload, metadata)
+        registry.on(eventName, handler, { consumer: options.consumer })
+      }
+    }
+    proto = Object.getPrototypeOf(proto)
   }
 }
