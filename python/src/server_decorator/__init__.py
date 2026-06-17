@@ -8,6 +8,7 @@ auto-wrap every qualifying method.
 from server_decorator._contract import CONTRACT_VERSION
 from server_decorator._version import __version__
 from server_decorator.config import configure, get_service
+from server_decorator.consumer.adapters.redis_consumer import RedisStreamConsumer
 from server_decorator.consumer.inmemory import InMemoryConsumer
 from server_decorator.consumer.registry import ConsumerRegistry, global_consumer_registry
 from server_decorator.decorators.cache import CACHE_MISS, cache, cache_class
@@ -69,6 +70,7 @@ __all__ = [
     "ConsumerRegistry",
     "global_consumer_registry",
     "InMemoryConsumer",
+    "RedisStreamConsumer",
     # consumer decorator
     "on_event",
 ]

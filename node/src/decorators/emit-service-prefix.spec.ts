@@ -27,4 +27,24 @@ describe('EmitOnSuccess service prefix', () => {
     expect(msgs[0].metadata!.topic).toBe('user-svc.UserService.create')
     expect(msgs[0].metadata!.service).toBe('user-svc')
   })
+
+  it('applies service prefix even with no explicit queue or topic', async () => {
+    configure({ service: 'user-svc' })
+    const adapter = new InMemoryQueueAdapter()
+    globalQueueRegistry.register('default', { adapter })
+    globalQueueRegistry.setDefault('default')
+
+    class UserService {
+      @EmitOnSuccess({ useQueue: true })
+      async create(x: number) {
+        return x
+      }
+    }
+    await new UserService().create(1)
+
+    const msgs = adapter.getMessages('user-svc.UserService.create')
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].metadata!.topic).toBe('user-svc.UserService.create')
+    expect(msgs[0].metadata!.service).toBe('user-svc')
+  })
 })

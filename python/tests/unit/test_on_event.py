@@ -19,6 +19,12 @@ def _reset() -> Iterator[None]:
     global_consumer_registry.clear()
 
 
+def test_redis_stream_consumer_importable_from_top_level() -> None:
+    from server_decorator import RedisStreamConsumer
+
+    assert RedisStreamConsumer is not None
+
+
 async def test_on_event_registers_async_handler() -> None:
     got: list = []
     reg = ConsumerRegistry()

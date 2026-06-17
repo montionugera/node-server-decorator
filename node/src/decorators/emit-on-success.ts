@@ -150,7 +150,7 @@ async function handleSuccess(
       };
 
       // Use QueueRegistry for multi-queue support
-      if (queueName || topic) {
+      if (queueName || topic || service) {
         // Auto-generate topic from ClassName.methodName if not specified
         const base = `${className}.${propertyKey}`;
         const autoTopic = topic || (service ? `${service}.${base}` : base);

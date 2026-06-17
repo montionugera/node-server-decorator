@@ -65,8 +65,7 @@ atexit.register(_EMIT_EXECUTOR.shutdown, wait=True)
 ## Consuming events
 
 ```python
-from server_decorator import ConsumerRegistry, on_event
-from server_decorator.consumer.adapters.redis_consumer import RedisStreamConsumer
+from server_decorator import ConsumerRegistry, on_event, RedisStreamConsumer
 import redis.asyncio as redis
 
 registry = ConsumerRegistry()
