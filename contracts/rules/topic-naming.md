@@ -2,29 +2,40 @@
 
 ## Auto-generated topic format
 
-When `@EmitOnSuccess` / `@emit_on_success` is used without an explicit `topic` option, the topic is auto-derived as:
+When `@EmitOnSuccess` / `@emit_on_success` is used without an explicit `topic` option, the topic is auto-derived.
+
+Without a configured service (default):
 
 ```
 ClassName.methodName
 ```
 
-Both names taken verbatim from the runtime introspection (Node: `target.constructor.name` + `propertyKey`; Python: `__qualname__` last two segments).
+With a service configured via `SERVER_DECORATOR_SERVICE` (env) or `configure(service=...)`:
+
+```
+service.ClassName.methodName
+```
+
+Both names taken verbatim from runtime introspection (Node: `target.constructor.name` + `propertyKey`; Python: `__qualname__` last two segments). The service segment is taken verbatim from configuration and may contain hyphens (e.g. `user-svc`).
 
 ## Validation regex (auto form only)
+
+Two-segment form (no service configured):
 
 ```
 ^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$
 ```
 
-Matches:
-- `OrderService.createOrder`
-- `UserService.login`
-- `_PrivateService.helper` (allowed; auto-form is permissive about leading underscore)
+Three-segment form (service configured); the service segment additionally allows hyphens:
 
-Does **not** match:
-- `Service.method.subname` (only one dot allowed in auto form)
-- `123Service.method` (must start with letter or underscore)
-- `Service.create-order` (no hyphens)
+```
+^[A-Za-z_][A-Za-z0-9-]*\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$
+```
+
+Matches (2-seg): `OrderService.createOrder`, `UserService.login`, `_PrivateService.helper`
+Matches (3-seg): `user-svc.UserService.create`, `quant.OhlcService.createCandle`
+
+Does **not** match either form: `123Service.method` (must start with letter/underscore), `Service.create-order` (Class/method segments forbid hyphens).
 
 ## Manual override
 

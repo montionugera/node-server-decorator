@@ -2,6 +2,16 @@
 
 All notable changes to the wire-format contracts will be documented here. The format is loosely [Keep a Changelog](https://keepachangelog.com/), and the contract version follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] — 2026-06-17
+
+### Added
+
+- `metadata.service` (optional string) on `schemas/queue-message.schema.json`. Stamped by producers when a service name is configured via `SERVER_DECORATOR_SERVICE` / `configure(service=...)`. Backward compatible: absent when no service is configured; consumers that ignore it are unaffected.
+- `rules/topic-naming.md` — optional 3-segment auto-topic form `service.ClassName.methodName`, used only when a service is configured. The 2-segment form remains the default.
+- `fixtures/queue-message.valid-with-service.json` — golden example of a service-prefixed envelope.
+
+This is an additive, opt-in minor bump. No existing message changes shape unless a service name is configured. The cache-key algorithm is untouched (no cache flush required).
+
 ## [1.0.0] — 2026-05-08
 
 Initial contract release, locked alongside Phase 2 of the polyglot migration.

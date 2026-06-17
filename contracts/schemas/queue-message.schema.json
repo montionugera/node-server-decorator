@@ -35,7 +35,11 @@
         },
         "topic": {
           "type": ["string", "null"],
-          "description": "Routing topic. May be auto-derived (ClassName.methodName) or explicit; null when neither is set."
+          "description": "Routing topic. May be auto-derived (ClassName.methodName or service.ClassName.methodName) or explicit; null when neither is set."
+        },
+        "service": {
+          "type": "string",
+          "description": "Optional logical service name (from SERVER_DECORATOR_SERVICE / configure()). When set, the auto-topic is prefixed with it. Absent when no service is configured."
         }
       }
     }
