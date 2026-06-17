@@ -22,9 +22,12 @@ def validate_envelope(raw: Any) -> tuple[str, Any, dict[str, Any]]:
     if "payload" not in raw:
         raise InvalidEnvelope("envelope missing required 'payload'")
     timestamp = raw.get("timestamp")
-    if not isinstance(timestamp, int):
+    if not isinstance(timestamp, int) or isinstance(timestamp, bool):
         raise InvalidEnvelope("envelope missing required integer 'timestamp'")
-    metadata = raw.get("metadata") or {}
-    if not isinstance(metadata, dict):
-        raise InvalidEnvelope("envelope 'metadata' must be an object when present")
+    if "metadata" in raw and raw["metadata"] is not None:
+        metadata = raw["metadata"]
+        if not isinstance(metadata, dict):
+            raise InvalidEnvelope("envelope 'metadata' must be an object when present")
+    else:
+        metadata = {}
     return event_name, raw["payload"], metadata
