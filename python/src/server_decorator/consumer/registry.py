@@ -8,6 +8,7 @@ backend-native redelivery (at-least-once). Handlers MUST be idempotent."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import logging
 from collections.abc import Callable
@@ -22,6 +23,14 @@ _log = logging.getLogger("server_decorator.consumer")
 Handler = Callable[[Any, dict[str, Any]], Any]  # (payload, metadata) -> None | Awaitable
 UnhandledHook = Callable[[str, Any], None]
 InvalidHook = Callable[[Any, Exception], None]
+
+
+def _on_task_done(task: asyncio.Task[None]) -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        _log.error("consumer task terminated with exception", exc_info=exc)
 
 
 @dataclass
@@ -62,6 +71,8 @@ class ConsumerRegistry:
         entry.handlers[event_name] = handler
 
     def clear(self) -> None:
+        """Drop all consumers and handlers. Call stop() first if started — clear()
+        does not cancel running tasks."""
         self._consumers.clear()
         self._default = None
         self._tasks.clear()
@@ -69,7 +80,9 @@ class ConsumerRegistry:
     async def start(self) -> None:
         for name, entry in self._consumers.items():
             dispatch = self._dispatch_for(name)
-            self._tasks.append(asyncio.create_task(entry.adapter.run(dispatch)))
+            task = asyncio.create_task(entry.adapter.run(dispatch))
+            task.add_done_callback(_on_task_done)
+            self._tasks.append(task)
 
     async def stop(self) -> None:
         for entry in self._consumers.values():
@@ -77,8 +90,12 @@ class ConsumerRegistry:
         for task in self._tasks:
             try:
                 await asyncio.wait_for(task, timeout=1.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
+            except asyncio.TimeoutError:
                 task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+            except asyncio.CancelledError:
+                pass
         self._tasks.clear()
 
     def _entry(self, consumer: str | None) -> _ConsumerEntry:
