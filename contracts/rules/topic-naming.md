@@ -1,4 +1,4 @@
-# `topic-naming` (contract v1.0.0)
+# `topic-naming` (contract v1.1.0)
 
 ## Auto-generated topic format
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://server-decorator.dev/schemas/queue-message/1.0.0.json",
+  "$id": "https://server-decorator.dev/schemas/queue-message/1.1.0.json",
   "title": "QueueMessage",
   "description": "Wire format for messages published via @EmitOnSuccess / @emit_on_success when use_queue=True. Per Decision #7, payload MUST be JSON-serializable.",
   "type": "object",
