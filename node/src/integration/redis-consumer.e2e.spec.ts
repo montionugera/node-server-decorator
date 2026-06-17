@@ -61,4 +61,32 @@ describe('RedisStreamConsumer (e2e)', () => {
     expect(pending[0]).toBeGreaterThanOrEqual(1) // poison entry still pending (not acked)
     await client.quit()
   }, 30000)
+
+  it('acks and skips an unparseable entry', async () => {
+    const client = new Redis(url)
+    const stream = 'test-node-malformed-stream'
+    const group = 'test-malformed-group'
+    await client.del(stream)
+
+    const ok: unknown[] = []
+    const reg = new ConsumerRegistry()
+    reg.register('c', new RedisStreamConsumer(client, { stream, group, consumerName: 'w1' }))
+    reg.on('A.ok', (p) => { ok.push(p) }, { consumer: 'c' })
+
+    // Malformed entry: no `data` field. Can never succeed → ack + skip.
+    await client.xadd(stream, '*', 'notdata', 'garbage')
+    await client.xadd(stream, '*', 'data', JSON.stringify({ eventName: 'A.ok', payload: { n: 9 }, timestamp: 1, metadata: {} }))
+
+    await reg.start()
+    const deadline = Date.now() + 5000
+    while (ok.length < 1 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    await reg.stop()
+
+    expect(ok).toEqual([{ n: 9 }]) // good entry dispatched
+    const pending = (await client.xpending(stream, group)) as any[]
+    expect(pending[0]).toBe(0) // malformed entry was acked, not left pending
+    await client.quit()
+  }, 30000)
 })

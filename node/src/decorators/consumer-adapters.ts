@@ -4,9 +4,16 @@ import { globalLogger } from '../logger'
 
 // RedisStreamConsumer — at-least-once consume over a Redis stream via a consumer group.
 // Reads with XREADGROUP, dispatches the JSON in the `data` field (matching the
-// producer's RedisStreamAdapter), and XACKs only on successful dispatch. A handler that
-// throws leaves the entry pending (reclaimable) and the loop continues — one poison
-// message cannot halt the pipe. (Automatic reclaim via XAUTOCLAIM is a future enhancement.)
+// producer's RedisStreamAdapter). Per-entry handling splits into two phases:
+//   1. Parse/validation — an entry with no `data` field, or whose `data` isn't valid
+//      JSON, can never succeed on retry, so it's XACKed + skipped (logged). Leaving such
+//      entries pending would grow the Redis PEL unboundedly (spec §5).
+//   2. Dispatch — a valid envelope whose handler throws leaves the entry pending
+//      (reclaimable) for at-least-once retry; the loop continues so one poison message
+//      cannot halt the pipe. A parseable-but-schema-invalid envelope still reaches
+//      dispatch, where the registry's onInvalid path handles it and dispatch resolves
+//      normally, so the entry is XACKed.
+// (Automatic reclaim via XAUTOCLAIM is a future enhancement.)
 export class RedisStreamConsumer implements ConsumerAdapter {
   private stopped = false
 
@@ -57,13 +64,21 @@ export class RedisStreamConsumer implements ConsumerAdapter {
       if (!resp) continue
       for (const [, entries] of resp) {
         for (const [entryId, fields] of entries) {
-          const idx = fields.indexOf('data')
+          // Phase 1: parse. A malformed/absent-data entry can never succeed → ack + skip.
+          let raw: unknown
           try {
-            const raw = JSON.parse(fields[idx + 1])
+            const idx = fields.indexOf('data')
+            if (idx === -1) throw new Error("entry missing 'data' field")
+            raw = JSON.parse(fields[idx + 1])
+          } catch (err) {
+            globalLogger.error(`unparseable entry ${entryId}; acking + skipping: ${err}`)
+            await this.client.xack(this.stream, this.group, entryId)
+            continue
+          }
+          // Phase 2: dispatch. A handler failure → leave pending (no ack) for at-least-once retry.
+          try {
             await dispatch(raw)
           } catch (err) {
-            // Dispatch/parse failed: do NOT xack — entry stays pending for reclaim
-            // (at-least-once). Keep consuming so one poison message can't halt the pipe.
             globalLogger.error(`dispatch failed for entry ${entryId}; left pending: ${err}`)
             continue
           }
