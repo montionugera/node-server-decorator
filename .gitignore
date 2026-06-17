@@ -12,6 +12,8 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json  # Use pnpm-lock.yaml instead
 yarn.lock         # Use pnpm-lock.yaml instead
+# uv is dev-only; do not commit the lockfile
+python/uv.lock
 
 # iCloud-style duplicate files (D-D)
 * 2
