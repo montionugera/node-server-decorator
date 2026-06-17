@@ -9,6 +9,7 @@ class QueueMessageMetadata(TypedDict, total=False):
     className: str
     methodName: str
     topic: str | None
+    service: str
 
 
 class _QueueMessageRequired(TypedDict):
