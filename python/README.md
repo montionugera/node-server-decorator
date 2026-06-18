@@ -62,6 +62,32 @@ atexit.register(_EMIT_EXECUTOR.shutdown, wait=True)
 
 `CacheAdapter.get` returns `CACHE_MISS` (a module-level sentinel) when a key is absent — `None`/`0`/`""`/`False` are valid cached values. See [`../contracts/rules/cache-adapter.md`](../contracts/rules/cache-adapter.md).
 
+## Consuming events
+
+```python
+from server_decorator import ConsumerRegistry, on_event, RedisStreamConsumer
+import redis.asyncio as redis
+
+registry = ConsumerRegistry()
+registry.register(
+    "orders",
+    RedisStreamConsumer(redis.from_url("redis://localhost:6379"), stream="orders", group="email-svc"),
+)
+
+@on_event("OrderService.createOrder", consumer="orders")
+async def send_email(payload, meta):
+    ...  # return -> ack; raise -> redelivered
+
+await registry.start()
+# ... app runs ...
+await registry.stop()
+```
+
+**Delivery is at-least-once.** A message can be delivered more than once (e.g. a
+crash between handler success and ack). **Handlers must be idempotent.** Ordering
+is not guaranteed under redelivery. Unparseable messages are acked + skipped;
+only handler failures stay pending for retry.
+
 ## License
 
 MIT.

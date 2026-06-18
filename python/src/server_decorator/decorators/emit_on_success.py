@@ -18,6 +18,7 @@ from typing import Any, TypeVar, cast
 
 from server_decorator import emitter as _emitter_mod
 from server_decorator import logger as _logger_mod
+from server_decorator.config import get_service
 from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
 from server_decorator.decorators._qualname import shorten_qualname
 from server_decorator.queue import registry as _registry_mod
@@ -81,6 +82,10 @@ def emit_on_success(
                     _logger_mod.global_logger.error(f"Failed to emit event {resolved_event}: {e!r}")
             if opts.use_queue:
                 try:
+                    service = get_service()
+                    auto_topic = resolved_event
+                    if service and opts.topic is None:
+                        auto_topic = f"{service}.{resolved_event}"
                     msg: QueueMessage = {
                         "eventName": resolved_event,
                         "payload": payload,
@@ -89,13 +94,13 @@ def emit_on_success(
                             "className": class_name,
                             "methodName": method_name,
                             "topic": opts.topic,
+                            **({"service": service} if service else {}),
                             **opts.queue_metadata,  # type: ignore[typeddict-item]
                         },
                     }
-                    if opts.queue or opts.topic:
-                        auto_topic = opts.topic or qualname
+                    if opts.queue or opts.topic or service:
                         await _registry_mod.global_queue_registry.publish(
-                            msg, opts.queue, auto_topic
+                            msg, opts.queue, opts.topic or auto_topic
                         )
                     else:
                         await _registry_mod.global_queue_registry.publish(msg)

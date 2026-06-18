@@ -4,6 +4,8 @@ Two scenarios:
 
 - `scenarios/node-producer-python-consumer/` — Node `@EmitOnSuccess` publishes to Redis stream → Python reads + validates against `contracts/schemas/queue-message.schema.json`.
 - `scenarios/python-producer-node-consumer/` — reverse direction.
+- `scenarios/node-emit-python-consume/` — Node writes to a Redis stream; Python consumes via `@on_event` + `RedisStreamConsumer` (consumer groups + XACK).
+- `scenarios/python-emit-node-consume/` — reverse direction, Node consumes via `@OnEvent` + `RedisStreamConsumer`.
 
 Both use the matched `RedisStreamAdapter` (Node) ↔ `RedisStreamAdapter` (Python) so the wire format is the clean `QueueMessage` JSON. BullMQ's framing-specific interop is out of scope for v2.0.0.
 
@@ -25,4 +27,4 @@ To add RabbitMQ or Kafka interop:
 2. Copy a scenario folder, swap the producer/consumer adapters.
 3. Pin the image tag in [`../contracts/INFRA.md`](../contracts/INFRA.md).
 
-The contract round-trip is only proven between matched adapters. A BullMQ-aware Python consumer is tracked as a v2.1+ candidate.
+The contract round-trip is only proven between matched adapters. Kafka, BullMQ, and RabbitMQ consumers (and their interop scenarios) are added in Plan 2.
