@@ -30,7 +30,7 @@ class KafkaConsumer:
         self._stop = asyncio.Event()
 
     async def run(self, dispatch: Dispatch) -> None:
-        from aiokafka import AIOKafkaConsumer
+        from aiokafka import AIOKafkaConsumer, TopicPartition
 
         consumer = AIOKafkaConsumer(
             *self._topics,
@@ -43,20 +43,26 @@ class KafkaConsumer:
         try:
             while not self._stop.is_set():
                 batch = await consumer.getmany(timeout_ms=1000, max_records=10)
-                for _tp, records in batch.items():
+                tp: TopicPartition
+                for tp, records in batch.items():
                     for record in records:
+                        # Phase 1: parse. Unparseable -> commit (skip), can never succeed.
                         try:
                             raw = json.loads(record.value)
                         except Exception:
                             _log.exception("unparseable kafka record; committing + skipping")
-                            await consumer.commit()
+                            await consumer.commit({tp: record.offset + 1})
                             continue
+                        # Phase 2: dispatch. Handler failure -> do NOT commit; stop this
+                        # partition here so we never commit past the failed offset.
                         try:
                             await dispatch(raw)
                         except Exception:
-                            _log.exception("dispatch failed for kafka record; not committing")
-                            continue
-                        await consumer.commit()
+                            _log.exception(
+                                "dispatch failed for kafka record; not committing, will retry"
+                            )
+                            break
+                        await consumer.commit({tp: record.offset + 1})
         finally:
             await consumer.stop()
 
