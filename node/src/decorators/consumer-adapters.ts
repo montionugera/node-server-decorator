@@ -1,6 +1,7 @@
 import type { Redis } from 'ioredis'
 import type { Kafka, Consumer } from 'kafkajs'
 import type { Channel, ConsumeMessage } from 'amqplib'
+import type { Worker, Job } from 'bullmq'
 import { ConsumerAdapter, Dispatch } from './consumer-registry'
 import { globalLogger } from '../logger'
 
@@ -208,5 +209,35 @@ export class RabbitMQConsumer implements ConsumerAdapter {
 
   async stop(): Promise<void> {
     if (this.consumerTag) await this.channel.cancel(this.consumerTag)
+  }
+}
+
+// BullMQConsumer — consume BullMQ jobs via a Worker. The producer's BullMQAdapter stores
+// the QueueMessage as the job's data, so job.data IS the envelope. dispatch success ->
+// processor returns (job completed); dispatch raise -> processor throws (BullMQ retries
+// per the job's attempts). No parse phase: job.data is already structured; an invalid
+// envelope reaches dispatch's onInvalid path and the job completes. bullmq is lazily
+// imported so consumers who don't use it aren't forced to install it.
+export class BullMQConsumer implements ConsumerAdapter {
+  private worker?: Worker
+
+  constructor(
+    private options: { queueName: string; connection: string | object; concurrency?: number },
+  ) {}
+
+  async run(dispatch: Dispatch): Promise<void> {
+    const { Worker } = await import('bullmq')
+    this.worker = new Worker(
+      this.options.queueName,
+      async (job: Job) => {
+        await dispatch(job.data)
+      },
+      { connection: this.options.connection as any, concurrency: this.options.concurrency ?? 1 },
+    )
+    await this.worker.waitUntilReady()
+  }
+
+  async stop(): Promise<void> {
+    if (this.worker) await this.worker.close()
   }
 }
