@@ -1,5 +1,6 @@
 import type { Redis } from 'ioredis'
 import type { Kafka, Consumer } from 'kafkajs'
+import type { Channel, ConsumeMessage } from 'amqplib'
 import { ConsumerAdapter, Dispatch } from './consumer-registry'
 import { globalLogger } from '../logger'
 
@@ -158,5 +159,54 @@ export class KafkaConsumer implements ConsumerAdapter {
   async stop(): Promise<void> {
     this.stopped = true
     if (this.consumer) await this.consumer.disconnect()
+  }
+}
+
+// RabbitMQConsumer — at-least-once consume via basic.consume. The message body is the
+// JSON envelope (matching the producer's RabbitMQAdapter). dispatch success -> ack;
+// dispatch raise -> nack(requeue=true); unparseable body -> ack + drop (log). One queue.
+export class RabbitMQConsumer implements ConsumerAdapter {
+  private consumerTag?: string
+
+  constructor(
+    private channel: Channel,
+    private options: { queue: string; prefetch?: number },
+  ) {}
+
+  async run(dispatch: Dispatch): Promise<void> {
+    await this.channel.assertQueue(this.options.queue, { durable: true })
+    if (this.options.prefetch) await this.channel.prefetch(this.options.prefetch)
+    const { consumerTag } = await this.channel.consume(
+      this.options.queue,
+      (msg: ConsumeMessage | null) => {
+        if (!msg) return
+        void this.handle(dispatch, msg)
+      },
+      { noAck: false },
+    )
+    this.consumerTag = consumerTag
+  }
+
+  private async handle(dispatch: Dispatch, msg: ConsumeMessage): Promise<void> {
+    let raw: unknown
+    try {
+      raw = JSON.parse(msg.content.toString())
+    } catch (err) {
+      globalLogger.error(`unparseable rabbitmq message; acking + dropping: ${err}`)
+      this.channel.ack(msg)
+      return
+    }
+    try {
+      await dispatch(raw)
+    } catch (err) {
+      globalLogger.error(`dispatch failed for rabbitmq message; requeueing: ${err}`)
+      this.channel.nack(msg, false, true)
+      return
+    }
+    this.channel.ack(msg)
+  }
+
+  async stop(): Promise<void> {
+    if (this.consumerTag) await this.channel.cancel(this.consumerTag)
   }
 }
