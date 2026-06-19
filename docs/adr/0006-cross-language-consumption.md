@@ -34,3 +34,17 @@ raw clients in tests. We need a first-class consume API in both languages.
   not compatible with TC39 stage-3 transpilers (e.g. esbuild/tsx) — consumers
   compile with tsc (as the package does) or register handlers imperatively via
   `ConsumerRegistry.on()`.
+
+## Plan 2 (shipped)
+
+- Kafka, RabbitMQ, and BullMQ consumers added in **both** languages on the same
+  `ConsumerAdapter` contract introduced in Plan 1.
+- BullMQ is consumed via the official `bullmq` packages — a Node `Worker` and the
+  Python `bullmq` package (Decision U3) — rather than re-framing BullMQ jobs onto
+  another transport.
+- **No contract change**: matched-adapter round-trips ride wire format `1.1.0`;
+  cross-adapter framing remains the explicit non-goal.
+- Optional client libraries (`kafkajs`/`amqplib`/`bullmq`; `aiokafka`/`aio-pika`/
+  `bullmq`) are **lazy-imported**, so `import server_decorator` /
+  `import '@montionugera/server-decorator'` never requires an unused extra.
+- Automatic Redis reclaim (XAUTOCLAIM) is still deferred.

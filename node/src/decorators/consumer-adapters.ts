@@ -159,7 +159,14 @@ export class KafkaConsumer implements ConsumerAdapter {
 
   async stop(): Promise<void> {
     this.stopped = true
-    if (this.consumer) await this.consumer.disconnect()
+    if (this.consumer) {
+      try {
+        await this.consumer.stop()
+      } catch {
+        // ignore — proceeding to disconnect
+      }
+      await this.consumer.disconnect()
+    }
   }
 }
 

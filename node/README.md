@@ -383,6 +383,19 @@ handler failures stay pending for retry. `@OnEvent` uses stage-2 decorators
 (`experimentalDecorators`); if you transpile with esbuild/tsx, register handlers
 imperatively with `registry.on('Event.name', handler, { consumer: 'orders' })`.
 
+### Available consumers
+
+| Consumer | Dependency |
+|----------|------------|
+| `RedisStreamConsumer` | built-in (`ioredis`) |
+| `KafkaConsumer` | requires `kafkajs` |
+| `RabbitMQConsumer` | requires `amqplib` |
+| `BullMQConsumer` | requires `bullmq` |
+
+All backends deliver **at-least-once**, so handlers must be idempotent; failed
+messages stay pending/unacked (Redis/RabbitMQ) or are retried per attempts
+(Kafka offset is not committed / BullMQ job `attempts`).
+
 ## Contributing
 
 1. Ensure Docker is running for E2E tests
