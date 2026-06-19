@@ -88,6 +88,19 @@ crash between handler success and ack). **Handlers must be idempotent.** Orderin
 is not guaranteed under redelivery. Unparseable messages are acked + skipped;
 only handler failures stay pending for retry.
 
+### Available consumers
+
+| Consumer | Dependency |
+|----------|------------|
+| `RedisStreamConsumer` | `pip install server-decorator[redis]` |
+| `KafkaConsumer` | `[kafka]` |
+| `RabbitMQConsumer` | `[rabbitmq]` |
+| `BullMQConsumer` | `[bullmq]` |
+
+All backends deliver **at-least-once**, so handlers must be idempotent; failed
+messages stay pending/unacked (Redis/RabbitMQ) or are retried per attempts
+(Kafka offset is not committed / BullMQ job `attempts`).
+
 ## License
 
 MIT.

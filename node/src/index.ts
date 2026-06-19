@@ -49,5 +49,5 @@ export {
   type ConsumerAdapter,
   type EventHandler,
 } from './decorators/consumer-registry';
-export { RedisStreamConsumer } from './decorators/consumer-adapters';
+export { RedisStreamConsumer, KafkaConsumer, RabbitMQConsumer, BullMQConsumer } from './decorators/consumer-adapters';
 export { OnEvent, registerHandlers } from './decorators/on-event';

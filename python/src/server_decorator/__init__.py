@@ -8,6 +8,9 @@ auto-wrap every qualifying method.
 from server_decorator._contract import CONTRACT_VERSION
 from server_decorator._version import __version__
 from server_decorator.config import configure, get_service
+from server_decorator.consumer.adapters.bullmq_consumer import BullMQConsumer
+from server_decorator.consumer.adapters.kafka_consumer import KafkaConsumer
+from server_decorator.consumer.adapters.rabbitmq_consumer import RabbitMQConsumer
 from server_decorator.consumer.adapters.redis_consumer import RedisStreamConsumer
 from server_decorator.consumer.inmemory import InMemoryConsumer
 from server_decorator.consumer.registry import ConsumerRegistry, global_consumer_registry
@@ -71,6 +74,9 @@ __all__ = [
     "global_consumer_registry",
     "InMemoryConsumer",
     "RedisStreamConsumer",
+    "KafkaConsumer",
+    "RabbitMQConsumer",
+    "BullMQConsumer",
     # consumer decorator
     "on_event",
 ]

@@ -1,4 +1,7 @@
 import type { Redis } from 'ioredis'
+import type { Kafka, Consumer } from 'kafkajs'
+import type { Channel, ConsumeMessage } from 'amqplib'
+import type { Worker, Job } from 'bullmq'
 import { ConsumerAdapter, Dispatch } from './consumer-registry'
 import { globalLogger } from '../logger'
 
@@ -90,5 +93,158 @@ export class RedisStreamConsumer implements ConsumerAdapter {
 
   async stop(): Promise<void> {
     this.stopped = true
+  }
+}
+
+// KafkaConsumer — at-least-once consume via a kafkajs consumer group with manual offset
+// commit. Each message's `value` is the JSON envelope (matching the producer's KafkaAdapter).
+// dispatch success → commit offset; dispatch raise → do not commit (redelivered on restart);
+// unparseable value → commit + skip (log).
+export class KafkaConsumer implements ConsumerAdapter {
+  private consumer?: Consumer
+  private stopped = false
+
+  constructor(
+    private kafka: Kafka,
+    private options: { topics: string[]; groupId: string; fromBeginning?: boolean },
+  ) {}
+
+  async run(dispatch: Dispatch): Promise<void> {
+    const consumer = this.kafka.consumer({ groupId: this.options.groupId })
+    this.consumer = consumer
+    await consumer.connect()
+    for (const topic of this.options.topics) {
+      await consumer.subscribe({ topic, fromBeginning: this.options.fromBeginning ?? true })
+    }
+    await consumer.run({
+      autoCommit: false,
+      eachMessage: async ({ topic, partition, message }) => {
+        if (this.stopped) return
+        const valueStr = message.value?.toString()
+        let raw: unknown
+        try {
+          if (!valueStr) throw new Error('empty message value')
+          raw = JSON.parse(valueStr)
+        } catch (err) {
+          globalLogger.error(`unparseable kafka message; committing + skipping: ${err}`)
+          await this.commit(consumer, topic, partition, message.offset)
+          return
+        }
+        try {
+          await dispatch(raw)
+        } catch (err) {
+          globalLogger.error(
+            `dispatch failed for kafka offset ${message.offset}; not committing: ${err}`,
+          )
+          return
+        }
+        await this.commit(consumer, topic, partition, message.offset)
+      },
+    })
+    while (!this.stopped) {
+      await new Promise((r) => setTimeout(r, 100))
+    }
+  }
+
+  private async commit(
+    consumer: Consumer,
+    topic: string,
+    partition: number,
+    offset: string,
+  ): Promise<void> {
+    await consumer.commitOffsets([
+      { topic, partition, offset: (Number(offset) + 1).toString() },
+    ])
+  }
+
+  async stop(): Promise<void> {
+    this.stopped = true
+    if (this.consumer) {
+      try {
+        await this.consumer.stop()
+      } catch {
+        // ignore — proceeding to disconnect
+      }
+      await this.consumer.disconnect()
+    }
+  }
+}
+
+// RabbitMQConsumer — at-least-once consume via basic.consume. The message body is the
+// JSON envelope (matching the producer's RabbitMQAdapter). dispatch success -> ack;
+// dispatch raise -> nack(requeue=true); unparseable body -> ack + drop (log). One queue.
+export class RabbitMQConsumer implements ConsumerAdapter {
+  private consumerTag?: string
+
+  constructor(
+    private channel: Channel,
+    private options: { queue: string; prefetch?: number },
+  ) {}
+
+  async run(dispatch: Dispatch): Promise<void> {
+    await this.channel.assertQueue(this.options.queue, { durable: true })
+    if (this.options.prefetch) await this.channel.prefetch(this.options.prefetch)
+    const { consumerTag } = await this.channel.consume(
+      this.options.queue,
+      (msg: ConsumeMessage | null) => {
+        if (!msg) return
+        void this.handle(dispatch, msg)
+      },
+      { noAck: false },
+    )
+    this.consumerTag = consumerTag
+  }
+
+  private async handle(dispatch: Dispatch, msg: ConsumeMessage): Promise<void> {
+    let raw: unknown
+    try {
+      raw = JSON.parse(msg.content.toString())
+    } catch (err) {
+      globalLogger.error(`unparseable rabbitmq message; acking + dropping: ${err}`)
+      this.channel.ack(msg)
+      return
+    }
+    try {
+      await dispatch(raw)
+    } catch (err) {
+      globalLogger.error(`dispatch failed for rabbitmq message; requeueing: ${err}`)
+      this.channel.nack(msg, false, true)
+      return
+    }
+    this.channel.ack(msg)
+  }
+
+  async stop(): Promise<void> {
+    if (this.consumerTag) await this.channel.cancel(this.consumerTag)
+  }
+}
+
+// BullMQConsumer — consume BullMQ jobs via a Worker. The producer's BullMQAdapter stores
+// the QueueMessage as the job's data, so job.data IS the envelope. dispatch success ->
+// processor returns (job completed); dispatch raise -> processor throws (BullMQ retries
+// per the job's attempts). No parse phase: job.data is already structured; an invalid
+// envelope reaches dispatch's onInvalid path and the job completes. bullmq is lazily
+// imported so consumers who don't use it aren't forced to install it.
+export class BullMQConsumer implements ConsumerAdapter {
+  private worker?: Worker
+
+  constructor(
+    private options: { queueName: string; connection: string | object; concurrency?: number },
+  ) {}
+
+  async run(dispatch: Dispatch): Promise<void> {
+    const { Worker } = await import('bullmq')
+    this.worker = new Worker(
+      this.options.queueName,
+      async (job: Job) => {
+        await dispatch(job.data)
+      },
+      { connection: this.options.connection as any, concurrency: this.options.concurrency ?? 1 },
+    )
+    await this.worker.waitUntilReady()
+  }
+
+  async stop(): Promise<void> {
+    if (this.worker) await this.worker.close()
   }
 }
