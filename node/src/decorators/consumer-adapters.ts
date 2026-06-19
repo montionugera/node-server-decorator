@@ -1,4 +1,5 @@
 import type { Redis } from 'ioredis'
+import type { Kafka, Consumer } from 'kafkajs'
 import { ConsumerAdapter, Dispatch } from './consumer-registry'
 import { globalLogger } from '../logger'
 
@@ -90,5 +91,72 @@ export class RedisStreamConsumer implements ConsumerAdapter {
 
   async stop(): Promise<void> {
     this.stopped = true
+  }
+}
+
+// KafkaConsumer — at-least-once consume via a kafkajs consumer group with manual offset
+// commit. Each message's `value` is the JSON envelope (matching the producer's KafkaAdapter).
+// dispatch success → commit offset; dispatch raise → do not commit (redelivered on restart);
+// unparseable value → commit + skip (log).
+export class KafkaConsumer implements ConsumerAdapter {
+  private consumer?: Consumer
+  private stopped = false
+
+  constructor(
+    private kafka: Kafka,
+    private options: { topics: string[]; groupId: string; fromBeginning?: boolean },
+  ) {}
+
+  async run(dispatch: Dispatch): Promise<void> {
+    const consumer = this.kafka.consumer({ groupId: this.options.groupId })
+    this.consumer = consumer
+    await consumer.connect()
+    for (const topic of this.options.topics) {
+      await consumer.subscribe({ topic, fromBeginning: this.options.fromBeginning ?? true })
+    }
+    await consumer.run({
+      autoCommit: false,
+      eachMessage: async ({ topic, partition, message }) => {
+        if (this.stopped) return
+        const valueStr = message.value?.toString()
+        let raw: unknown
+        try {
+          if (!valueStr) throw new Error('empty message value')
+          raw = JSON.parse(valueStr)
+        } catch (err) {
+          globalLogger.error(`unparseable kafka message; committing + skipping: ${err}`)
+          await this.commit(consumer, topic, partition, message.offset)
+          return
+        }
+        try {
+          await dispatch(raw)
+        } catch (err) {
+          globalLogger.error(
+            `dispatch failed for kafka offset ${message.offset}; not committing: ${err}`,
+          )
+          return
+        }
+        await this.commit(consumer, topic, partition, message.offset)
+      },
+    })
+    while (!this.stopped) {
+      await new Promise((r) => setTimeout(r, 100))
+    }
+  }
+
+  private async commit(
+    consumer: Consumer,
+    topic: string,
+    partition: number,
+    offset: string,
+  ): Promise<void> {
+    await consumer.commitOffsets([
+      { topic, partition, offset: (Number(offset) + 1).toString() },
+    ])
+  }
+
+  async stop(): Promise<void> {
+    this.stopped = true
+    if (this.consumer) await this.consumer.disconnect()
   }
 }
