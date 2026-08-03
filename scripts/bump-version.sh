@@ -17,6 +17,11 @@ done
 for pkg in python/packages/*/pyproject.toml; do
   sed -i.bak "s/^version = .*/version = \"$new_version\"/" "$pkg" && rm "$pkg.bak"
 done
+# Mirror into each package's runtime __version__ export (what `server_decorator.__version__`
+# actually reads at import time) — pyproject.toml alone is invisible to consumers.
+for v in python/packages/*/src/*/_version.py; do
+  sed -i.bak "s/^__version__ = .*/__version__ = \"$new_version\"/" "$v" && rm "$v.bak"
+done
 
 bash scripts/check-versions.sh
 echo "Bumped all packages to v$new_version"

@@ -13,6 +13,12 @@ for pkg in python/packages/*/pyproject.toml; do
   v=$(grep -oE '^version\s*=\s*"[^"]+"' "$pkg" | grep -oE '"[^"]+"' | tr -d '"')
   versions+="$pkg=$v\n"
 done
+# _version.py is the runtime `__version__` export consumers actually read (see I1) — check
+# it stays in lockstep with pyproject.toml, not just Node/Python across packages.
+for v in python/packages/*/src/*/_version.py; do
+  ver=$(grep -oE '^__version__\s*=\s*"[^"]+"' "$v" | grep -oE '"[^"]+"' | tr -d '"')
+  versions+="$v=$ver\n"
+done
 
 count=$(printf "%b" "$versions" | cut -d= -f2 | sort -u | wc -l | tr -d ' ')
 if [ "$count" != "1" ]; then
