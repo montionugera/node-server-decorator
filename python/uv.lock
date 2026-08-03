@@ -10,6 +10,7 @@ resolution-markers = [
 [manifest]
 members = [
     "server-decorator",
+    "server-decorator-entity",
 ]
 
 [[package]]
@@ -1417,6 +1418,28 @@ requires-dist = [
     { name = "testcontainers", extras = ["redis", "rabbitmq", "kafka"], marker = "extra == 'dev'", specifier = ">=4.7" },
 ]
 provides-extras = ["redis", "rabbitmq", "kafka", "all", "dev"]
+
+[[package]]
+name = "server-decorator-entity"
+version = "2.0.2"
+source = { editable = "packages/entity" }
+
+[package.optional-dependencies]
+dev = [
+    { name = "jsonschema" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.21" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "testcontainers"
