@@ -14,6 +14,7 @@ from server_decorator_entity import (
     Int,
     ListOf,
     Obj,
+    Ref,
     Str,
     action,
     entity_spec,
@@ -186,6 +187,38 @@ def test_doubled_backslash_before_digit_does_not_false_positive() -> None:
     spec = entity_spec(X17)
     e_field = next(f for f in spec["fields"] if f["name"] == "e")
     assert e_field["pattern"] == pattern
+
+
+def test_empty_string_pattern_is_preserved_in_ir() -> None:
+    # M4 parity bug: FieldMarker.to_ir used truthiness (`if self.pattern:`), which silently
+    # dropped an empty-string pattern from the IR. The TS twin (`str({ pattern: '' })`) spreads
+    # the option straight into FieldSpec and only filters `undefined` in canonicalJson, so it
+    # keeps `pattern: ''`. The schema (`contracts/schemas/entity-spec.schema.json`) declares
+    # `pattern` as a plain `{"type": "string"}` with no minLength, so `""` is schema-valid and
+    # must round-trip byte-identically across languages.
+    @restful(path="x18")
+    class X18:
+        id: Annotated[str, Id()]
+        e: Annotated[str, Str(pattern="")]
+
+    spec = entity_spec(X18)
+    e_field = next(f for f in spec["fields"] if f["name"] == "e")
+    assert "pattern" in e_field
+    assert e_field["pattern"] == ""
+
+
+def test_empty_string_ref_is_preserved_in_ir() -> None:
+    # Same M4 parity bug, `ref` side: FieldMarker.to_ir used `if self.ref:`, dropping an
+    # empty-string ref. The TS twin (`ref('')`) keeps `ref: ''` for the same reason as above.
+    @restful(path="x19")
+    class X19:
+        id: Annotated[str, Id()]
+        r: Annotated[dict, Ref("")]  # type: ignore[type-arg]
+
+    spec = entity_spec(X19)
+    r_field = next(f for f in spec["fields"] if f["name"] == "r")
+    assert "ref" in r_field
+    assert r_field["ref"] == ""
 
 
 def test_valid_entity_unchanged_control_case() -> None:

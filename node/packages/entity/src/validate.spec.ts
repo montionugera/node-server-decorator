@@ -1,4 +1,4 @@
-import { Restful, action, id, str, int, float, enumOf, listOf, obj } from './index';
+import { Restful, action, id, str, int, float, enumOf, listOf, obj, ref } from './index';
 
 // P1 gate-review fixes (C4, C5, C6-escalated-enum, I-a, I-b1). See
 // contracts/rules/entity-spec-validation.md for the shared rulings both languages implement.
@@ -179,6 +179,30 @@ describe('decoration-time validation', () => {
     }
     const spec = require('./index').entitySpec(X17);
     expect(spec.fields.find((f: { name: string }) => f.name === 'e').pattern).toBe('^a\\\\1$');
+  });
+
+  it('preserves an empty-string pattern in the IR (M4 parity: FieldSpec spreads the option; only `undefined` is filtered by canonicalJson)', () => {
+    @Restful({ path: 'x18' })
+    class X18 {
+      @id() id!: string;
+      @str({ pattern: '' }) e!: string;
+    }
+    const spec = require('./index').entitySpec(X18);
+    const e = spec.fields.find((f: { name: string }) => f.name === 'e');
+    expect(e).toHaveProperty('pattern');
+    expect(e.pattern).toBe('');
+  });
+
+  it('preserves an empty-string ref in the IR (M4 parity twin)', () => {
+    @Restful({ path: 'x19' })
+    class X19 {
+      @id() id!: string;
+      @ref('') r!: string;
+    }
+    const spec = require('./index').entitySpec(X19);
+    const r = spec.fields.find((f: { name: string }) => f.name === 'r');
+    expect(r).toHaveProperty('ref');
+    expect(r.ref).toBe('');
   });
 
   it('accepts a valid entity unchanged (control case)', () => {

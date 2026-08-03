@@ -50,14 +50,14 @@ class FieldMarker:
             ir["min"] = self.min
         if self.max is not None:
             ir["max"] = self.max
-        if self.pattern:
+        if self.pattern is not None:
             ir["pattern"] = self.pattern
         for flag in ("optional", "nullable", "readonly", "writeonly", "filterable"):
             if getattr(self, flag):
                 ir[flag] = True
         if self.item:
             ir["item"] = self.item.to_ir(name)
-        if self.ref:
+        if self.ref is not None:
             ir["ref"] = self.ref
         if self.fields is not None:
             ir["fields"] = [m.to_ir(n) for n, m in self.fields]
