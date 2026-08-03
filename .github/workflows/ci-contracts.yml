@@ -5,14 +5,18 @@ on:
     paths:
       - 'contracts/**'
       - 'node/packages/core/src/**'
+      - 'node/packages/entity/**'
       - 'python/packages/core/src/**'
+      - 'python/packages/entity/**'
       - '.github/workflows/ci-contracts.yml'
   push:
     branches: [main]
     paths:
       - 'contracts/**'
       - 'node/packages/core/src/**'
+      - 'node/packages/entity/**'
       - 'python/packages/core/src/**'
+      - 'python/packages/entity/**'
       - '.github/workflows/ci-contracts.yml'
 
 concurrency:
@@ -45,3 +49,15 @@ jobs:
           echo "OK: contract=$contract node=$node_v python=$py_v"
       - name: Assert package version match (Node ↔ Python)
         run: bash scripts/check-versions.sh
+  entity-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'pnpm', cache-dependency-path: node/pnpm-lock.yaml }
+      - uses: astral-sh/setup-uv@v5
+      - run: cd node && pnpm install --frozen-lockfile
+      - run: cd python && uv sync --all-packages
+      - run: bash scripts/check-entity-parity.sh
