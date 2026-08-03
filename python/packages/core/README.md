@@ -1,6 +1,6 @@
 # server-decorator (Python)
 
-Server-side decorators for caching, tracking, and queue emission. Polyglot sibling of the Node `server-decorator` npm package — both share the wire-format contracts in [`../contracts`](../contracts).
+Server-side decorators for caching, tracking, and queue emission. Polyglot sibling of the Node `server-decorator` npm package — both share the wire-format contracts in [`../../../contracts`](../../../contracts).
 
 ## Install
 
@@ -60,7 +60,7 @@ atexit.register(_EMIT_EXECUTOR.shutdown, wait=True)
 
 ## Caching `None` / falsy values
 
-`CacheAdapter.get` returns `CACHE_MISS` (a module-level sentinel) when a key is absent — `None`/`0`/`""`/`False` are valid cached values. See [`../contracts/rules/cache-adapter.md`](../contracts/rules/cache-adapter.md).
+`CacheAdapter.get` returns `CACHE_MISS` (a module-level sentinel) when a key is absent — `None`/`0`/`""`/`False` are valid cached values. See [`../../../contracts/rules/cache-adapter.md`](../../../contracts/rules/cache-adapter.md).
 
 ## License
 

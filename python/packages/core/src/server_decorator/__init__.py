@@ -1,6 +1,6 @@
 """server-decorator (Python) — public API barrel.
 
-Mirrors `node/src/index.ts`. Method-form decorators behave identically to the Node
+Mirrors `node/packages/core/src/index.ts`. Method-form decorators behave identically to the Node
 versions on the same inputs (per `contracts/`). Class-form decorators (Decision #4)
 auto-wrap every qualifying method.
 """

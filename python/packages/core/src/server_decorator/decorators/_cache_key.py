@@ -1,7 +1,7 @@
 """Cache key algorithm. Spec: contracts/rules/cache-key.md (v1.0.0).
 
 Both Python and Node implement this from the same spec; Node's port lives at
-`node/src/decorators/_cache_key.ts`. Parity tests load
+`node/packages/core/src/decorators/_cache_key.ts`. Parity tests load
 `contracts/fixtures/cache-key.examples.json`.
 """
 

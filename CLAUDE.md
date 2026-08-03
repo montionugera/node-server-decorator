@@ -12,30 +12,30 @@ A **polyglot** library shipping decorators for caching, tracking, and queue emis
 
 Three layers, in dependency order:
 
-1. **`contracts/`** — source of truth for the wire format. JSON Schemas (`schemas/`), algorithm specs (`rules/cache-key.md`, `rules/topic-naming.md`, `rules/tracking-key.md`, `rules/cache-adapter.md`), golden fixtures, and a `VERSION` file. CI asserts `contracts/VERSION`, `node/src/_contract.ts`, and `python/src/server_decorator/_contract.py` all agree.
-2. **`node/` and `python/`** — two parallel reference implementations. Each exposes a `tracking` / `cache` / `EmitOnSuccess`(Node) or `emit_on_success`(Python) decorator. Python additionally has class-form variants (`tracking_class`, `cache_class`, `emit_on_success_class`) that walk only `vars(cls)` (never the MRO — N2) and apply the method form to public methods (Decision #4).
+1. **`contracts/`** — source of truth for the wire format. JSON Schemas (`schemas/`), algorithm specs (`rules/cache-key.md`, `rules/topic-naming.md`, `rules/tracking-key.md`, `rules/cache-adapter.md`), golden fixtures, and a `VERSION` file. CI asserts `contracts/VERSION`, `node/packages/core/src/_contract.ts`, and `python/packages/core/src/server_decorator/_contract.py` all agree.
+2. **`node/` and `python/`** — pnpm/uv workspace roots, each holding a `packages/core` reference implementation (ADR 0006). Each exposes a `tracking` / `cache` / `EmitOnSuccess`(Node) or `emit_on_success`(Python) decorator. Python additionally has class-form variants (`tracking_class`, `cache_class`, `emit_on_success_class`) that walk only `vars(cls)` (never the MRO — N2) and apply the method form to public methods (Decision #4).
 3. **`interop/`** — Node↔Python end-to-end tests via Redis Streams (`docker compose up -d redis` then run the `scenarios/*/run.sh`). Only matched-adapter round-trips are in scope; BullMQ-aware Python consumers are deferred to v2.1+.
 
-Queue routing on the Node side: `@EmitOnSuccess` → `globalQueueRegistry` → adapter (`BullMQAdapter` / `RabbitMQAdapter` / `KafkaAdapter` / `InMemoryQueueAdapter`). Topics auto-generate from `ClassName.methodName`; an explicit `topic:` overrides, and a queue's `defaultTopic` is the fallback. See `node/README.md` for the priority order.
+Queue routing on the Node side: `@EmitOnSuccess` → `globalQueueRegistry` → adapter (`BullMQAdapter` / `RabbitMQAdapter` / `KafkaAdapter` / `InMemoryQueueAdapter`). Topics auto-generate from `ClassName.methodName`; an explicit `topic:` overrides, and a queue's `defaultTopic` is the fallback. See `node/packages/core/README.md` for the priority order.
 
 `CACHE_MISS` is a sentinel (`Symbol.for('server-decorator.cache.miss')` in Node, a module singleton in Python — D-B) that `CacheAdapter.get` returns for absent keys, so `null`/`0`/`""`/`false` can be cached as legitimate values. Custom adapters must update from the v1.x "return undefined on miss" pattern.
 
 ## Common commands
 
-All build/test commands run inside `node/` or `python/`. The root `package.json` has thin proxies:
+Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Python lives at `python/packages/core` under a uv workspace rooted at `python/` (ADR 0006). Multi-package commands run from the workspace root (`cd node`, `cd python`); single-package commands (a specific test file) need `cd node/packages/core` / `cd python/packages/core`. The root `package.json` has thin proxies:
 
 | Task | Command |
 |------|---------|
-| Node unit tests (fast) | `cd node && pnpm test:unit` |
-| Node e2e (needs Docker) | `cd node && pnpm test:e2e` |
-| Backend-specific e2e | `pnpm test:e2e:redis` / `:rabbitmq` / `:kafka` |
-| Single Jest test file | `cd node && pnpm test -- --testPathPattern=cache.spec` |
-| Build Node | `cd node && pnpm run build` (outputs `node/dist/`) |
-| Python lint+type+unit | `cd python && bash scripts/check.sh` (uses `uv` if present, ruff + ruff format + mypy strict + pytest) |
-| Single pytest | `cd python && uv run pytest tests/unit/test_cache.py::test_x -q` |
-| Python integration (Docker) | `cd python && uv run pytest -m integration` |
+| Node unit tests (fast) | `cd node && pnpm -r test:unit` |
+| Node e2e (needs Docker) | `cd node && pnpm -r test:e2e` |
+| Backend-specific e2e | `cd node && pnpm -r test:e2e:redis` / `:rabbitmq` / `:kafka` |
+| Single Jest test file | `cd node/packages/core && pnpm test -- --testPathPattern=cache.spec` |
+| Build Node | `cd node && pnpm -r run build` (outputs `node/packages/core/dist/`) |
+| Python lint+type+unit | `cd python && bash scripts/check.sh` (runs every package's own `scripts/check.sh`; uses `uv` if present, ruff + ruff format + mypy strict + pytest) |
+| Single pytest | `cd python/packages/core && uv run pytest tests/unit/test_cache.py::test_x -q` |
+| Python integration (Docker) | `cd python/packages/core && uv run pytest -m integration` |
 | Contract validation | `bash contracts/scripts/validate.sh` (requires `npm i -g ajv-cli@5`) |
-| Cross-version assert | `bash scripts/check-versions.sh` (fails if Node/Python pyproject versions diverge) |
+| Cross-version assert | `bash scripts/check-versions.sh` (fails if Node/Python package versions diverge) |
 | Lockstep version bump | `bash scripts/bump-version.sh patch\|minor\|major` then commit + `git push --tags` |
 
 Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses **uv** as the dev runner. `package-lock.json` and `yarn.lock` are gitignored on purpose — do not create them.
@@ -50,7 +50,7 @@ Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses *
 - **Python is `asyncio` only** (Decision #10). Don't add `trio`/`anyio` shims. Sync `@emit_on_success(use_queue=True)` outside an event loop runs on a module-level single-worker `ThreadPoolExecutor` (`_EMIT_EXECUTOR`, D-C) — don't introduce a second one.
 - **Class-form decorators walk `vars(cls)` only**, never the MRO (N2). Inherited methods aren't picked up by design. Skip `_private`, `__dunder__`, and `@property` by default; opt in via `include`/`include_private`/`wrap_properties` (Decision #4, N1 defers `@property` to v1.1+).
 - **iCloud-doubled files (`* 2`, `* 2.*`, `* 3*`) are gitignored** (D-D). If you're on a Mac with iCloud Documents on, double-check your tree before committing.
-- **The npm registry is GitHub Packages**, not npmjs.com — see `.npmrc` and `node/package.json` `publishConfig`. Publishing needs `GITHUB_TOKEN` in env.
+- **The npm registry is GitHub Packages**, not npmjs.com — see `.npmrc` and `node/packages/core/package.json` `publishConfig`. Publishing needs `GITHUB_TOKEN` in env.
 
 ## CI workflow gating
 

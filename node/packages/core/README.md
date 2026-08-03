@@ -346,14 +346,14 @@ class Service {
 
 ## CI/CD
 
-This package is part of the polyglot `server-decorator` repo and shares its workflows. See [`.github/workflows/`](../.github/workflows/) at the repo root for:
+This package is part of the polyglot `server-decorator` repo and shares its workflows. See [`.github/workflows/`](../../../.github/workflows/) at the repo root for:
 
 - `ci-node.yml` — unit + (label-gated) e2e on every Node-touching PR.
 - `ci-contracts.yml` — JSON-schema fixture validation + Node↔Python version-match enforcement.
 - `ci-interop.yml` — cross-language interop scenarios (heavy; runs on `push: main`, weekly schedule, or `run-interop` PR label).
 - `publish-node.yml` — tag-driven npm publish.
 
-Releasing both packages happens in lock-step via `scripts/bump-version.sh patch|minor|major` from the repo root, then `git push --tags`. See [`MIGRATION.md`](../MIGRATION.md) for the v1.x → v2.0.0 upgrade guide.
+Releasing both packages happens in lock-step via `scripts/bump-version.sh patch|minor|major` from the repo root, then `git push --tags`. See [`MIGRATION.md`](../../../MIGRATION.md) for the v1.x → v2.0.0 upgrade guide.
 
 ## Contributing
 

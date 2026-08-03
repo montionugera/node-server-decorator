@@ -2,7 +2,7 @@
 
 This directory is **the source of truth** for the wire format and shared rules that both `node/` and `python/` implementations validate against. If a behavior is documented here, both implementations MUST match.
 
-If you change anything in this directory, you almost certainly need to bump `VERSION`, update `CHANGELOG.md`, and adjust both implementations in the same PR. CI's `ci-contracts` workflow asserts that `contracts/VERSION`, `node/src/_contract.ts`, and `python/src/server_decorator/_contract.py` all agree.
+If you change anything in this directory, you almost certainly need to bump `VERSION`, update `CHANGELOG.md`, and adjust both implementations in the same PR. CI's `ci-contracts` workflow asserts that `contracts/VERSION`, `node/packages/core/src/_contract.ts`, and `python/packages/core/src/server_decorator/_contract.py` all agree.
 
 ## Layout
 

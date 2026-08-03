@@ -6,8 +6,8 @@ on:
     paths:
       - 'contracts/**'
       - 'interop/**'
-      - 'node/src/**'
-      - 'python/src/**'
+      - 'node/packages/core/src/**'
+      - 'python/packages/core/src/**'
       - '.github/workflows/ci-interop.yml'
   pull_request:
     paths:

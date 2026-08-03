@@ -4,8 +4,8 @@ Polyglot library shipping decorators for **caching, tracking, and queue emission
 
 | Language | Source | Install | Docs |
 | -------- | ------ | ------- | ---- |
-| Node / TypeScript | [`./node`](./node) | `pnpm add server-decorator` | [`node/README.md`](./node/README.md) |
-| Python | [`./python`](./python) | `pip install server-decorator` | [`python/README.md`](./python/README.md) |
+| Node / TypeScript | [`./node`](./node) | `pnpm add server-decorator` | [`node/packages/core/README.md`](./node/packages/core/README.md) |
+| Python | [`./python`](./python) | `pip install server-decorator` | [`python/packages/core/README.md`](./python/packages/core/README.md) |
 
 The wire format and shared rules (cache key algorithm, queue message schema, topic naming) live in [`./contracts`](./contracts) and are the source of truth both implementations validate against.
 

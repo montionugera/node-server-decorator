@@ -4,15 +4,15 @@ on:
   pull_request:
     paths:
       - 'contracts/**'
-      - 'node/src/**'
-      - 'python/src/**'
+      - 'node/packages/core/src/**'
+      - 'python/packages/core/src/**'
       - '.github/workflows/ci-contracts.yml'
   push:
     branches: [main]
     paths:
       - 'contracts/**'
-      - 'node/src/**'
-      - 'python/src/**'
+      - 'node/packages/core/src/**'
+      - 'python/packages/core/src/**'
       - '.github/workflows/ci-contracts.yml'
 
 concurrency:
@@ -32,8 +32,8 @@ jobs:
       - name: Assert contract version match (Node ↔ Python ↔ contracts/VERSION)
         run: |
           contract=$(cat contracts/VERSION | tr -d '[:space:]')
-          py_v=$(grep -oP 'CONTRACT_VERSION\s*=\s*"\K[^"]+' python/src/server_decorator/_contract.py)
-          node_v=$(grep -oE "CONTRACT_VERSION\s*=\s*'[^']+'" node/src/_contract.ts | grep -oE "'[^']+'" | tr -d "'")
+          py_v=$(grep -oP 'CONTRACT_VERSION\s*=\s*"\K[^"]+' python/packages/core/src/server_decorator/_contract.py)
+          node_v=$(grep -oE "CONTRACT_VERSION\s*=\s*'[^']+'" node/packages/core/src/_contract.ts | grep -oE "'[^']+'" | tr -d "'")
           if [ "$contract" != "$py_v" ]; then
             echo "FAIL: contracts/VERSION ($contract) != python ($py_v)" >&2
             exit 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# python/scripts/check.sh — lint + type-check + unit tests.
+# python/packages/core/scripts/check.sh — lint + type-check + unit tests.
 # Assumes `uv` is installed; `pip install uv` if not.
 set -euo pipefail
 

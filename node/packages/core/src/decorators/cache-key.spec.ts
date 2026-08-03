@@ -1,6 +1,6 @@
 // Cache-key parity test: load contracts/fixtures/cache-key.examples.json and assert
 // buildCacheKey produces the same key as the Python implementation. Ports
-// `python/tests/unit/test_cache_key_parity.py`.
+// `python/packages/core/tests/unit/test_cache_key_parity.py`.
 
 import { readFileSync } from 'fs'
 import { join } from 'path'

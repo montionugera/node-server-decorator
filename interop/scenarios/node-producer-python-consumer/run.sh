@@ -23,7 +23,7 @@ export INTEROP_STREAM="interop-${RANDOM}"
 
 # Producer: build & run the Node script
 ( cd node && pnpm install --frozen-lockfile >/dev/null && \
-  pnpm exec tsx ../interop/scenarios/node-producer-python-consumer/producer.ts )
+  cd packages/core && pnpm exec tsx ../../../interop/scenarios/node-producer-python-consumer/producer.ts )
 
 # Consumer: run the Python script
 ( cd python && \
@@ -31,7 +31,7 @@ export INTEROP_STREAM="interop-${RANDOM}"
     uv sync --extra dev >/dev/null
     uv run python ../interop/scenarios/node-producer-python-consumer/consumer.py
   else
-    python3 -m pip install --quiet -e . redis jsonschema >/dev/null
+    python3 -m pip install --quiet -e packages/core redis jsonschema >/dev/null
     python3 ../interop/scenarios/node-producer-python-consumer/consumer.py
   fi )
 
