@@ -17,6 +17,12 @@ done
 for pkg in python/packages/*/pyproject.toml; do
   sed -i.bak "s/^version = .*/version = \"$new_version\"/" "$pkg" && rm "$pkg.bak"
 done
+# gen_pydantic pins its intra-repo dependency on server-decorator-entity EXACTLY (I-f) — mirrors
+# how `pnpm publish` rewrites Node's `workspace:*` to an exact version for the published wheel's
+# Requires-Dist metadata (uv's `[tool.uv.sources] ... workspace = true` is dev-time-only and
+# contributes nothing to the built wheel). Rewrite the pin here so it never goes stale on a bump.
+sed -i.bak -E "s/(\"server-decorator-entity)==[0-9]+\.[0-9]+\.[0-9]+(\")/\1==$new_version\2/" \
+  python/packages/gen_pydantic/pyproject.toml && rm python/packages/gen_pydantic/pyproject.toml.bak
 # Mirror into each package's runtime __version__ export (what `server_decorator.__version__`
 # actually reads at import time) — pyproject.toml alone is invisible to consumers.
 for v in python/packages/*/src/*/_version.py; do
