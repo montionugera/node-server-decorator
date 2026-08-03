@@ -30,6 +30,24 @@ export function cache(cacheAdapter: CacheAdapter, TTL: number) {
     const originalMethod = descriptor.value
     const qualname = `${target.constructor.name}.${propertyKey}`
 
+    // Decoration-time heuristic for "is the wrapped method async?", used only to pick the
+    // SHAPE of a cache HIT with a sync adapter (see below) before any miss has happened to
+    // tell us the truth at runtime. `constructor.name === 'AsyncFunction'` catches genuine
+    // native async functions/methods. It does NOT catch async methods that TypeScript
+    // downlevels to plain functions wrapped by the `__awaiter` helper (this package's own
+    // tsconfig uses `target: es6`, where `constructor.name` is always `'Function'` even for
+    // `async` methods — see the isThenable comment above) — so we also sniff the compiled
+    // source text for `__awaiter`, the fingerprint every ES5/ES6-downleveled async function
+    // emits. This is a heuristic, not proof: it can false-positive (a sync method whose body
+    // happens to contain the literal string `__awaiter`, e.g. in a comment) or false-negative
+    // (a bundler that renames/inlines the helper). `treatAsAsync` is corrected to the
+    // ground-truth runtime shape (`isThenable(result)`) the first time this decorator
+    // instance actually sees a miss, so the heuristic only matters for a hit on the very
+    // first call against a pre-warmed cache.
+    let treatAsAsync =
+      originalMethod.constructor.name === 'AsyncFunction' ||
+      originalMethod.toString().includes('__awaiter')
+
     descriptor.value = function (...args: unknown[]) {
       const key = buildCacheKey(qualname, args)
       const cached = cacheAdapter.get(key)
@@ -39,18 +57,26 @@ export function cache(cacheAdapter: CacheAdapter, TTL: number) {
         return (async () => {
           const awaited = await cached
           if (awaited !== CACHE_MISS) return awaited
-          const result = await originalMethod.apply(this, args)
-          await cacheAdapter.set(key, result, TTL)
-          return result
+          const result = originalMethod.apply(this, args)
+          treatAsAsync = isThenable(result)
+          const resolved = treatAsAsync ? await result : result
+          await cacheAdapter.set(key, resolved, TTL)
+          return resolved
         })()
       }
 
       if (cached !== CACHE_MISS) {
-        return cached
+        // Sync-adapter cache hit (I3): a hit must return the same shape a miss would have
+        // for this method, so callers can `.then()`/`await` uniformly regardless of cache
+        // state. `treatAsAsync` reflects either the decoration-time heuristic above (no miss
+        // yet) or the real runtime shape learned from a prior miss on this decorator
+        // instance — runtime truth always wins once observed.
+        return treatAsAsync ? Promise.resolve(cached) : cached
       }
 
       const result = originalMethod.apply(this, args)
-      if (isThenable(result)) {
+      treatAsAsync = isThenable(result)
+      if (treatAsAsync) {
         // Async method + sync adapter: await the resolved value before caching it so the
         // adapter never receives a pending Promise (the ES6-downlevel bug this replaces).
         return result.then(async (resolved: unknown) => {

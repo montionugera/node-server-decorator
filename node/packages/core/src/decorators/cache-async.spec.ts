@@ -14,6 +14,7 @@
 // real Redis, instead of just holding object references in a Map.
 
 import { cache, CACHE_MISS } from './cache'
+import { buildCacheKey } from './_cache_key'
 
 function jsonAdapter() {
   const raw = new Map<string, string>()
@@ -115,6 +116,52 @@ describe('cache decorator — runtime thenable detection (ES6-downlevel async)',
     const r1 = await s.compute(21)
     const r2 = await s.compute(21)
     expect(r1).toBe(42)
+    expect(r2).toBe(42)
+    expect(s.calls).toBe(1)
+  })
+
+  it('(e) async method + sync adapter, WARM cache: hit is a thenable resolving to the cached value (I3)', async () => {
+    const adapter = syncAdapter()
+
+    class Svc {
+      calls = 0
+      @cache(adapter, 60)
+      async expensive(id: string) {
+        this.calls++
+        return { id, ts: 42 }
+      }
+    }
+
+    // Pre-populate the adapter directly (bypassing the decorator) so the very first call
+    // through the decorated method is a HIT — this exercises the decoration-time heuristic,
+    // not the runtime-miss-path correction, because no miss has happened yet on this
+    // decorator instance to teach it the method is async.
+    const key = buildCacheKey('Svc.expensive', ['abc'])
+    adapter.set(key, { id: 'abc', ts: 42 })
+
+    const s = new Svc()
+    const r1 = s.expensive('abc')
+    expect(typeof (r1 as unknown as { then?: unknown }).then).toBe('function')
+    await expect(r1).resolves.toEqual({ id: 'abc', ts: 42 })
+    expect(s.calls).toBe(0) // never computed — served straight from the warm cache
+  })
+
+  it('(f) sync method + sync adapter still returns a non-Promise on hit', () => {
+    const adapter = syncAdapter()
+
+    class Svc {
+      calls = 0
+      @cache(adapter, 60)
+      compute(x: number) {
+        this.calls++
+        return x * 2
+      }
+    }
+
+    const s = new Svc()
+    s.compute(21) // miss, populates cache
+    const r2 = s.compute(21) // hit
+    expect(r2).not.toBeInstanceOf(Promise)
     expect(r2).toBe(42)
     expect(s.calls).toBe(1)
   })
