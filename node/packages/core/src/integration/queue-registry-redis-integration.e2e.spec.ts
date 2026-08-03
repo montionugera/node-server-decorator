@@ -1,11 +1,21 @@
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { Queue, Worker, Job } from 'bullmq';
-import { 
+import {
   globalQueueRegistry,
   BullMQAdapter,
   globalLogger,
   globalTracker
 } from '../index';
+
+// jest.config.js sets `testTimeout: 60000` inside the `e2e` project entry, but Jest
+// silently rejects testTimeout as a per-project key ("Unknown option testTimeout" at
+// startup) and falls back to its 5000ms default for any hook/test without its own
+// inline timeout. `beforeAll` below already overrides its own timeout (60000, third
+// arg), but `afterAll`'s container teardown (redisContainer.stop()) did not, so under
+// host contention it can exceed 5s and fail the whole suite even after all tests pass.
+// Set the default explicitly, same pattern as cache-redis.e2e.spec.ts and
+// emit-on-success-kafka-testcontainers.e2e.spec.ts.
+jest.setTimeout(60_000);
 
 describe('Redis E2E - Simple Tests', () => {
   let redisContainer: StartedTestContainer;
