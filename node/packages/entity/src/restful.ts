@@ -1,6 +1,6 @@
 import { canonicalJson } from './canonical';
 import { specFor } from './registry';
-import { EntitySpec, Op, Transport } from './types';
+import { EntitySpec, FieldSpec, Op, Transport } from './types';
 
 export interface RestfulOpts {
   path: string;
@@ -10,6 +10,20 @@ export interface RestfulOpts {
 }
 
 const finalized = new WeakMap<Function, EntitySpec>();
+
+// entitySpec() memoizes on the constructor, so every caller shares the same
+// spec object. Without a deep freeze, `entitySpec(X).fields.push(...)` (or
+// mutating a returned field/action object) permanently corrupts the memoized
+// spec for every subsequent caller. Freeze recursively, bottom-up, so nested
+// item/fields arrays and objects are locked before their parents are.
+function deepFreezeField(f: FieldSpec): FieldSpec {
+  if (f.item) deepFreezeField(f.item);
+  if (f.fields) {
+    f.fields.forEach(deepFreezeField);
+    Object.freeze(f.fields);
+  }
+  return Object.freeze(f);
+}
 
 export function Restful(opts: RestfulOpts): ClassDecorator {
   return (ctor) => {
@@ -24,6 +38,12 @@ export function Restful(opts: RestfulOpts): ClassDecorator {
       fields: draft.fields,
       ...(draft.actions.length > 0 ? { actions: draft.actions } : {}),
     };
+    spec.fields.forEach(deepFreezeField);
+    Object.freeze(spec.fields);
+    if (spec.actions) {
+      spec.actions.forEach((a) => Object.freeze(a));
+      Object.freeze(spec.actions);
+    }
     finalized.set(ctor, Object.freeze(spec));
   };
 }
