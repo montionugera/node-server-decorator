@@ -132,6 +132,37 @@ def test_class_form() -> None:
     assert calls["n"] == 1
 
 
+class _AsyncAdapter:
+    """Async adapter (get/set are coroutine functions) — the mismatched flavor for I4."""
+
+    def __init__(self) -> None:
+        self.store: dict[str, Any] = {}
+
+    async def get(self, key: str) -> Any:
+        return self.store.get(key, CACHE_MISS)
+
+    async def set(self, key: str, value: Any, ttl: int) -> None:
+        self.store[key] = value
+
+
+def test_sync_fn_with_async_adapter_raises_instead_of_returning_coroutine() -> None:
+    """I4: a sync function decorated with an async adapter must fail loudly, not silently
+    hand the caller an un-awaited coroutine while never running the wrapped function."""
+    a = _AsyncAdapter()
+    calls = {"n": 0}
+
+    class Svc:
+        @cache(a, ttl=60)
+        def go(self, x: int) -> int:
+            calls["n"] += 1
+            return x * 2
+
+    with pytest.raises(TypeError, match="async adapter"):
+        Svc().go(3)
+    # The wrapped function must never have run.
+    assert calls["n"] == 0
+
+
 @pytest.mark.parametrize("err_cls", [RuntimeError, ValueError])
 def test_underlying_exception_propagates(err_cls: type[BaseException]) -> None:
     a = _InMemAdapter()

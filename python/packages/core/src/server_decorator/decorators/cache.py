@@ -55,10 +55,33 @@ def cache(adapter: CacheAdapter, ttl: int) -> Callable[[F], F]:
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             key = build_cache_key(qualname, args, kwargs)
             cached = adapter.get(key)
+            # I4: an async adapter's `get` returns an un-awaited coroutine here (sync_wrapper
+            # never awaits). Left unchecked, a coroutine is never `is CACHE_MISS`, so this
+            # silently takes the "hit" branch, hands the caller a bare coroutine object, and
+            # `fn` never runs. Fail loudly instead of corrupting the caller's return type.
+            if inspect.isawaitable(cached):
+                close = getattr(cached, "close", None)
+                if callable(close):
+                    close()  # avoid a "coroutine was never awaited" RuntimeWarning
+                raise TypeError(
+                    "@cache: async adapter used with a sync function; "
+                    "use an async function or a sync adapter"
+                )
             if cached is not CACHE_MISS:
                 return cached
             result = fn(*args, **kwargs)
-            adapter.set(key, result, ttl)
+            set_result = adapter.set(key, result, ttl)
+            # Same failure mode on the set path: an async adapter's `set` returns an
+            # un-awaited coroutine that would otherwise be silently discarded (GC'd without
+            # ever running, so nothing is actually cached).
+            if inspect.isawaitable(set_result):
+                close = getattr(set_result, "close", None)
+                if callable(close):
+                    close()  # avoid a "coroutine was never awaited" RuntimeWarning
+                raise TypeError(
+                    "@cache: async adapter used with a sync function; "
+                    "use an async function or a sync adapter"
+                )
             return result
 
         _mark_wrapped(sync_wrapper, "cache")
