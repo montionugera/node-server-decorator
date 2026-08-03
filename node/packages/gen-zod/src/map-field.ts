@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FieldSpec } from '@montionugera/entity-spec';
 
-export function zodForField(f: FieldSpec): z.ZodTypeAny {
+export function zodForField(f: FieldSpec, include: (f: FieldSpec) => boolean = () => true): z.ZodTypeAny {
   let s: z.ZodTypeAny;
   switch (f.type) {
     case 'str': {
@@ -33,8 +33,8 @@ export function zodForField(f: FieldSpec): z.ZodTypeAny {
     case 'datetime': s = z.string().datetime({ offset: true }); break;
     case 'enum': s = z.enum(f.enum as [string, ...string[]]); break;
     case 'ref': s = z.string(); break;
-    case 'list': s = z.array(zodForField(f.item as FieldSpec)); break;
-    case 'obj': s = strictObject(f.fields ?? [], () => true); break;
+    case 'list': s = z.array(zodForField(f.item as FieldSpec, include)); break;
+    case 'obj': s = strictObject(f.fields ?? [], include); break;
   }
   if (f.nullable) s = s.nullable();
   if (f.optional) s = s.optional();
@@ -43,6 +43,6 @@ export function zodForField(f: FieldSpec): z.ZodTypeAny {
 
 export function strictObject(fields: FieldSpec[], include: (f: FieldSpec) => boolean): z.ZodTypeAny {
   const shape: Record<string, z.ZodTypeAny> = {};
-  for (const f of fields) if (include(f)) shape[f.name] = zodForField(f);
+  for (const f of fields) if (include(f)) shape[f.name] = zodForField(f, include);
   return z.object(shape).strict();
 }

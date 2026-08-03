@@ -104,6 +104,35 @@
       "errorFields": []
     },
     {
+      "name": "update-datetime-with-offset-ok",
+      "dto": "update",
+      "payload": {
+        "birthday": "2024-01-01T00:00:00Z"
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "update-datetime-naive-rejected",
+      "dto": "update",
+      "payload": {
+        "birthday": "2024-01-01T00:00:00"
+      },
+      "valid": false,
+      "errorFields": [
+        "birthday"
+      ]
+    },
+    {
+      "name": "update-datetime-null-ok",
+      "dto": "update",
+      "payload": {
+        "birthday": null
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
       "name": "action-activate-valid",
       "dto": "action:activate",
       "payload": {
