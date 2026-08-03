@@ -11,7 +11,7 @@ def test_imports() -> None:
     # updates pyproject.toml but drifts from _version.py, which is exactly how
     # `__version__ == "2.0.0"` shipped on PyPI 2.0.2 undetected.
     assert sd.__version__ == version("server-decorator")
-    assert sd.CONTRACT_VERSION == "1.0.0"
+    assert sd.CONTRACT_VERSION == "1.1.0"
     assert sd.cache is not None
     assert sd.tracking is not None
     assert sd.emit_on_success is not None

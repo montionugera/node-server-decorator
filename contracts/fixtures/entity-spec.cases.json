@@ -1,0 +1,138 @@
+{
+  "entity": "User",
+  "cases": [
+    {
+      "name": "create-valid",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "create-missing-email",
+      "dto": "create",
+      "payload": {
+        "name": "Mont",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": false,
+      "errorFields": [
+        "email"
+      ]
+    },
+    {
+      "name": "create-bad-email-and-short-name",
+      "dto": "create",
+      "payload": {
+        "email": "nope",
+        "name": "M",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": false,
+      "errorFields": [
+        "email",
+        "name"
+      ]
+    },
+    {
+      "name": "create-rejects-readonly-loginCount",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": [],
+        "loginCount": 5
+      },
+      "valid": false,
+      "errorFields": [
+        "loginCount"
+      ]
+    },
+    {
+      "name": "create-bad-enum",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "zombie",
+        "tags": []
+      },
+      "valid": false,
+      "errorFields": [
+        "status"
+      ]
+    },
+    {
+      "name": "create-nested-bio-too-long",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": [],
+        "profile": {
+          "bio": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "valid": false,
+      "errorFields": [
+        "profile.bio"
+      ]
+    },
+    {
+      "name": "update-partial-ok",
+      "dto": "update",
+      "payload": {
+        "name": "Monty"
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "update-empty-ok",
+      "dto": "update",
+      "payload": {},
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "action-activate-valid",
+      "dto": "action:activate",
+      "payload": {
+        "reason": "ok"
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "action-activate-reason-too-long",
+      "dto": "action:activate",
+      "payload": {
+        "reason": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "valid": false,
+      "errorFields": [
+        "reason"
+      ]
+    },
+    {
+      "name": "action-ping-rejects-extra-keys",
+      "dto": "action:ping",
+      "payload": {
+        "boom": 1
+      },
+      "valid": false,
+      "errorFields": [
+        "boom"
+      ]
+    }
+  ]
+}
