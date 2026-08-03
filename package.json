@@ -3,10 +3,10 @@
   "private": true,
   "description": "Workspace root for the polyglot server-decorator library. Published artifact lives in node/.",
   "scripts": {
-    "test": "cd node && pnpm test",
-    "test:unit": "cd node && pnpm test:unit",
-    "test:e2e": "cd node && pnpm test:e2e",
-    "build": "cd node && pnpm run build",
+    "test": "cd node && pnpm -r test",
+    "test:unit": "cd node && pnpm -r test:unit",
+    "test:e2e": "cd node && pnpm -r test:e2e",
+    "build": "cd node && pnpm -r run build",
     "py:check": "cd python && bash scripts/check.sh",
     "contracts:validate": "bash contracts/scripts/validate.sh"
   }

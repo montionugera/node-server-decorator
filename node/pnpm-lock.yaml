@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  packages/core:
     dependencies:
       eventemitter3:
         specifier: ^5.0.1

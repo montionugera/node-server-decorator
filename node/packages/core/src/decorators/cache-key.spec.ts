@@ -15,7 +15,7 @@ interface Example {
   expected_prefix?: string
 }
 
-const fixturePath = join(__dirname, '..', '..', '..', 'contracts', 'fixtures', 'cache-key.examples.json')
+const fixturePath = join(__dirname, '..', '..', '..', '..', '..', 'contracts', 'fixtures', 'cache-key.examples.json')
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as { examples: Example[] }
 
 describe('buildCacheKey parity (contracts/fixtures/cache-key.examples.json)', () => {
