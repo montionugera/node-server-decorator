@@ -37,6 +37,7 @@ class User {
 | E5 | v1 adapters | **NestJS + FastAPI + SvelteKit.** Django/DRF deferred (DRF already covers most of this natively). |
 | E6 | Pilot | **content-svc** (`RealEstateProject` + `RealEstateListing`, ~1,100 generatable lines). Second pilot: fact-board's trigger routes. Third: message-svc WS. |
 | E7 | Core mechanism | **EntitySpec IR compiler** — decorators only record metadata into a language-neutral IR; all behavior is generated from the IR. Validation compiles to zod (Node) / pydantic (Python) — no home-grown validator engine. |
+| E8 | Multi-replica (added 2026-08-04) | **Horizontal scaling is a v1 requirement.** All generated behavior must be correct with N stateless replicas behind a load balancer: events propagate via the Redis/queue bridge (production default; in-process emitter is a single-replica dev mode), SSE replay is Redis Streams-backed, WS uses Redis fan-out. Verified by a dedicated multi-replica e2e scenario. |
 
 ## 3. Architecture
 
@@ -131,7 +132,8 @@ request → auth guard → validate (zod/pydantic) → repo → serialize (Read 
 
 - **REST:** `GET /users` (paginated), `GET /users/:id`, `POST`, `PATCH` (partial; no PUT in v1), `DELETE`. List filtering only on `@filterable()` fields — allowlist, never open filtering.
 - **RPC state triggers:** `POST /users/:id/actions/activate` → parse → load → state guard (`status !== from` → 409 incl. `currentState`) → action body inside `repo.transition()` → emit. Non-state actions are plain validated RPC endpoints.
-- **SSE:** `GET /users/events` — bridges core emitter/queue to the stream; 15s heartbeat; `Last-Event-ID` reconnect with **best-effort in-memory ring-buffer replay** (durable replay = v2, documented limitation).
+- **SSE:** `GET /users/events` — bridges the event bus to the stream; 15s heartbeat; `Last-Event-ID` reconnect **replays from Redis Streams** when the Redis bridge is configured (the production default). The in-memory ring buffer exists only for single-replica dev mode and is labeled as such.
+- **Multi-replica model (E8):** generated handlers hold no in-process state — entity state lives in the repo, event history in Redis Streams. Every generated write publishes to the event bus (Redis bridge in production), so SSE/WS subscribers on any replica receive events originating on any other replica. State-transition atomicity is the repo's `transition()` responsibility (DB-level), so concurrent conflicting actions across replicas resolve to exactly one success + `INVALID_STATE` for the rest.
 - **WebSocket:** one namespace per entity (`/ws/users`); messages `subscribe` (same events as SSE) and `invoke` (same pipeline as RPC, same 409 semantics). WS is thin framing only — no logic of its own. Redis fan-out reuses the message-svc adapter pattern.
 - **Standard middleware (collapses the ~1,800 duplicated lines):** request-id + structured logging, Prometheus `http_requests_total` / duration histogram (same metric names already exported → dashboards keep working), core tracking on every handler. Auth via a per-adapter `guard` hook (NestJS guard class / SvelteKit `locals` check / FastAPI dependency), mounted on everything except `public: true` ops.
 
@@ -159,7 +161,8 @@ Wire format (in `contracts/`): `{ "error": { "code", "message", "details?", "req
 2. **Contract parity (the spine)** — fixture entities in TS and Python → byte-identical IR JSON, schema-validated in the existing `ci-contracts` lane. Drift fails CI.
 3. **Adapter conformance kit (TCK)** — one data-driven suite in `contracts/fixtures/` (create → 201; bad email → 400 shape; wrong-state action → 409 + `currentState`; SSE receives `updated`; …). Every adapter must pass the identical suite against the in-memory repo. New adapter = pass the TCK.
 4. **Integration** — testcontainers (existing pattern): Redis WS fan-out, queue-fed SSE.
-5. **Pilot proof** — snapshot content-svc's current OpenAPI + response behavior, migrate the two entities, assert snapshots match, then delete ~1,100 lines.
+5. **Full e2e lane (added 2026-08-04)** — the TCK also runs over real HTTP against a docker-compose-launched app (not only in-process). Includes the **multi-replica scenario**: 2 app replicas + Redis + Postgres behind a round-robin proxy; write via replica A → SSE/WS client connected to replica B receives the event; `Last-Event-ID` reconnect across replicas replays from Redis Streams; two concurrent conflicting `transition()` calls → exactly one 2xx, one 409.
+6. **Pilot proof** — snapshot content-svc's current OpenAPI + response behavior, migrate the two entities, assert snapshots match, then delete ~1,100 lines.
 
 ## 8. Rollout phases
 
@@ -171,7 +174,7 @@ Each phase ends with the standard quality gate (verify → independent review �
 | P1 | `entity` + IR + `contracts/entity-spec` + gen-zod/gen-pydantic | parity tests green before any HTTP exists |
 | P2 | adapter-nestjs (REST + middleware/observability) + TCK | **pilot: content-svc migration** |
 | P3 | RPC actions + adapter-sveltekit | second pilot: fact-board's 7 trigger routes |
-| P4 | SSE + WS on the event layer | TCK extended; Redis fan-out integration test |
+| P4 | SSE + WS on the event layer (Redis bridge + Streams replay) | TCK extended; **multi-replica e2e scenario green** |
 | P5 | adapter-fastapi passes same TCK + cross-language interop | `ci-interop` lane green |
 
 ## 9. Risks
@@ -189,5 +192,8 @@ Each phase ends with the standard quality gate (verify → independent review �
 ## 11. Open items
 
 - Naming: working name `entity-spec` for the new layer; package scope stays `@montionugera/*`. Final names before P0 publishes.
-- SSE durable replay (queue-backed `Last-Event-ID`) — explicitly v2.
 - Django/DRF adapter — deferred; revisit after P5.
+
+## 12. Amendments
+
+- **2026-08-04 (Mont):** multi-replica correctness promoted to a v1 requirement (E8) — Redis-bridge event propagation, Redis Streams SSE replay, stateless handlers, multi-replica e2e scenario. Full over-HTTP e2e lane added to §7. Supersedes the earlier "in-memory ring buffer, durable replay = v2" limitation.
