@@ -110,9 +110,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Python package
-        working-directory: python/packages/core
-        run: uv build
+      - name: Build Python packages (core, entity, gen_pydantic)
+        working-directory: python
+        run: uv build --all-packages
 
       - name: Publish Python to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
