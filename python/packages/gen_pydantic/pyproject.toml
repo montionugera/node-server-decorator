@@ -5,7 +5,7 @@ description = "IR-derived create/update/read/action pydantic v2 DTO models (cont
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-dependencies = ["pydantic[email]>=2.7", "server-decorator-entity"]
+dependencies = ["pydantic>=2.7", "server-decorator-entity"]
 
 [tool.uv.sources]
 server-decorator-entity = { workspace = true }

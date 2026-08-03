@@ -88,6 +88,32 @@
       ]
     },
     {
+      "name": "create-email-single-char-tld-ok",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.c",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "create-email-no-domain-rejected",
+      "dto": "create",
+      "payload": {
+        "email": "a@",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": false,
+      "errorFields": [
+        "email"
+      ]
+    },
+    {
       "name": "update-partial-ok",
       "dto": "update",
       "payload": {

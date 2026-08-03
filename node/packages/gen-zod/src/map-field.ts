@@ -1,12 +1,19 @@
 import { z } from 'zod';
 import { FieldSpec } from '@montionugera/entity-spec';
 
+// WHATWG HTML5 email pattern — see contracts/rules/entity-spec-validation.md. Both gen-zod
+// and gen-pydantic MUST validate `format: "email"` against this exact regex (not either
+// ecosystem's built-in email validator, which diverge from each other: pydantic's `EmailStr`
+// accepts `a@b.c`, zod's `.email()` rejects it). Exported so adapters can reuse it directly.
+export const EMAIL_PATTERN =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+
 export function zodForField(f: FieldSpec, include: (f: FieldSpec) => boolean = () => true): z.ZodTypeAny {
   let s: z.ZodTypeAny;
   switch (f.type) {
     case 'str': {
       let str = z.string();
-      if (f.format === 'email') str = str.email();
+      if (f.format === 'email') str = str.regex(EMAIL_PATTERN);
       if (f.format === 'uuid') str = str.uuid();
       if (f.format === 'uri') str = str.url();
       if (f.min !== undefined) str = str.min(f.min);

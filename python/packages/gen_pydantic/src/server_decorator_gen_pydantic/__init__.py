@@ -8,6 +8,17 @@ from pydantic import ConfigDict, Field, create_model
 
 _CONFIG = ConfigDict(extra="forbid")
 
+# WHATWG HTML5 email pattern — see contracts/rules/entity-spec-validation.md. Both gen-zod and
+# gen-pydantic MUST validate `format: "email"` against this exact regex (not either ecosystem's
+# built-in email validator, which diverge from each other: pydantic's `EmailStr` accepts
+# `a@b.c`, zod's `.email()` rejects it). A raw string, so no Python string-literal backslash
+# processing touches the pattern before it reaches `re`.
+EMAIL_PATTERN = (
+    r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9]"
+    r"(?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
+    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+)
+
 Include = Callable[[dict[str, Any]], bool]
 
 
@@ -19,7 +30,7 @@ def _annotation(f: dict[str, Any], include: Include) -> tuple[Any, Any]:
     if t == "str" or t == "ref":
         ann = str
         if f.get("format") == "email":
-            ann = pydantic.EmailStr
+            kwargs["pattern"] = EMAIL_PATTERN
         if "min" in f:
             kwargs["min_length"] = f["min"]
         if "max" in f:
@@ -135,6 +146,7 @@ def validation_error_fields(exc: pydantic.ValidationError) -> list[str]:
 
 
 __all__ = [
+    "EMAIL_PATTERN",
     "action_input_model_for",
     "create_model_for",
     "read_model_for",
