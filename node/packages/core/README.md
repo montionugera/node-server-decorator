@@ -355,6 +355,47 @@ This package is part of the polyglot `server-decorator` repo and shares its work
 
 Releasing both packages happens in lock-step via `scripts/bump-version.sh patch|minor|major` from the repo root, then `git push --tags`. See [`MIGRATION.md`](../../../MIGRATION.md) for the v1.x → v2.0.0 upgrade guide.
 
+## Consuming events
+
+```typescript
+import { ConsumerRegistry, RedisStreamConsumer, OnEvent, registerHandlers } from '@montionugera/server-decorator'
+import Redis from 'ioredis'
+
+const registry = new ConsumerRegistry()
+registry.register('orders', new RedisStreamConsumer(new Redis('redis://localhost:6379'), { stream: 'orders', group: 'email-svc' }))
+
+class OrderHandlers {
+  @OnEvent('OrderService.createOrder', { consumer: 'orders' })
+  async sendEmail(payload: any, meta: any) {
+    // return -> ack; throw -> redelivered
+  }
+}
+registerHandlers(new OrderHandlers())
+
+await registry.start()
+// ... app runs ...
+await registry.stop()
+```
+
+**Delivery is at-least-once** — handlers must be idempotent; ordering is not
+guaranteed under redelivery. Unparseable messages are acked + skipped; only
+handler failures stay pending for retry. `@OnEvent` uses stage-2 decorators
+(`experimentalDecorators`); if you transpile with esbuild/tsx, register handlers
+imperatively with `registry.on('Event.name', handler, { consumer: 'orders' })`.
+
+### Available consumers
+
+| Consumer | Dependency |
+|----------|------------|
+| `RedisStreamConsumer` | built-in (`ioredis`) |
+| `KafkaConsumer` | requires `kafkajs` |
+| `RabbitMQConsumer` | requires `amqplib` |
+| `BullMQConsumer` | requires `bullmq` |
+
+All backends deliver **at-least-once**, so handlers must be idempotent; failed
+messages stay pending/unacked (Redis/RabbitMQ) or are retried per attempts
+(Kafka offset is not committed / BullMQ job `attempts`).
+
 ## Contributing
 
 1. Ensure Docker is running for E2E tests

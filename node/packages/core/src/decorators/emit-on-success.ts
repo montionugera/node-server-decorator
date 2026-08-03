@@ -2,6 +2,7 @@ import { globalEmitter } from './global-emitter';
 import { globalQueue, QueueMessage } from './global-queue';
 import { globalQueueRegistry } from './queue-registry';
 import { globalLogger } from '../logger';
+import { getService } from '../config';
 
 export interface EmitOnSuccessOptions {
   /**
@@ -134,6 +135,7 @@ async function handleSuccess(
   // Queue publishing
   if (useQueue) {
     try {
+      const service = getService();
       const message: QueueMessage = {
         eventName,
         payload,
@@ -142,14 +144,16 @@ async function handleSuccess(
           className,
           methodName: propertyKey,
           topic,
+          ...(service ? { service } : {}),
           ...queueMetadata
         }
       };
 
       // Use QueueRegistry for multi-queue support
-      if (queueName || topic) {
+      if (queueName || topic || service) {
         // Auto-generate topic from ClassName.methodName if not specified
-        const autoTopic = topic || `${className}.${propertyKey}`;
+        const base = `${className}.${propertyKey}`;
+        const autoTopic = topic || (service ? `${service}.${base}` : base);
         await globalQueueRegistry.publish(message, queueName, autoTopic);
       } else {
         // Fallback to global queue for backward compatibility

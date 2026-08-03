@@ -37,3 +37,17 @@ export {
 
 // NoOp adapter for fallback
 export { NoOpQueueAdapter } from './decorators/global-queue';
+
+// Config
+export { configure, getService } from './config';
+
+// Consumer system
+export {
+  ConsumerRegistry,
+  InMemoryConsumer,
+  globalConsumerRegistry,
+  type ConsumerAdapter,
+  type EventHandler,
+} from './decorators/consumer-registry';
+export { RedisStreamConsumer, KafkaConsumer, RabbitMQConsumer, BullMQConsumer } from './decorators/consumer-adapters';
+export { OnEvent, registerHandlers } from './decorators/on-event';

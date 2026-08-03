@@ -2,7 +2,7 @@
 
 All notable changes to the wire-format contracts will be documented here. The format is loosely [Keep a Changelog](https://keepachangelog.com/), and the contract version follows [Semantic Versioning](https://semver.org/).
 
-## 1.1.0 — add entity-spec schema, canonical rule, fixtures (I-004 P1)
+## [1.1.0] — 2026-06-17 / entity-spec schema, canonical rule, fixtures (I-004 P1)
 
 ### Added
 
@@ -19,6 +19,14 @@ All notable changes to the wire-format contracts will be documented here. The fo
     - `fixtures/entity-spec.valid-user.json` regenerated: the golden `User` fixture gained three writable fields — `score` (float, min 0, optional), `active` (bool, optional), `secretNote` (str, `writeonly`, max 100, optional) — closing the gap where the contract exercised zero `read` DTO cases and no `writeonly` field (spec §4's "read = non-writeonly" rule was previously untested by the shared contract).
     - `fixtures/entity-spec.cases.json`: 16 → 22 cases. Added `create-with-new-writable-fields-ok`, `create-score-string-rejected`, `create-active-string-rejected`, `update-birthday-epoch-rejected`, `read-valid`, `read-excludes-writeonly`.
     - Byte-parity fixes in the entity IR layer itself (not the generators): TS `??` previously passed an explicit `transports: []`/`ops: []` through unchanged while Python's `or` silently replaced it with the default — both now raise instead; TS list-item name injection now recurses at every nesting level of a list-of-list, matching Python's `FieldMarker.to_ir` (previously only the outer level was named, leaving an inner item with schema-invalid `name: ""`).
+
+### Added (cross-language consumption, F-001/F-002)
+
+- `metadata.service` (optional string) on `schemas/queue-message.schema.json`. Stamped by producers when a service name is configured via `SERVER_DECORATOR_SERVICE` / `configure(service=...)`. Backward compatible: absent when no service is configured; consumers that ignore it are unaffected.
+- `rules/topic-naming.md` — optional 3-segment auto-topic form `service.ClassName.methodName`, used only when a service is configured. The 2-segment form remains the default.
+- `fixtures/queue-message.valid-with-service.json` — golden example of a service-prefixed envelope.
+
+This part of the bump is additive and opt-in: no existing message changes shape unless a service name is configured. The cache-key algorithm is untouched (no cache flush required).
 
 ## [1.0.0] — 2026-05-08
 
