@@ -27,8 +27,8 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: node/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:unit
-      - run: pnpm run build
+      - run: pnpm -r test:unit
+      - run: pnpm -r run build
 
   e2e:
     if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-e2e')
@@ -46,7 +46,7 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: node/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:e2e
+      - run: pnpm -r test:e2e
 
   publish:
     name: Bump & Publish (Node + Python)
@@ -96,7 +96,7 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git add node/package.json node/pnpm-lock.yaml python/pyproject.toml
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/pyproject.toml
           git commit -m "chore: bump patch version [skip ci]"
           git push
 
@@ -106,7 +106,7 @@ jobs:
 
       - name: Publish Node to npm
         working-directory: node
-        run: pnpm publish --no-git-checks --access public
+        run: pnpm -r publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

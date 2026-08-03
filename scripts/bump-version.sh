@@ -1,35 +1,23 @@
 #!/usr/bin/env bash
-# Bump both packages in lock-step (Decision #2). Usage: scripts/bump-version.sh patch|minor|major
+# Bump ALL packages in lock-step (Decision #2, ADR 0006). Usage: scripts/bump-version.sh patch|minor|major
 set -euo pipefail
-
+shopt -s nullglob
 bump=${1:?"usage: $0 patch|minor|major"}
-case "$bump" in
-  patch|minor|major) ;;
-  *) echo "error: argument must be patch, minor, or major" >&2; exit 2 ;;
-esac
-
+case "$bump" in patch|minor|major) ;; *) echo "error: patch|minor|major" >&2; exit 2 ;; esac
 cd "$(dirname "$0")/.."
 
-# Bump Node first; npm version returns the new version on stdout.
-( cd node && pnpm version "$bump" --no-git-tag-version >/dev/null )
-new_version=$(node -p "require('./node/package.json').version")
+# Bump core first to compute the new version, then mirror everywhere.
+( cd node/packages/core && pnpm version "$bump" --no-git-tag-version >/dev/null )
+new_version=$(node -p "require('./node/packages/core/package.json').version")
 
-# Mirror into Python (sed -i.bak for portability between BSD and GNU sed).
-sed -i.bak "s/^version = .*/version = \"$new_version\"/" python/pyproject.toml
-rm python/pyproject.toml.bak
+for pkg in node/packages/*/package.json; do
+  [ "$pkg" = "node/packages/core/package.json" ] && continue
+  node -e "const f='$pkg',p=require('./'+f);p.version='$new_version';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+done
+for pkg in python/packages/*/pyproject.toml; do
+  sed -i.bak "s/^version = .*/version = \"$new_version\"/" "$pkg" && rm "$pkg.bak"
+done
 
-# Sanity check: both files agree.
-node_v=$(node -p "require('./node/package.json').version")
-py_v=$(grep -oE '^version\s*=\s*"[^"]+"' python/pyproject.toml | grep -oE '"[^"]+"' | tr -d '"')
-if [ "$node_v" != "$py_v" ]; then
-  echo "FAIL: node $node_v != python $py_v after bump" >&2
-  exit 1
-fi
-
-echo "Bumped both packages to v$new_version"
-echo
-echo "Next steps:"
-echo "  git add node/package.json node/pnpm-lock.yaml python/pyproject.toml"
-echo "  git commit -m \"chore: bump to v$new_version\""
-echo "  git tag v$new_version"
-echo "  git push && git push --tags  # this triggers publish-node.yml + publish-python.yml"
+bash scripts/check-versions.sh
+echo "Bumped all packages to v$new_version"
+echo "Next: git add -A && git commit -m \"chore: bump to v$new_version\" && git tag v$new_version && git push --tags"
