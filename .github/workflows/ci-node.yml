@@ -80,7 +80,7 @@ jobs:
 
       - name: Install Python dependencies
         working-directory: python
-        run: uv sync --extra dev
+        run: uv sync --all-packages --all-extras
 
       - name: Configure git
         run: |
@@ -96,7 +96,7 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git add node/packages/*/package.json node/pnpm-lock.yaml python/pyproject.toml
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml
           git commit -m "chore: bump patch version [skip ci]"
           git push
 
@@ -111,7 +111,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Python package
-        working-directory: python
+        working-directory: python/packages/core
         run: uv build
 
       - name: Publish Python to PyPI
