@@ -36,4 +36,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv python install 3.12
-      - run: cd packages/core && uv run pytest -m integration
+      - run: cd packages/core && uv run --extra dev pytest -m integration
