@@ -3,6 +3,13 @@
 from dataclasses import dataclass
 from typing import Any
 
+from server_decorator_entity.validate import (
+    assert_enum_nonempty,
+    assert_format_pattern_exclusive,
+    assert_integer_or_none,
+    assert_wire_name_not_reserved,
+)
+
 
 @dataclass(frozen=True)
 class FieldMarker:
@@ -23,6 +30,13 @@ class FieldMarker:
     fields: tuple[tuple[str, "FieldMarker"], ...] | None = None  # (name, marker) pairs for obj
 
     def to_ir(self, name: str) -> dict[str, Any]:
+        label = f'field "{name}"'
+        assert_wire_name_not_reserved(name, label)
+        assert_format_pattern_exclusive(self.format, self.pattern, label)
+        assert_enum_nonempty(self.enum, label)
+        assert_integer_or_none(self.min, f"{label}.min")
+        assert_integer_or_none(self.max, f"{label}.max")
+
         ir: dict[str, Any] = {"name": name, "type": self.type}
         if self.role:
             ir["role"] = self.role

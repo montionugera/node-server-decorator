@@ -3,10 +3,20 @@ import { FieldSpec } from './types';
 
 type FieldOpts = Partial<Omit<FieldSpec, 'name'>>;
 
+// Inject the field's own name into `item.name` at EVERY nesting level of a list-of-list(-of-list…),
+// not just one level deep — matches Python's FieldMarker.to_ir, which passes the same `name` down
+// through every recursive `self.item.to_ir(name)` call. A list item has no meaningful name of its
+// own (it's a single anonymous value slot), so this always overwrites rather than only filling in
+// an empty string.
+function injectListItemNames(f: FieldSpec, name: string): FieldSpec {
+  if (f.type !== 'list' || !f.item) return f;
+  return { ...f, item: { ...injectListItemNames(f.item, name), name } };
+}
+
 export function field(def: FieldOpts & { type: FieldSpec['type'] }): PropertyDecorator {
   return (target, propertyKey) => {
-    const f: FieldSpec = { name: String(propertyKey), ...def } as FieldSpec;
-    if (f.type === 'list' && f.item && f.item.name === '') f.item = { ...f.item, name: f.name };
+    const raw: FieldSpec = { name: String(propertyKey), ...def } as FieldSpec;
+    const f = raw.type === 'list' ? injectListItemNames(raw, raw.name) : raw;
     addField(target.constructor, f);
   };
 }

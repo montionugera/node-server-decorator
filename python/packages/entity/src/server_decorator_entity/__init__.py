@@ -17,8 +17,10 @@ from server_decorator_entity.markers import (
     Uuid,
 )
 from server_decorator_entity.restful import entity_spec, entity_spec_canonical, restful
+from server_decorator_entity.validate import RESERVED_WIRE_NAMES
 
 __all__ = [
+    "RESERVED_WIRE_NAMES",
     "Bool",
     "Datetime",
     "Email",

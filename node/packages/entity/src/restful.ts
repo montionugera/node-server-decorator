@@ -1,6 +1,7 @@
 import { canonicalJson } from './canonical';
 import { specFor } from './registry';
 import { EntitySpec, FieldSpec, Op, Transport } from './types';
+import { validateEntitySpec } from './validate';
 
 export interface RestfulOpts {
   path: string;
@@ -32,12 +33,17 @@ export function Restful(opts: RestfulOpts): ClassDecorator {
       specVersion: '1.1.0',
       entity: ctor.name,
       path: opts.path,
+      // `??` is null-coalescing, not empty-coalescing — an explicit `transports: []`/`ops: []`
+      // must pass through here (not be silently replaced by the default) so validateEntitySpec
+      // below can fail fast on it, rather than either defaulting it away or emitting
+      // schema-invalid empty-array IR (C4).
       transports: opts.transports ?? ['rest'],
       ops: opts.ops ?? ['list', 'get', 'create', 'update', 'delete'],
       pagination: opts.pagination ?? 'offset',
       fields: draft.fields,
       ...(draft.actions.length > 0 ? { actions: draft.actions } : {}),
     };
+    validateEntitySpec(spec);
     spec.fields.forEach(deepFreezeField);
     Object.freeze(spec.fields);
     if (spec.actions) {

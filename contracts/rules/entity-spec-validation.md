@@ -62,3 +62,138 @@ multi-replica deployment (E8) where replicas may not share a local timezone.
 See `fixtures/entity-spec.cases.json` for the contract cases locking in both rulings
 (`create-email-single-char-tld-ok`, `create-email-no-domain-rejected`,
 `update-datetime-with-offset-ok`, `update-datetime-naive-rejected`, `update-datetime-null-ok`).
+
+## `format: "uuid"` and `format: "uri"` (added post-P1-gate-review, still 1.1.0 unreleased)
+
+Both generators MUST validate against these exact shared regexes — same rationale as `email`
+above (each ecosystem's built-in is either absent, too strict, or too lax, and the two disagree
+with each other). `ref` fields with these formats follow the same regexes (see the `ref` section
+below).
+
+**`uuid`** (canonical 8-4-4-4-12 hex-digit form; version/variant nibbles NOT constrained — any hex
+digit is accepted in every position, matching zod's `.uuid()` acceptance of all UUID versions):
+
+```
+^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+```
+
+**`uri`** (pragmatic `scheme://non-space`, not a full RFC 3986 parser — deliberately permissive on
+the authority/path/query/fragment so it stays a single portable regex rather than a URI grammar):
+
+```
+^[a-zA-Z][a-zA-Z0-9+.-]*://[^\s]+$
+```
+
+Implementations: both generators export `UUID_PATTERN` / `URI_PATTERN` alongside `EMAIL_PATTERN`
+and apply them via `.regex(...)` / `pydantic.Field(pattern=...)` — never `zod.uuid()`/`.url()` or
+`pydantic.AnyUrl`, which are ecosystem-specific and will diverge for the same reason `EmailStr`
+did.
+
+## JSON-type strictness for `int`/`float`/`bool`/`datetime`
+
+All payloads arrive as parsed JSON, so JSON's type system (not either language's runtime type
+system) is the arbiter of what counts as "the same shape." zod does no cross-type coercion; both
+generators MUST match that:
+
+- `int`, `float`, `bool`: a JSON **string** value (`"5"`, `"true"`) is REJECTED, even if its
+  contents look numeric/boolean. `gen-pydantic` enforces this with a `BeforeValidator` that raises
+  on `isinstance(v, str)` per field, ahead of pydantic's normal (lax) coercion — it does NOT use a
+  blanket `strict=True` model config, which would also reject legitimate ISO-string→`datetime`
+  parsing.
+- `int` additionally keeps pydantic's lax **integral-float** behavior: a JSON number `5.0` is
+  ACCEPTED for an `int` field (coerced to `5`) because JS/JSON cannot distinguish `5.0` from `5` —
+  zod's `z.number().int()` accepts `5.0` for the same reason. A fractional JSON number (`5.5`) is
+  REJECTED.
+- `datetime`: a non-string JSON value (e.g. an integer epoch timestamp `1704067200`) is REJECTED.
+  `gen-pydantic` enforces this with a `BeforeValidator` that raises on `not isinstance(v, str)`
+  ahead of `AwareDatetime` parsing — an epoch integer is neither ISO 8601 nor string-shaped, and
+  must not be silently accepted as a `datetime`.
+
+## `ref` — string with the same constraints as `str`
+
+A `ref` value is a string (an entity id), so it carries the same constraints a `str` field would:
+`format` (including `uuid`/`uri`/`email`), `min`, `max`, `pattern`. Both generators apply the `str`
+branch's full logic to `ref` — `gen-zod`'s `case 'ref'` falls through to the same code as
+`case 'str'`; `gen-pydantic`'s `t == "str" or t == "ref"` guard already does this.
+
+## `format` and `pattern` are mutually exclusive
+
+A field MUST NOT declare both `format` and `pattern` — enforced at **decoration time** (throws
+building the `EntitySpec`, in both languages), not left to the generators. This closes a
+combination the two engines resolved differently (`gen-pydantic` overwrote `pattern` last-write-
+wins across format/explicit-pattern assignment; `gen-zod` chained both as separate `.regex()`
+calls, so `format`+`pattern` together produced a stricter AND-of-both-patterns validator in Node
+but a format-or-pattern-only validator in Python for the same IR). Rather than pick and document
+one combination semantic, the combination itself is now invalid IR.
+
+## List item constraints (`type: "list"`)
+
+An item's own constraints (`min`/`max`/`pattern`/`format`, or a nested `obj`'s field list) MUST be
+enforced on every element, in both generators — not silently dropped. `gen-zod` recurses
+`zodForField` on `f.item`, which naturally carries this through. `gen-pydantic` builds
+`list[Annotated[inner_ann, inner_field_info]]` — thread the item's own `(annotation, FieldInfo)`
+pair through `Annotated`, never `list[inner_ann]` alone (which discards the `FieldInfo`, and with
+it every item-level constraint).
+
+## Non-integer `min`/`max` are rejected at decoration time
+
+Per `entity-spec-canonical.md` rule 6 ("all numbers are integers — no fractional constraints in
+v1.1.0"), a `min`/`max` value that is not a whole integer (`2.5`) — or, in Python, a `bool` (which
+`isinstance(x, int)` would otherwise let through) — MUST raise at decoration time, in both
+languages, rather than silently emit `min`/`max` as IR. Node: `Number.isInteger(v)`. Python:
+`isinstance(v, int) and not isinstance(v, bool)`. This also prevents the whole-number-float JSON
+serialization divergence documented in `cache-key.md` (`JSON.stringify(2.0)` → `"2"` vs
+`json.dumps(2.0)` → `"2.0"`) from ever reaching the IR for this field.
+
+## Empty `enum`, `ops`, `transports` are rejected at decoration time
+
+An `EnumOf()`/`enumOf([])` call with zero values, an empty `ops: []`, or an empty `transports: []`
+MUST raise at decoration time in both languages (fail-fast, matching the schema's `minItems: 1` on
+`fields`/`transports`/`enum` — `ops` now carries the same `minItems: 1`). Node's `opts.transports
+?? [...]` / `opts.ops ?? [...]` previously let an explicit `[]` pass through unchanged (`??` is
+null-coalescing, not empty-coalescing); Python's `transports or [...]` / `ops or [...]` previously
+silently replaced an explicit `[]` with the default (`or` is truthiness-coalescing). Neither
+"pass through invalid IR" nor "silently substitute a default the caller didn't ask for" is
+acceptable — both now raise.
+
+## Reserved wire names
+
+A field's wire name (the `name` in IR, i.e. the class attribute name in TS / the `_camel()`-ed
+attribute name in Python, or an explicit nested-field/list-item name) MUST NOT collide with a
+public `pydantic.BaseModel` attribute — `create_model()` raises
+`Field name "<name>" in "<Model>" shadows an attribute in parent "BaseModel"` at model-build time
+otherwise, aborting the entire entity's DTO construction. Node has no equivalent restriction
+(zod objects don't reserve these names), so this is a Python-generator-driven constraint applied
+symmetrically to both entity packages' decoration-time validation, to keep the same IR valid or
+invalid in both languages rather than "valid in Node, blows up gen-pydantic later."
+
+**Reserved set** (pydantic v2 `BaseModel`'s public, non-underscore attribute names — computed via
+`sorted(a for a in dir(pydantic.BaseModel) if not a.startswith('_'))`; kept here as the literal
+list both languages hardcode, so a pydantic version bump can't silently change what's reserved out
+from under Node):
+
+```
+construct, copy, dict, from_orm, json, model_computed_fields, model_config, model_construct,
+model_copy, model_dump, model_dump_json, model_extra, model_fields, model_fields_set,
+model_json_schema, model_parametrized_name, model_post_init, model_rebuild, model_validate,
+model_validate_json, model_validate_strings, parse_file, parse_obj, parse_raw, schema,
+schema_json, update_forward_refs, validate
+```
+
+(Names containing `_` can never actually collide with a wire name, since wire names must match
+`^[a-z][A-Za-z0-9]*$` — no underscore. They're kept in the list anyway so it stays the literal,
+unfiltered `dir(pydantic.BaseModel)` output: trivially re-derivable and re-verifiable, rather than
+a hand-curated subset someone has to remember to keep in sync.)
+
+## `pattern` regex flavor: RE2/rust-regex-compatible only
+
+`gen-pydantic` compiles `pattern` with pydantic v2's Rust-backed regex engine, which does **not**
+support lookaround (`(?=...)`, `(?!...)`) or backreferences (`\1`) — both valid in JS `RegExp` and
+Python's own `re` module, both accepted as schema-valid IR (`pattern` is `{"type": "string"}` with
+no engine-compatibility constraint in `entity-spec.schema.json`). A `pattern` using either feature
+builds fine in `gen-zod` and raises inside `create_model()`/`create_model_for()` in `gen-pydantic`,
+aborting the entire entity's model build. **Authors MUST restrict `pattern` to the RE2/rust-regex
+subset** (no lookaround, no backreferences) for cross-language portability. `gen-pydantic` wraps
+its model-build call and re-raises any pattern-compile failure as a `ValueError` that names the
+offending field(s) and pattern(s), rather than surfacing pydantic's own less-specific
+`SchemaError`.

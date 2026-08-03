@@ -8,14 +8,26 @@ import { FieldSpec } from '@montionugera/entity-spec';
 export const EMAIL_PATTERN =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
+// Shared uuid/uri regexes — see contracts/rules/entity-spec-validation.md. Both gen-zod and
+// gen-pydantic MUST validate `format: "uuid"`/`format: "uri"` against these exact patterns, not
+// either ecosystem's built-in (`zod.uuid()`/`.url()`, pydantic's `AnyUrl`), which diverge from
+// each other and from these.
+export const UUID_PATTERN =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+export const URI_PATTERN = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]+$/;
+
 export function zodForField(f: FieldSpec, include: (f: FieldSpec) => boolean = () => true): z.ZodTypeAny {
   let s: z.ZodTypeAny;
   switch (f.type) {
+    // `ref` is a string (an entity id) carrying the same constraints a `str` field would —
+    // format/min/max/pattern all apply identically (I-c; parity with gen-pydantic's
+    // `t == "str" or t == "ref"` branch).
+    case 'ref':
     case 'str': {
       let str = z.string();
       if (f.format === 'email') str = str.regex(EMAIL_PATTERN);
-      if (f.format === 'uuid') str = str.uuid();
-      if (f.format === 'uri') str = str.url();
+      if (f.format === 'uuid') str = str.regex(UUID_PATTERN);
+      if (f.format === 'uri') str = str.regex(URI_PATTERN);
       if (f.min !== undefined) str = str.min(f.min);
       if (f.max !== undefined) str = str.max(f.max);
       if (f.pattern !== undefined) str = str.regex(new RegExp(f.pattern));
@@ -39,7 +51,6 @@ export function zodForField(f: FieldSpec, include: (f: FieldSpec) => boolean = (
     case 'bool': s = z.boolean(); break;
     case 'datetime': s = z.string().datetime({ offset: true }); break;
     case 'enum': s = z.enum(f.enum as [string, ...string[]]); break;
-    case 'ref': s = z.string(); break;
     case 'list': s = z.array(zodForField(f.item as FieldSpec, include)); break;
     case 'obj': s = strictObject(f.fields ?? [], include); break;
   }

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ActionSpec, EntitySpec, FieldSpec } from '@montionugera/entity-spec';
 import { strictObject } from './map-field';
 
-export { EMAIL_PATTERN, zodForField } from './map-field';
+export { EMAIL_PATTERN, UUID_PATTERN, URI_PATTERN, zodForField } from './map-field';
 
 export function createSchema(spec: EntitySpec): z.ZodTypeAny {
   return strictObject(spec.fields, (f) => !f.readonly);

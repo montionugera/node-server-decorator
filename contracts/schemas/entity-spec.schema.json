@@ -14,7 +14,7 @@
       "items": { "enum": ["rest", "rpc", "sse", "ws"] }
     },
     "ops": {
-      "type": "array", "uniqueItems": true,
+      "type": "array", "minItems": 1, "uniqueItems": true,
       "items": { "enum": ["list", "get", "create", "update", "delete"] }
     },
     "pagination": { "enum": ["offset", "cursor"] },

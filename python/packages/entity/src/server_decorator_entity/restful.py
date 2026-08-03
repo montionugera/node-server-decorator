@@ -58,6 +58,16 @@ def restful(
             seen_wire_names.add(wire_name)
             fields.append(marker.to_ir(wire_name))
 
+        # `or` is truthiness-coalescing, not None-coalescing — an explicit `transports=[]`/
+        # `ops=[]` must fail fast here (not be silently replaced by the default), matching TS's
+        # `??`-then-validate approach (C4). Only an omitted (`None`) argument gets the default.
+        resolved_transports = ["rest"] if transports is None else transports
+        if not resolved_transports:
+            raise ValueError(f"{cls.__name__}: transports must not be empty")
+        resolved_ops = list(_DEFAULT_OPS) if ops is None else ops
+        if not resolved_ops:
+            raise ValueError(f"{cls.__name__}: ops must not be empty")
+
         actions: list[dict[str, Any]] = []
         for member in vars(cls).values():
             if isinstance(member, (staticmethod, classmethod)):
@@ -75,8 +85,8 @@ def restful(
             "specVersion": "1.1.0",
             "entity": cls.__name__,
             "path": path,
-            "transports": transports or ["rest"],
-            "ops": ops or list(_DEFAULT_OPS),
+            "transports": resolved_transports,
+            "ops": resolved_ops,
             "pagination": pagination,
             "fields": fields,
         }
