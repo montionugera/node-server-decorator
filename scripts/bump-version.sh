@@ -22,6 +22,13 @@ done
 for v in python/packages/*/src/*/_version.py; do
   sed -i.bak "s/^__version__ = .*/__version__ = \"$new_version\"/" "$v" && rm "$v.bak"
 done
+# uv.lock pins each workspace member's own version (python/uv.lock's `[[package]]
+# name = "server-decorator" version = "..."` entry) — refresh it so the lockfile doesn't
+# go stale on every publish (unlike pnpm-lock, which doesn't record a workspace member's
+# own version, uv.lock does).
+if command -v uv >/dev/null 2>&1; then
+  ( cd python && uv lock )
+fi
 
 bash scripts/check-versions.sh
 echo "Bumped all packages to v$new_version"
