@@ -4,7 +4,7 @@
 def test_imports() -> None:
     import server_decorator as sd
 
-    assert sd.__version__ == "2.0.0"
+    assert sd.__version__ == "2.0.2"
     assert sd.CONTRACT_VERSION == "1.0.0"
     assert sd.cache is not None
     assert sd.tracking is not None
