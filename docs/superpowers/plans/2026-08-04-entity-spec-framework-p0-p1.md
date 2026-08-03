@@ -25,7 +25,7 @@
 ## File structure (end state of this plan)
 
 ```
-docs/adr/0006-monorepo-restructure.md                    (Task 1)
+docs/adr/0007-monorepo-restructure.md                    (Task 1)
 node/
 ├── pnpm-workspace.yaml                                  (Task 2)
 ├── package.json                 # private workspace root (Task 2)
@@ -60,10 +60,10 @@ scripts/{bump-version.sh,check-versions.sh}                  (Task 3)
 
 # Phase P0 — ADR + monorepo restructure
 
-### Task 1: ADR 0006 — supersede Decision #11
+### Task 1: ADR 0007 — supersede Decision #11
 
 **Files:**
-- Create: `docs/adr/0006-monorepo-restructure.md`
+- Create: `docs/adr/0007-monorepo-restructure.md`
 - Modify: `DECISIONS.md` (append supersession note)
 
 **Interfaces:** Produces the written authority every later task cites. No code.
@@ -71,7 +71,7 @@ scripts/{bump-version.sh,check-versions.sh}                  (Task 3)
 - [ ] **Step 1: Write the ADR**
 
 ```markdown
-# ADR 0006 — Monorepo workspaces for the entity-spec layer
+# ADR 0007 — Monorepo workspaces for the entity-spec layer
 
 Status: Accepted (Mont, 2026-08-04) · Supersedes: Decision #11 (2026-05-05, "two folders, no monorepo tool")
 
@@ -101,7 +101,7 @@ semver to adapter churn.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/adr/0006-monorepo-restructure.md DECISIONS.md
+git add docs/adr/0007-monorepo-restructure.md DECISIONS.md
 git commit -m "docs(adr): 0006 monorepo workspaces for entity-spec layer (supersedes Decision #11)"
 ```
 
@@ -210,7 +210,7 @@ git commit -m "refactor(node): move package to node/packages/core under pnpm wor
 
 ```bash
 #!/usr/bin/env bash
-# Assert every published package (Node + Python) is at the same version (Decision #2, ADR 0006).
+# Assert every published package (Node + Python) is at the same version (Decision #2, ADR 0007).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -238,7 +238,7 @@ echo "OK: all packages at $(printf "%b" "$versions" | head -1 | cut -d= -f2)"
 
 ```bash
 #!/usr/bin/env bash
-# Bump ALL packages in lock-step (Decision #2, ADR 0006). Usage: scripts/bump-version.sh patch|minor|major
+# Bump ALL packages in lock-step (Decision #2, ADR 0007). Usage: scripts/bump-version.sh patch|minor|major
 set -euo pipefail
 bump=${1:?"usage: $0 patch|minor|major"}
 case "$bump" in patch|minor|major) ;; *) echo "error: patch|minor|major" >&2; exit 2 ;; esac

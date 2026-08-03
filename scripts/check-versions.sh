@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assert every published package (Node + Python) is at the same version (Decision #2, ADR 0006).
+# Assert every published package (Node + Python) is at the same version (Decision #2, ADR 0007).
 set -euo pipefail
 shopt -s nullglob
 cd "$(dirname "$0")/.."

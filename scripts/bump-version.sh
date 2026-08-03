@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bump ALL packages in lock-step (Decision #2, ADR 0006). Usage: scripts/bump-version.sh patch|minor|major
+# Bump ALL packages in lock-step (Decision #2, ADR 0007). Usage: scripts/bump-version.sh patch|minor|major
 set -euo pipefail
 shopt -s nullglob
 bump=${1:?"usage: $0 patch|minor|major"}

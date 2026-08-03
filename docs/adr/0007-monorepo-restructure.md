@@ -1,4 +1,4 @@
-# ADR 0006 — Monorepo workspaces for the entity-spec layer
+# ADR 0007 — Monorepo workspaces for the entity-spec layer
 
 Status: Accepted (Mont, 2026-08-04) · Supersedes: Decision #11 (2026-05-05, "two folders, no monorepo tool")
 
