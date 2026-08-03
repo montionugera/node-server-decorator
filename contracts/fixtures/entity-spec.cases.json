@@ -188,6 +188,93 @@
       "errorFields": [
         "boom"
       ]
+    },
+    {
+      "name": "create-with-new-writable-fields-ok",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": [],
+        "score": 4.5,
+        "active": true,
+        "secretNote": "shh"
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "create-score-string-rejected",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": [],
+        "score": "5.5"
+      },
+      "valid": false,
+      "errorFields": [
+        "score"
+      ]
+    },
+    {
+      "name": "create-active-string-rejected",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": [],
+        "active": "true"
+      },
+      "valid": false,
+      "errorFields": [
+        "active"
+      ]
+    },
+    {
+      "name": "update-birthday-epoch-rejected",
+      "dto": "update",
+      "payload": {
+        "birthday": 1704067200
+      },
+      "valid": false,
+      "errorFields": [
+        "birthday"
+      ]
+    },
+    {
+      "name": "read-valid",
+      "dto": "read",
+      "payload": {
+        "id": "u1",
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "loginCount": 3,
+        "tags": []
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "read-excludes-writeonly",
+      "dto": "read",
+      "payload": {
+        "id": "u1",
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "loginCount": 3,
+        "tags": [],
+        "secretNote": "shh"
+      },
+      "valid": false,
+      "errorFields": [
+        "secretNote"
+      ]
     }
   ]
 }
