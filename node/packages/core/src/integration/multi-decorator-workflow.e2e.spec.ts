@@ -13,11 +13,12 @@ describe('E2E Workflow Tests (No Docker)', () => {
   let mockTracker: any;
   let emittedEvents: any[] = [];
   let queueAdapter: InMemoryQueueAdapter;
+  let originalEmit: typeof globalEmitter.emit;
 
   beforeEach(() => {
     jest.clearAllMocks();
     emittedEvents = [];
-    
+
     // Setup mock logger and tracker
     mockLogger = {
       debug: jest.fn(),
@@ -25,21 +26,26 @@ describe('E2E Workflow Tests (No Docker)', () => {
       warn: jest.fn(),
       error: jest.fn()
     };
-    
+
     mockTracker = {
       track: jest.fn()
     };
-    
+
     setGlobalLogger(mockLogger);
     setGlobalTracker(mockTracker);
-    
-    // Setup event listener
+
+    // Setup event listener.
+    // eventemitter3 (Decision #8) has no wildcard "onAny" API, unlike the
+    // event-emitter2 this test was originally written against. Intercept
+    // emit() itself so we still capture every event this suite fires,
+    // regardless of name, without weakening what's asserted below.
     globalEmitter.removeAllListeners();
-    globalEmitter.onAny((event: string | string[], data: any) => {
-      const eventName = Array.isArray(event) ? event.join('.') : event;
-      emittedEvents.push({ eventName, data, timestamp: Date.now() });
-    });
-    
+    originalEmit = globalEmitter.emit.bind(globalEmitter);
+    globalEmitter.emit = ((event: string | symbol, ...args: any[]) => {
+      emittedEvents.push({ eventName: String(event), data: args[0], timestamp: Date.now() });
+      return originalEmit(event as any, ...args);
+    }) as typeof globalEmitter.emit;
+
     // Setup in-memory queue
     queueAdapter = new InMemoryQueueAdapter({ logMessages: true });
     globalQueueRegistry.clear();
@@ -48,6 +54,10 @@ describe('E2E Workflow Tests (No Docker)', () => {
       defaultTopic: 'orders'
     });
     globalQueueRegistry.setDefault('in-memory');
+  });
+
+  afterEach(() => {
+    globalEmitter.emit = originalEmit;
   });
 
   describe('🛒 Complete E-Commerce Order Flow', () => {

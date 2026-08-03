@@ -3,7 +3,7 @@
 // node/devDependencies for tests.
 
 import { Kafka, Producer } from 'kafkajs'
-import { GenericContainer, StartedTestContainers, Wait } from 'testcontainers'
+import { GenericContainer, Wait } from 'testcontainers'
 import { EmitOnSuccess, globalQueueRegistry, KafkaAdapter } from '../index'
 
 jest.setTimeout(120_000)
@@ -26,7 +26,11 @@ describe('@EmitOnSuccess + Kafka (testcontainers)', () => {
         KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9093',
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT',
         KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092',
-        CLUSTER_ID: 'test-cluster-1234',
+        // KRaft requires a 16-byte UUID base64url-encoded to exactly 22 chars;
+        // the previous placeholder ('test-cluster-1234') fails Kafka's cluster-id
+        // validator and the broker exits immediately, so `Wait.forLogMessage`
+        // below times out deterministically. Any valid UUID works here.
+        CLUSTER_ID: '5EIN5krtSw2OeR6qt1uK1Q',
       })
       .withWaitStrategy(Wait.forLogMessage('Kafka Server started', 1))
       .start()
