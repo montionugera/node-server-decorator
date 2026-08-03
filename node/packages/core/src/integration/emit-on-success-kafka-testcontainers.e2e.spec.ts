@@ -4,9 +4,33 @@
 
 import { Kafka, Producer } from 'kafkajs'
 import { GenericContainer, Wait } from 'testcontainers'
+import * as net from 'net'
 import { EmitOnSuccess, globalQueueRegistry, KafkaAdapter } from '../index'
 
 jest.setTimeout(120_000)
+
+// Reserve a free host port synchronously before starting the container. Kafka's
+// KAFKA_ADVERTISED_LISTENERS must be a real, dialable host:port pair — every kafkajs
+// operation past the very first metadata fetch (produce, consumer group coordination,
+// etc.) reconnects directly to whatever address the broker advertises. If that address
+// doesn't match the testcontainers-mapped host port, those reconnects fail against a
+// port nothing is listening on, and the consumer sits in a "Restarting the consumer"
+// retry loop until the test's 30s timeout. Binding a fixed host port up front and
+// reusing it both for the container's port mapping AND the advertised listener closes
+// that gap. Small TOCTOU race between closing this probe socket and Docker binding the
+// same port is inherent to this pattern but negligible in practice.
+async function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer()
+    srv.unref()
+    srv.on('error', reject)
+    srv.listen(0, () => {
+      const address = srv.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      srv.close(() => resolve(port))
+    })
+  })
+}
 
 describe('@EmitOnSuccess + Kafka (testcontainers)', () => {
   let containers: { kafka: any; bootstrap: string } | null = null
@@ -14,9 +38,11 @@ describe('@EmitOnSuccess + Kafka (testcontainers)', () => {
   let producer: Producer
 
   beforeAll(async () => {
+    const hostPort = await getFreePort()
+
     // confluentinc/cp-kafka image (Kafka in KRaft mode); single-node
     const kafkaContainer = await new GenericContainer('confluentinc/cp-kafka:7.6.0')
-      .withExposedPorts(9092)
+      .withExposedPorts({ container: 9092, host: hostPort })
       .withEnvironment({
         KAFKA_NODE_ID: '1',
         KAFKA_PROCESS_ROLES: 'broker,controller',
@@ -25,7 +51,15 @@ describe('@EmitOnSuccess + Kafka (testcontainers)', () => {
         KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER',
         KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9093',
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT',
-        KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092',
+        // Single-broker cluster: the internal __consumer_offsets topic defaults to
+        // replication factor 3, which a 1-node cluster can never satisfy — consumer
+        // group coordination then fails with KafkaJSGroupCoordinatorNotFound because
+        // the coordinator's backing topic never gets created. Pin it to 1.
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: '1',
+        // Advertise the actual reserved host port (not the container-internal 9092) so
+        // every post-bootstrap kafkajs connection lands on a port testcontainers really
+        // forwards. See getFreePort() above for why this must be known before start().
+        KAFKA_ADVERTISED_LISTENERS: `PLAINTEXT://localhost:${hostPort}`,
         // KRaft requires a 16-byte UUID base64url-encoded to exactly 22 chars;
         // the previous placeholder ('test-cluster-1234') fails Kafka's cluster-id
         // validator and the broker exits immediately, so `Wait.forLogMessage`
