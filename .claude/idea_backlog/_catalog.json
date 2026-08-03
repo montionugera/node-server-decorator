@@ -16,5 +16,11 @@
     "title": "Cross-language consumption Plan 2: Kafka + BullMQ + RabbitMQ consumers (both languages) + interop scenarios",
     "created_at": "2026-06-19T16:03:31.566584+00:00",
     "promoted_to": "F-002"
+  },
+  {
+    "id": "I-004",
+    "title": "Entity-spec framework: declarative entity \u2192 REST/RPC/SSE/WS (polyglot IR compiler)",
+    "created_at": "2026-08-03T17:03:05.584030+00:00",
+    "promoted_to": null
   }
 ]
