@@ -18,6 +18,13 @@ def action(
     transactional: bool = True,
 ) -> Callable[[F], F]:
     def mark(fn: F) -> F:
+        if isinstance(fn, (staticmethod, classmethod)):
+            kind = "static" if isinstance(fn, staticmethod) else "class"
+            underlying = fn.__func__
+            raise TypeError(
+                f"@action must decorate an instance method (got {kind} method "
+                f"'{underlying.__name__}')"
+            )
         spec: dict[str, Any] = {"name": name}
         if from_state is not None or to_state is not None:
             spec["stateField"] = state_field or "status"
