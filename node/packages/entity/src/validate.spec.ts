@@ -114,6 +114,73 @@ describe('decoration-time validation', () => {
     expect(gridField.item.item.name).toBe('grid');
   });
 
+  it('throws when a pattern contains a lookahead (re-review: I-b(2) closure)', () => {
+    expect(() => {
+      @Restful({ path: 'x12' })
+      class X12 {
+        @id() id!: string;
+        @str({ pattern: '^(?=.*[0-9]).+$' }) e!: string;
+      }
+      void X12;
+    }).toThrow(/not RE2\/rust-regex compatible/);
+  });
+
+  it('throws when a pattern contains a negative lookahead', () => {
+    expect(() => {
+      @Restful({ path: 'x13' })
+      class X13 {
+        @id() id!: string;
+        @str({ pattern: '^(?!admin).+$' }) e!: string;
+      }
+      void X13;
+    }).toThrow(/lookaround/);
+  });
+
+  it('throws when a pattern contains lookbehind', () => {
+    expect(() => {
+      @Restful({ path: 'x14' })
+      class X14 {
+        @id() id!: string;
+        @str({ pattern: '(?<=foo)bar' }) e!: string;
+      }
+      void X14;
+    }).toThrow(/lookaround/);
+  });
+
+  it('throws when a pattern contains a backreference', () => {
+    expect(() => {
+      @Restful({ path: 'x15' })
+      class X15 {
+        @id() id!: string;
+        @str({ pattern: '(a)\\1' }) e!: string;
+      }
+      void X15;
+    }).toThrow(/backreference/);
+  });
+
+  it('still accepts a normal, portable pattern', () => {
+    @Restful({ path: 'x16' })
+    class X16 {
+      @id() id!: string;
+      @str({ pattern: '^[a-z]+$' }) e!: string;
+    }
+    const spec = require('./index').entitySpec(X16);
+    expect(spec.fields.find((f: { name: string }) => f.name === 'e').pattern).toBe('^[a-z]+$');
+  });
+
+  it('does not false-positive on a doubled backslash followed by a digit (escaped literal backslash + literal "1", not a backreference)', () => {
+    @Restful({ path: 'x17' })
+    class X17 {
+      @id() id!: string;
+      // Source pattern characters: ^ a \ \ 1 $  — an escaped backslash (\\) followed by a
+      // literal "1", NOT a backreference (\1). In a TS string literal, '\\\\1' produces the
+      // four characters \ \ 1 in the actual pattern string.
+      @str({ pattern: '^a\\\\1$' }) e!: string;
+    }
+    const spec = require('./index').entitySpec(X17);
+    expect(spec.fields.find((f: { name: string }) => f.name === 'e').pattern).toBe('^a\\\\1$');
+  });
+
   it('accepts a valid entity unchanged (control case)', () => {
     @Restful({ path: 'x11' })
     class X11 {

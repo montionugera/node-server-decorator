@@ -191,9 +191,29 @@ a hand-curated subset someone has to remember to keep in sync.)
 support lookaround (`(?=...)`, `(?!...)`) or backreferences (`\1`) — both valid in JS `RegExp` and
 Python's own `re` module, both accepted as schema-valid IR (`pattern` is `{"type": "string"}` with
 no engine-compatibility constraint in `entity-spec.schema.json`). A `pattern` using either feature
-builds fine in `gen-zod` and raises inside `create_model()`/`create_model_for()` in `gen-pydantic`,
-aborting the entire entity's model build. **Authors MUST restrict `pattern` to the RE2/rust-regex
-subset** (no lookaround, no backreferences) for cross-language portability. `gen-pydantic` wraps
-its model-build call and re-raises any pattern-compile failure as a `ValueError` that names the
-offending field(s) and pattern(s), rather than surfacing pydantic's own less-specific
-`SchemaError`.
+builds fine in `gen-zod` — the divergence is live at the wire-format level, not just a generator
+crash — while `create_model()`/`create_model_for()` in `gen-pydantic` raises, aborting the entire
+entity's model build.
+
+**Enforcement is at DECORATION time, in both entity packages, not left to the generators.**
+`Restful()`/`restful()` reject a non-portable `pattern` before either generator ever sees the IR:
+
+- **Lookaround**: reject if `pattern` contains the literal substring `(?=`, `(?!`, `(?<=`, or
+  `(?<!`.
+- **Backreference**: reject if `pattern` contains a backslash immediately followed by a digit
+  `1`–`9`, where an **odd** number of consecutive backslashes precede that digit (an odd run means
+  the digit itself is escaped, i.e. an actual `\1`-style backreference; an **even** run means the
+  backslashes are themselves pairwise-escaped and the digit that follows is a literal character,
+  not part of an escape — e.g. `\\1` is a literal backslash followed by a literal `1`, not a
+  backreference). `\0` is never treated as a backreference (it is not a capture-group reference in
+  either engine).
+
+This is a **conservative lexical scan, not a full regex parser** — deliberately, to keep the check
+identical and trivially portable in both languages (`node/packages/entity/src/validate.ts`'s
+`assertPortablePattern`/`hasBackreference`, `python/packages/entity/src/server_decorator_entity/validate.py`'s
+`assert_portable_pattern`/`_has_backreference`). It does not attempt to validate that the pattern
+is otherwise well-formed regex syntax (an unrelated syntax error still surfaces from the
+generator, not from this check) — it only rejects the two known-non-portable constructs.
+`gen-pydantic` additionally wraps its model-build call and re-raises any pattern-compile failure
+as a `ValueError` naming the offending field(s)/pattern(s) as defense-in-depth, in case IR reaches
+it from something other than these two entity packages' decorators.

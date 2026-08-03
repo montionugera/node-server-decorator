@@ -40,6 +40,53 @@ function assertIntegerOrUndefined(value: number | undefined, label: string): voi
   }
 }
 
+// A `\` run of odd length immediately before a digit 1-9 means that digit is escaped — a
+// backreference (`\1`). An even-length run means the backslashes are themselves escaped
+// (`\\1` is a literal backslash followed by the literal digit `1`), so it's NOT a backreference.
+// `\0` is never a backreference (it's either a literal `0` or, in some engines, a null escape —
+// not a capture-group reference), so only digits 1-9 are scanned. This is a conservative lexical
+// scan, not a regex parser — see contracts/rules/entity-spec-validation.md for what it does and
+// does not catch.
+function hasBackreference(pattern: string): boolean {
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c >= '1' && c <= '9') {
+      let backslashes = 0;
+      let j = i - 1;
+      while (j >= 0 && pattern[j] === '\\') {
+        backslashes++;
+        j--;
+      }
+      if (backslashes % 2 === 1) return true;
+    }
+  }
+  return false;
+}
+
+const LOOKAROUND_MARKERS = ['(?=', '(?!', '(?<=', '(?<!'];
+
+// pydantic v2's Rust-backed regex engine (used by gen-pydantic) does not support lookaround or
+// backreferences — both are valid JS RegExp / Python `re` syntax, so a pattern using either
+// builds fine in gen-zod but crashes gen-pydantic's entire model build. Reject non-portable
+// patterns at DECORATION time (before either generator ever sees the IR) rather than leaving it
+// to the generator to crash — see contracts/rules/entity-spec-validation.md.
+function assertPortablePattern(pattern: string | undefined, label: string): void {
+  if (pattern === undefined) return;
+  const lookaround = LOOKAROUND_MARKERS.find((m) => pattern.includes(m));
+  if (lookaround !== undefined) {
+    throw new Error(
+      `${label}: pattern ${JSON.stringify(pattern)} is not RE2/rust-regex compatible ` +
+        `(contains lookaround "${lookaround}") — see contracts/rules/entity-spec-validation.md`,
+    );
+  }
+  if (hasBackreference(pattern)) {
+    throw new Error(
+      `${label}: pattern ${JSON.stringify(pattern)} is not RE2/rust-regex compatible ` +
+        `(contains a backreference) — see contracts/rules/entity-spec-validation.md`,
+    );
+  }
+}
+
 export function validateField(f: FieldSpec, path: string): void {
   const label = `field "${path}"`;
   if (RESERVED_WIRE_NAMES.has(f.name)) {
@@ -50,6 +97,7 @@ export function validateField(f: FieldSpec, path: string): void {
   if (f.format !== undefined && f.pattern !== undefined) {
     throw new Error(`${label}: format and pattern are mutually exclusive`);
   }
+  assertPortablePattern(f.pattern, label);
   if (f.enum !== undefined && f.enum.length === 0) {
     throw new Error(`${label}: enum must have at least one value`);
   }

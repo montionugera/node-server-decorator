@@ -124,6 +124,70 @@ def test_nested_list_of_list_names_every_level_with_the_parent_field_name() -> N
     assert grid_field["item"]["item"]["name"] == "grid"
 
 
+def test_lookahead_pattern_raises() -> None:
+    with pytest.raises(ValueError, match=r"not RE2/rust-regex compatible"):
+
+        @restful(path="x12")
+        class X12:
+            id: Annotated[str, Id()]
+            e: Annotated[str, Str(pattern="^(?=.*[0-9]).+$")]
+
+
+def test_negative_lookahead_pattern_raises() -> None:
+    with pytest.raises(ValueError, match="lookaround"):
+
+        @restful(path="x13")
+        class X13:
+            id: Annotated[str, Id()]
+            e: Annotated[str, Str(pattern="^(?!admin).+$")]
+
+
+def test_lookbehind_pattern_raises() -> None:
+    with pytest.raises(ValueError, match="lookaround"):
+
+        @restful(path="x14")
+        class X14:
+            id: Annotated[str, Id()]
+            e: Annotated[str, Str(pattern="(?<=foo)bar")]
+
+
+def test_backreference_pattern_raises() -> None:
+    with pytest.raises(ValueError, match="backreference"):
+
+        @restful(path="x15")
+        class X15:
+            id: Annotated[str, Id()]
+            e: Annotated[str, Str(pattern="(a)\\1")]
+
+
+def test_normal_portable_pattern_still_works() -> None:
+    @restful(path="x16")
+    class X16:
+        id: Annotated[str, Id()]
+        e: Annotated[str, Str(pattern="^[a-z]+$")]
+
+    spec = entity_spec(X16)
+    e_field = next(f for f in spec["fields"] if f["name"] == "e")
+    assert e_field["pattern"] == "^[a-z]+$"
+
+
+def test_doubled_backslash_before_digit_does_not_false_positive() -> None:
+    # Source pattern characters: ^ a \ \ 1 $ — an escaped backslash (\\) followed by a literal
+    # "1", NOT a backreference (\1). The raw Python string r"^a\\1$" contains exactly those six
+    # characters (a raw string literal does not collapse \\ to \).
+    pattern = r"^a\\1$"
+    assert pattern == "^a\\\\1$"  # sanity: 6 chars — ^ a \ \ 1 $
+
+    @restful(path="x17")
+    class X17:
+        id: Annotated[str, Id()]
+        e: Annotated[str, Str(pattern=pattern)]
+
+    spec = entity_spec(X17)
+    e_field = next(f for f in spec["fields"] if f["name"] == "e")
+    assert e_field["pattern"] == pattern
+
+
 def test_valid_entity_unchanged_control_case() -> None:
     @restful(path="x11")
     class X11:

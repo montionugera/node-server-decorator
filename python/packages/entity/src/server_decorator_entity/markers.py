@@ -7,6 +7,7 @@ from server_decorator_entity.validate import (
     assert_enum_nonempty,
     assert_format_pattern_exclusive,
     assert_integer_or_none,
+    assert_portable_pattern,
     assert_wire_name_not_reserved,
 )
 
@@ -33,6 +34,7 @@ class FieldMarker:
         label = f'field "{name}"'
         assert_wire_name_not_reserved(name, label)
         assert_format_pattern_exclusive(self.format, self.pattern, label)
+        assert_portable_pattern(self.pattern, label)
         assert_enum_nonempty(self.enum, label)
         assert_integer_or_none(self.min, f"{label}.min")
         assert_integer_or_none(self.max, f"{label}.max")
