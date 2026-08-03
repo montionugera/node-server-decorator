@@ -51,7 +51,7 @@ contracts/
 ├── VERSION                      # 1.0.0 → 1.1.0             (Task 6)
 ├── schemas/entity-spec.schema.json                          (Task 6)
 ├── rules/entity-spec-canonical.md                           (Task 6)
-└── fixtures/{entity-spec.valid-user.json, entity-spec.invalid-missing-entity.json, entity-spec.validation-cases.json} (Task 6)
+└── fixtures/{entity-spec.valid-user.json, entity-spec.invalid-missing-entity.json, entity-spec.cases.json} (Task 6)
 .github/workflows/{ci-node.yml,ci-python.yml,ci-contracts.yml}  (Tasks 3,4,10)
 scripts/{bump-version.sh,check-versions.sh}                  (Task 3)
 ```
@@ -376,7 +376,7 @@ bash scripts/check-versions.sh
 ### Task 6: Contracts — entity-spec schema, canonical rule, fixtures
 
 **Files:**
-- Create: `contracts/schemas/entity-spec.schema.json`, `contracts/rules/entity-spec-canonical.md`, `contracts/fixtures/entity-spec.valid-user.json`, `contracts/fixtures/entity-spec.invalid-missing-entity.json`, `contracts/fixtures/entity-spec.validation-cases.json`
+- Create: `contracts/schemas/entity-spec.schema.json`, `contracts/rules/entity-spec-canonical.md`, `contracts/fixtures/entity-spec.valid-user.json`, `contracts/fixtures/entity-spec.invalid-missing-entity.json`, `contracts/fixtures/entity-spec.cases.json`
 - Modify: `contracts/VERSION` (1.0.0 → 1.1.0), `contracts/CHANGELOG.md`, `node/packages/core/src/_contract.ts`, `python/packages/core/src/server_decorator/_contract.py` (CONTRACT_VERSION → "1.1.0")
 
 **Interfaces:**
@@ -508,7 +508,7 @@ Generate the canonical file with: `node -e 'const s=require("fs").readFileSync(0
 { "specVersion": "1.1.0", "path": "users", "transports": ["rest"], "ops": ["get"], "pagination": "offset", "fields": [{ "name": "id", "type": "str" }] }
 ```
 
-- [ ] **Step 5: Write `contracts/fixtures/entity-spec.validation-cases.json`** — the cross-language validation-behavior contract for Tasks 11/12 (both generators must produce these verdicts against the User fixture):
+- [ ] **Step 5: Write `contracts/fixtures/entity-spec.cases.json`** — the cross-language validation-behavior contract for Tasks 11/12 (both generators must produce these verdicts against the User fixture):
 
 ```json
 {
@@ -1374,7 +1374,7 @@ interface Case {
   name: string; dto: string; payload: unknown; valid: boolean; errorFields: string[];
 }
 const { cases } = JSON.parse(readFileSync(
-  join(__dirname, '../../../../contracts/fixtures/entity-spec.validation-cases.json'), 'utf8'
+  join(__dirname, '../../../../contracts/fixtures/entity-spec.cases.json'), 'utf8'
 )) as { cases: Case[] };
 
 const spec = entitySpec(UserFixture);
@@ -1511,7 +1511,7 @@ One subtlety the cases fixture forces: `update-empty-ok` must pass (partial make
 - Create: `python/packages/gen_pydantic/pyproject.toml`, `scripts/check.sh`, `README.md`, `src/server_decorator_gen_pydantic/{__init__.py,py.typed}`, `tests/unit/test_gen_pydantic.py`
 
 **Interfaces:**
-- Consumes: `entity_spec()` dicts (Task 9), `contracts/fixtures/entity-spec.validation-cases.json` (Task 6).
+- Consumes: `entity_spec()` dicts (Task 9), `contracts/fixtures/entity-spec.cases.json` (Task 6).
 - Produces (P5 adapter consumes): `create_model_for(spec) -> type[pydantic.BaseModel]`, `update_model_for(spec)`, `read_model_for(spec)`, `action_input_model_for(spec, action_name)`, `validation_error_fields(exc: pydantic.ValidationError) -> list[str]`. Same DTO rules as gen-zod; models use `extra="forbid"` and populate by wire (camelCase) names.
 
 - [ ] **Step 1: Scaffold** — pyproject like Task 9 Step 1 but `name = "server-decorator-gen-pydantic"`, `packages = ["src/server_decorator_gen_pydantic"]`, dependencies:
@@ -1541,7 +1541,7 @@ from server_decorator_gen_pydantic import (
 )
 
 CONTRACTS = Path(__file__).resolve().parents[3] / ".." / ".." / "contracts"
-CASES = json.loads((CONTRACTS / "fixtures/entity-spec.validation-cases.json").read_text())["cases"]
+CASES = json.loads((CONTRACTS / "fixtures/entity-spec.cases.json").read_text())["cases"]
 SPEC = entity_spec(UserFixture)
 
 
