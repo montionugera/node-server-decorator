@@ -7,6 +7,12 @@ import {
     setGlobalTracker
 } from '../index';
 
+// jest.config.js's per-project `testTimeout` key is silently ignored by Jest (not a valid
+// per-project option in jest-config@29) — hooks/tests without their own inline override fall
+// back to the 5000ms default. Set it explicitly for this container-backed suite (same pattern
+// as cache-redis.e2e.spec.ts and queue-registry-redis-integration.e2e.spec.ts).
+jest.setTimeout(60_000);
+
 describe('RabbitMQ E2E - Testcontainers', () => {
     let rabbitmqContainer: StartedTestContainer;
     let connection: any;
