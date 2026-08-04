@@ -122,7 +122,7 @@ class OrderService:
 
 ## Class-form decorators (Decision #4) — Python only
 
-New in v2.0.0: `tracking_class()`, `cache_class(adapter, ttl)`, `emit_on_success_class(...)`. Each walks `vars(cls)` (NOT the MRO — N2) and applies the corresponding method-form decorator to every public method, with `include` / `exclude` / `include_private` opt-ins. See [`python/README.md`](./python/README.md).
+New in v2.0.0: `tracking_class()`, `cache_class(adapter, ttl)`, `emit_on_success_class(...)`. Each walks `vars(cls)` (NOT the MRO — N2) and applies the corresponding method-form decorator to every public method, with `include` / `exclude` / `include_private` opt-ins. See [`python/packages/core/README.md`](./python/packages/core/README.md).
 
 ## Phase 0 hygiene (D-D) — affects contributors only
 

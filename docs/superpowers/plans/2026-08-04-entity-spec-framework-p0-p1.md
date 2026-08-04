@@ -25,7 +25,7 @@
 ## File structure (end state of this plan)
 
 ```
-docs/adr/0006-monorepo-restructure.md                    (Task 1)
+docs/adr/0007-monorepo-restructure.md                    (Task 1)
 node/
 ├── pnpm-workspace.yaml                                  (Task 2)
 ├── package.json                 # private workspace root (Task 2)
@@ -51,7 +51,7 @@ contracts/
 ├── VERSION                      # 1.0.0 → 1.1.0             (Task 6)
 ├── schemas/entity-spec.schema.json                          (Task 6)
 ├── rules/entity-spec-canonical.md                           (Task 6)
-└── fixtures/{entity-spec.valid-user.json, entity-spec.invalid-missing-entity.json, entity-spec.validation-cases.json} (Task 6)
+└── fixtures/{entity-spec.valid-user.json, entity-spec.invalid-missing-entity.json, entity-spec.cases.json} (Task 6)
 .github/workflows/{ci-node.yml,ci-python.yml,ci-contracts.yml}  (Tasks 3,4,10)
 scripts/{bump-version.sh,check-versions.sh}                  (Task 3)
 ```
@@ -60,10 +60,10 @@ scripts/{bump-version.sh,check-versions.sh}                  (Task 3)
 
 # Phase P0 — ADR + monorepo restructure
 
-### Task 1: ADR 0006 — supersede Decision #11
+### Task 1: ADR 0007 — supersede Decision #11
 
 **Files:**
-- Create: `docs/adr/0006-monorepo-restructure.md`
+- Create: `docs/adr/0007-monorepo-restructure.md`
 - Modify: `DECISIONS.md` (append supersession note)
 
 **Interfaces:** Produces the written authority every later task cites. No code.
@@ -71,7 +71,7 @@ scripts/{bump-version.sh,check-versions.sh}                  (Task 3)
 - [ ] **Step 1: Write the ADR**
 
 ```markdown
-# ADR 0006 — Monorepo workspaces for the entity-spec layer
+# ADR 0007 — Monorepo workspaces for the entity-spec layer
 
 Status: Accepted (Mont, 2026-08-04) · Supersedes: Decision #11 (2026-05-05, "two folders, no monorepo tool")
 
@@ -101,7 +101,7 @@ semver to adapter churn.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/adr/0006-monorepo-restructure.md DECISIONS.md
+git add docs/adr/0007-monorepo-restructure.md DECISIONS.md
 git commit -m "docs(adr): 0006 monorepo workspaces for entity-spec layer (supersedes Decision #11)"
 ```
 
@@ -210,7 +210,7 @@ git commit -m "refactor(node): move package to node/packages/core under pnpm wor
 
 ```bash
 #!/usr/bin/env bash
-# Assert every published package (Node + Python) is at the same version (Decision #2, ADR 0006).
+# Assert every published package (Node + Python) is at the same version (Decision #2, ADR 0007).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -238,7 +238,7 @@ echo "OK: all packages at $(printf "%b" "$versions" | head -1 | cut -d= -f2)"
 
 ```bash
 #!/usr/bin/env bash
-# Bump ALL packages in lock-step (Decision #2, ADR 0006). Usage: scripts/bump-version.sh patch|minor|major
+# Bump ALL packages in lock-step (Decision #2, ADR 0007). Usage: scripts/bump-version.sh patch|minor|major
 set -euo pipefail
 bump=${1:?"usage: $0 patch|minor|major"}
 case "$bump" in patch|minor|major) ;; *) echo "error: patch|minor|major" >&2; exit 2 ;; esac
@@ -376,7 +376,7 @@ bash scripts/check-versions.sh
 ### Task 6: Contracts — entity-spec schema, canonical rule, fixtures
 
 **Files:**
-- Create: `contracts/schemas/entity-spec.schema.json`, `contracts/rules/entity-spec-canonical.md`, `contracts/fixtures/entity-spec.valid-user.json`, `contracts/fixtures/entity-spec.invalid-missing-entity.json`, `contracts/fixtures/entity-spec.validation-cases.json`
+- Create: `contracts/schemas/entity-spec.schema.json`, `contracts/rules/entity-spec-canonical.md`, `contracts/fixtures/entity-spec.valid-user.json`, `contracts/fixtures/entity-spec.invalid-missing-entity.json`, `contracts/fixtures/entity-spec.cases.json`
 - Modify: `contracts/VERSION` (1.0.0 → 1.1.0), `contracts/CHANGELOG.md`, `node/packages/core/src/_contract.ts`, `python/packages/core/src/server_decorator/_contract.py` (CONTRACT_VERSION → "1.1.0")
 
 **Interfaces:**
@@ -508,7 +508,7 @@ Generate the canonical file with: `node -e 'const s=require("fs").readFileSync(0
 { "specVersion": "1.1.0", "path": "users", "transports": ["rest"], "ops": ["get"], "pagination": "offset", "fields": [{ "name": "id", "type": "str" }] }
 ```
 
-- [ ] **Step 5: Write `contracts/fixtures/entity-spec.validation-cases.json`** — the cross-language validation-behavior contract for Tasks 11/12 (both generators must produce these verdicts against the User fixture):
+- [ ] **Step 5: Write `contracts/fixtures/entity-spec.cases.json`** — the cross-language validation-behavior contract for Tasks 11/12 (both generators must produce these verdicts against the User fixture):
 
 ```json
 {
@@ -1374,7 +1374,7 @@ interface Case {
   name: string; dto: string; payload: unknown; valid: boolean; errorFields: string[];
 }
 const { cases } = JSON.parse(readFileSync(
-  join(__dirname, '../../../../contracts/fixtures/entity-spec.validation-cases.json'), 'utf8'
+  join(__dirname, '../../../../contracts/fixtures/entity-spec.cases.json'), 'utf8'
 )) as { cases: Case[] };
 
 const spec = entitySpec(UserFixture);
@@ -1511,7 +1511,7 @@ One subtlety the cases fixture forces: `update-empty-ok` must pass (partial make
 - Create: `python/packages/gen_pydantic/pyproject.toml`, `scripts/check.sh`, `README.md`, `src/server_decorator_gen_pydantic/{__init__.py,py.typed}`, `tests/unit/test_gen_pydantic.py`
 
 **Interfaces:**
-- Consumes: `entity_spec()` dicts (Task 9), `contracts/fixtures/entity-spec.validation-cases.json` (Task 6).
+- Consumes: `entity_spec()` dicts (Task 9), `contracts/fixtures/entity-spec.cases.json` (Task 6).
 - Produces (P5 adapter consumes): `create_model_for(spec) -> type[pydantic.BaseModel]`, `update_model_for(spec)`, `read_model_for(spec)`, `action_input_model_for(spec, action_name)`, `validation_error_fields(exc: pydantic.ValidationError) -> list[str]`. Same DTO rules as gen-zod; models use `extra="forbid"` and populate by wire (camelCase) names.
 
 - [ ] **Step 1: Scaffold** — pyproject like Task 9 Step 1 but `name = "server-decorator-gen-pydantic"`, `packages = ["src/server_decorator_gen_pydantic"]`, dependencies:
@@ -1541,7 +1541,7 @@ from server_decorator_gen_pydantic import (
 )
 
 CONTRACTS = Path(__file__).resolve().parents[3] / ".." / ".." / "contracts"
-CASES = json.loads((CONTRACTS / "fixtures/entity-spec.validation-cases.json").read_text())["cases"]
+CASES = json.loads((CONTRACTS / "fixtures/entity-spec.cases.json").read_text())["cases"]
 SPEC = entity_spec(UserFixture)
 
 

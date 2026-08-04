@@ -27,11 +27,9 @@ done
 
 export KAFKA_BROKER="localhost:9092"
 
-# Producer: build & run the Node script.
-# NODE_PATH points module resolution at node/node_modules because the scenario .ts files
-# live outside the node/ package tree (the same constraint applies to all interop scenarios).
+# Producer: build & run the Node script
 ( cd node && pnpm install --frozen-lockfile >/dev/null && \
-  NODE_PATH="$PWD/node_modules" pnpm exec tsx ../interop/scenarios/kafka-node-emit-python-consume/producer.ts )
+  cd packages/core && pnpm exec tsx ../../../interop/scenarios/kafka-node-emit-python-consume/producer.ts )
 
 # Consumer: run the Python script
 ( cd python && \
@@ -39,7 +37,7 @@ export KAFKA_BROKER="localhost:9092"
     uv sync --extra dev >/dev/null
     uv run python ../interop/scenarios/kafka-node-emit-python-consume/consumer.py
   else
-    python3 -m pip install --quiet -e ".[kafka]" jsonschema >/dev/null
+    python3 -m pip install --quiet -e "packages/core[kafka]" jsonschema >/dev/null
     python3 ../interop/scenarios/kafka-node-emit-python-consume/consumer.py
   fi )
 

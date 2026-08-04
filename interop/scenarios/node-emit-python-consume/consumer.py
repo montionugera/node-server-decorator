@@ -12,7 +12,7 @@ from pathlib import Path
 import redis.asyncio as redis_asyncio
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "python" / "src"))
+sys.path.insert(0, str(ROOT / "python" / "packages" / "core" / "src"))
 
 from server_decorator import ConsumerRegistry, on_event  # noqa: E402
 from server_decorator.consumer.adapters.redis_consumer import (  # noqa: E402

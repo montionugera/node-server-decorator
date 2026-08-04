@@ -1,0 +1,1 @@
+{ "specVersion": "1.1.0", "path": "users", "transports": ["rest"], "ops": ["get"], "pagination": "offset", "fields": [{ "name": "id", "type": "str" }] }

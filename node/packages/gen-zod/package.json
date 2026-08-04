@@ -1,0 +1,36 @@
+{
+  "name": "@montionugera/entity-spec-gen-zod",
+  "version": "2.0.2",
+  "description": "IR-derived create/update/read/action zod validation schemas (contracts/schemas/entity-spec.schema.json).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist/"],
+  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:unit": "jest",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm test:unit && pnpm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/server-decorator.git",
+    "directory": "node/packages/gen-zod"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@montionugera/entity-spec": "workspace:*",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.16.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": { "node": ">=18.0.0" },
+  "packageManager": "pnpm@9.14.2"
+}

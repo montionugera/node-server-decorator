@@ -187,7 +187,7 @@ Each phase ends with the standard quality gate (verify → independent review �
 
 ## 10. ADR required
 
-`docs/adr/0006-monorepo-restructure.md`: supersedes Decision #11 (2026-05-05, "two folders, no monorepo tool"). Rationale: the entity layer multiplies the package count (entity, generators, N adapters × 2 languages); publishing them as one blob couples consumers to adapters they don't use. pnpm workspace (Node) + uv workspace (Python); lockstep versioning (Decision #2) is retained across all published packages.
+`docs/adr/0007-monorepo-restructure.md`: supersedes Decision #11 (2026-05-05, "two folders, no monorepo tool"). Rationale: the entity layer multiplies the package count (entity, generators, N adapters × 2 languages); publishing them as one blob couples consumers to adapters they don't use. pnpm workspace (Node) + uv workspace (Python); lockstep versioning (Decision #2) is retained across all published packages.
 
 ## 11. Open items
 

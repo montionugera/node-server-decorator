@@ -32,7 +32,7 @@ bash scenarios/kafka-node-emit-python-consume/run.sh     # Kafka startup is slow
 
 - `redis` — Redis 7, host `6379`.
 - `kafka` — single-broker Confluent KRaft, host `9092`. Env mirrors the proven
-  testcontainers setup in `node/src/integration/kafka-consumer.e2e.spec.ts`
+  testcontainers setup in `node/packages/core/src/integration/kafka-consumer.e2e.spec.ts`
   (RF=1 on internal topics, valid base64 `CLUSTER_ID`, advertised listener `localhost:9092`).
 - `rabbitmq` — RabbitMQ 3 management, mapped to host **5673** (not the usual 5672) to
   avoid colliding with another RabbitMQ already on 5672. No interop scenario uses it yet

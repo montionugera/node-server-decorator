@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://server-decorator.dev/schemas/entity-spec/1.1.0.json",
+  "title": "EntitySpec",
+  "type": "object",
+  "required": ["specVersion", "entity", "path", "transports", "ops", "pagination", "fields"],
+  "additionalProperties": false,
+  "properties": {
+    "specVersion": { "const": "1.1.0" },
+    "entity": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+    "path": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "transports": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["rest", "rpc", "sse", "ws"] }
+    },
+    "ops": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["list", "get", "create", "update", "delete"] }
+    },
+    "pagination": { "enum": ["offset", "cursor"] },
+    "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/field" } },
+    "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } }
+  },
+  "$defs": {
+    "field": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" },
+        "type": { "enum": ["str", "int", "float", "bool", "datetime", "enum", "ref", "list", "obj"] },
+        "role": { "const": "id" },
+        "format": { "enum": ["email", "uuid", "uri"] },
+        "enum": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "min": { "type": "number", "multipleOf": 1 },
+        "max": { "type": "number", "multipleOf": 1 },
+        "pattern": { "type": "string" },
+        "optional": { "const": true },
+        "nullable": { "const": true },
+        "readonly": { "const": true },
+        "writeonly": { "const": true },
+        "filterable": { "const": true },
+        "item": { "$ref": "#/$defs/field" },
+        "ref": { "type": "string" },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" },
+        "stateField": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "input": { "type": "array", "items": { "$ref": "#/$defs/field" } },
+        "transactional": { "const": false }
+      }
+    }
+  }
+}

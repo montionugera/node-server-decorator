@@ -27,14 +27,12 @@ export INTEROP_STREAM="interop-${RANDOM}"
     uv sync --extra dev >/dev/null
     uv run python ../interop/scenarios/python-emit-node-consume/producer.py
   else
-    python3 -m pip install --quiet -e . redis >/dev/null
+    python3 -m pip install --quiet -e packages/core redis >/dev/null
     python3 ../interop/scenarios/python-emit-node-consume/producer.py
   fi )
 
-# Consumer: Node.
-# NODE_PATH points module resolution at node/node_modules because the scenario .ts files
-# live outside the node/ package tree (the same constraint applies to all interop scenarios).
+# Consumer: Node
 ( cd node && pnpm install --frozen-lockfile >/dev/null && \
-  NODE_PATH="$PWD/node_modules" pnpm exec tsx ../interop/scenarios/python-emit-node-consume/consumer.ts )
+  cd packages/core && pnpm exec tsx ../../../interop/scenarios/python-emit-node-consume/consumer.ts )
 
 echo "interop: python-emit / node-consume PASSED"

@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import Redis from 'ioredis'
-import { ConsumerRegistry } from '../../../node/src/decorators/consumer-registry'
-import { RedisStreamConsumer } from '../../../node/src/decorators/consumer-adapters'
+import { ConsumerRegistry } from '../../../node/packages/core/src/decorators/consumer-registry'
+import { RedisStreamConsumer } from '../../../node/packages/core/src/decorators/consumer-adapters'
 
 // NOTE: this scenario runs via `tsx`, whose esbuild transform implements TC39 stage-3
 // decorators rather than the legacy `experimentalDecorators` semantics that `@OnEvent` /
@@ -12,7 +12,7 @@ import { RedisStreamConsumer } from '../../../node/src/decorators/consumer-adapt
 // handler gets wired. We therefore register the handler imperatively via `reg.on(...)`,
 // which is exactly what `@OnEvent` + `registerHandlers` does under the hood. The decorator
 // path itself is covered by Jest (ts-jest honors experimentalDecorators) in
-// node/src/decorators/on-event.spec.ts.
+// node/packages/core/src/decorators/on-event.spec.ts.
 
 const ROOT = join(__dirname, '..', '..', '..')
 const EXPECTED = (

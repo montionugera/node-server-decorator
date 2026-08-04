@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "python" / "src"))
+sys.path.insert(0, str(ROOT / "python" / "packages" / "core" / "src"))
 
 from server_decorator import ConsumerRegistry, KafkaConsumer, on_event  # noqa: E402
 

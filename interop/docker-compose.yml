@@ -10,7 +10,7 @@ services:
       retries: 30
 
   kafka:
-    # Single-broker KRaft mode. Env mirrors node/src/integration/kafka-consumer.e2e.spec.ts
+    # Single-broker KRaft mode. Env mirrors node/packages/core/src/integration/kafka-consumer.e2e.spec.ts
     # (the proven testcontainers setup): RF=1 on all internal topics, a valid base64 UUID
     # CLUSTER_ID, and an advertised listener of localhost:9092 so a host client reconnects
     # to the same address it dialed.

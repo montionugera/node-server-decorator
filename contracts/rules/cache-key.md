@@ -22,7 +22,7 @@ arg_repr =
 reprArg(x) =
     JSON.stringify(x, sortKeys=True, defaultEncoder=str)
     -- Python: json.dumps(x, sort_keys=True, default=str)
-    -- Node:   stableStringify(x) (canonical JSON; see node/src/decorators/_cache_key.ts)
+    -- Node:   stableStringify(x) (canonical JSON; see node/packages/core/src/decorators/_cache_key.ts)
 
 if utf8_byte_len(raw) <= 250:
     return raw
