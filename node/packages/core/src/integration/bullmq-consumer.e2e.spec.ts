@@ -1,10 +1,29 @@
 import Redis from 'ioredis'
 import { Queue } from 'bullmq'
+import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers'
 import { ConsumerRegistry } from '../decorators/consumer-registry'
 import { BullMQConsumer } from '../decorators/consumer-adapters'
 
+jest.setTimeout(60_000)
+
 describe('BullMQConsumer (e2e)', () => {
-  const url = process.env.REDIS_URL ?? 'redis://localhost:6379'
+  let redisContainer: StartedTestContainer
+  let url: string
+
+  beforeAll(async () => {
+    redisContainer = await new GenericContainer('redis:7-alpine')
+      .withExposedPorts(6379)
+      .withWaitStrategy(Wait.forLogMessage('Ready to accept connections'))
+      .start()
+
+    url = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`
+  }, 60000)
+
+  afterAll(async () => {
+    if (redisContainer) {
+      await redisContainer.stop()
+    }
+  })
 
   it('consumes BullMQ jobs (job.data is the envelope)', async () => {
     const queueName = 'A.x.bullmq'
