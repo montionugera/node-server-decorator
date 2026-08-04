@@ -4,7 +4,7 @@ from pathlib import Path
 from server_decorator.consumer.validate import validate_envelope
 
 FIXTURE = (
-    Path(__file__).resolve().parents[3]
+    Path(__file__).resolve().parents[5]
     / "contracts"
     / "fixtures"
     / "queue-message.valid-with-service.json"

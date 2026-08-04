@@ -7,6 +7,8 @@ const fixturePath = join(
   '..',
   '..',
   '..',
+  '..',
+  '..',
   'contracts',
   'fixtures',
   'queue-message.valid-with-service.json',
