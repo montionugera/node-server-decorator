@@ -53,6 +53,9 @@ jobs:
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # PyPI trusted publisher for server-decorator-gen-pydantic is registered against
+    # this GitHub environment; the other publishers accept any environment.
+    environment: pypi
     permissions:
       contents: write
       packages: write
