@@ -11,6 +11,21 @@ from server_decorator.consumer.adapters.redis_consumer import RedisStreamConsume
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(scope="module")
+def redis_container():
+    from testcontainers.redis import RedisContainer
+
+    with RedisContainer("redis:7-alpine") as r:
+        yield r
+
+
+@pytest.fixture
+def redis_url(redis_container) -> str:
+    host = redis_container.get_container_host_ip()
+    port = int(redis_container.get_exposed_port(6379))
+    return f"redis://{host}:{port}"
+
+
 async def test_consumes_and_acks(redis_url: str) -> None:
     client = redis_asyncio.from_url(redis_url)
     stream = "test-consume-stream"

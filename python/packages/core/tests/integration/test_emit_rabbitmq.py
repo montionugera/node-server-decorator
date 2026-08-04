@@ -24,7 +24,8 @@ async def test_emit_to_rabbitmq_queue(rabbitmq_container) -> None:
     from server_decorator import emit_on_success, global_queue_registry
     from server_decorator.queue.adapters.rabbitmq_adapter import RabbitMQAdapter
 
-    url = rabbitmq_container.get_connection_url()
+    params = rabbitmq_container.get_connection_params()
+    url = f"amqp://{params.credentials.username}:{params.credentials.password}@{params.host}:{params.port}/"
     connection = await aio_pika.connect_robust(url)
     channel = await connection.channel()
     await channel.declare_queue("orders", durable=False)
