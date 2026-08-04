@@ -219,6 +219,18 @@ export class RabbitMQConsumer implements ConsumerAdapter {
   }
 }
 
+// normalizeConnection — bullmq's Worker/Queue forward `connection` straight into its
+// RedisConnection, which does `Object.assign({ port: 6379, host: '127.0.0.1', ... }, opts)`.
+// When `opts` is a bare string, Object.assign spreads the STRING's char-indexed properties
+// (numeric-index → single-char values) instead of merging a host/port/url — the connection
+// string is silently discarded and bullmq always dials 127.0.0.1:6379. bullmq's own types
+// require `{ url: string }` to connect via a connection string, so a bare string must be
+// wrapped before it reaches bullmq. Anything already object-shaped (RedisOptions, an ioredis
+// instance, `{ url }`) is passed through unchanged.
+export function normalizeConnection(connection: string | object): object {
+  return typeof connection === 'string' ? { url: connection } : connection
+}
+
 // BullMQConsumer — consume BullMQ jobs via a Worker. The producer's BullMQAdapter stores
 // the QueueMessage as the job's data, so job.data IS the envelope. dispatch success ->
 // processor returns (job completed); dispatch raise -> processor throws (BullMQ retries
@@ -239,7 +251,10 @@ export class BullMQConsumer implements ConsumerAdapter {
       async (job: Job) => {
         await dispatch(job.data)
       },
-      { connection: this.options.connection as any, concurrency: this.options.concurrency ?? 1 },
+      {
+        connection: normalizeConnection(this.options.connection) as any,
+        concurrency: this.options.concurrency ?? 1,
+      },
     )
     await this.worker.waitUntilReady()
   }
