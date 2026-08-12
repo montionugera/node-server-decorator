@@ -1,11 +1,15 @@
 {
   "name": "@montionugera/entity-spec",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Declarative entity decorators emitting the language-neutral EntitySpec IR (contracts/schemas/entity-spec.schema.json).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist/"],
-  "publishConfig": { "registry": "https://npm.pkg.github.com" },
+  "files": [
+    "dist/"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest",
@@ -29,6 +33,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.8.3"
   },
-  "engines": { "node": ">=18.0.0" },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "packageManager": "pnpm@9.14.2"
 }
