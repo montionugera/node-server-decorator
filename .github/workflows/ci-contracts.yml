@@ -1,18 +1,28 @@
 name: CI - Contracts
 
 on:
+  # I-e (P1 gate-review): widened from `node/packages/{core/src,entity}/**` +
+  # `python/packages/{core/src,entity}/**` to the whole `node/packages/**`/`python/packages/**`
+  # trees, and `scripts/**` was added — a change to `scripts/check-versions.sh`,
+  # `scripts/bump-version.sh`, or a gen-zod/gen_pydantic package manifest previously triggered
+  # NO workflow at all (including the very check-versions.sh lockstep gate those scripts back).
+  # Both jobs in this workflow share one trigger (GitHub Actions has no native per-job path
+  # filter), so `entity-parity` now also runs on this broader set — acceptable since it's a
+  # cheap job and a broad trigger here is safe.
   pull_request:
     paths:
       - 'contracts/**'
-      - 'node/src/**'
-      - 'python/src/**'
+      - 'node/packages/**'
+      - 'python/packages/**'
+      - 'scripts/**'
       - '.github/workflows/ci-contracts.yml'
   push:
     branches: [main]
     paths:
       - 'contracts/**'
-      - 'node/src/**'
-      - 'python/src/**'
+      - 'node/packages/**'
+      - 'python/packages/**'
+      - 'scripts/**'
       - '.github/workflows/ci-contracts.yml'
 
 concurrency:
@@ -32,8 +42,8 @@ jobs:
       - name: Assert contract version match (Node ↔ Python ↔ contracts/VERSION)
         run: |
           contract=$(cat contracts/VERSION | tr -d '[:space:]')
-          py_v=$(grep -oP 'CONTRACT_VERSION\s*=\s*"\K[^"]+' python/src/server_decorator/_contract.py)
-          node_v=$(grep -oE "CONTRACT_VERSION\s*=\s*'[^']+'" node/src/_contract.ts | grep -oE "'[^']+'" | tr -d "'")
+          py_v=$(grep -oP 'CONTRACT_VERSION\s*=\s*"\K[^"]+' python/packages/core/src/server_decorator/_contract.py)
+          node_v=$(grep -oE "CONTRACT_VERSION\s*=\s*'[^']+'" node/packages/core/src/_contract.ts | grep -oE "'[^']+'" | tr -d "'")
           if [ "$contract" != "$py_v" ]; then
             echo "FAIL: contracts/VERSION ($contract) != python ($py_v)" >&2
             exit 1
@@ -45,3 +55,15 @@ jobs:
           echo "OK: contract=$contract node=$node_v python=$py_v"
       - name: Assert package version match (Node ↔ Python)
         run: bash scripts/check-versions.sh
+  entity-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'pnpm', cache-dependency-path: node/pnpm-lock.yaml }
+      - uses: astral-sh/setup-uv@v5
+      - run: cd node && pnpm install --frozen-lockfile
+      - run: cd python && uv sync --all-packages
+      - run: bash scripts/check-entity-parity.sh

@@ -1,0 +1,14 @@
+{
+  "eventName": "UserService.create",
+  "payload": {
+    "userId": "u-1",
+    "email": "a@example.com"
+  },
+  "timestamp": 1746748800000,
+  "metadata": {
+    "className": "UserService",
+    "methodName": "create",
+    "topic": "user-svc.UserService.create",
+    "service": "user-svc"
+  }
+}

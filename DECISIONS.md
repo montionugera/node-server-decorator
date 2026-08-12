@@ -17,6 +17,7 @@ The full migration plan lives at `~/workspace/wip/decoratorpolyglotmigrationplan
 9. **Kafka client.** Optional peer dep: `kafkajs` (Node), `aiokafka` (Python via `pip install server-decorator[kafka]`).
 10. **Python async runtime.** `asyncio` only. No `trio`/`anyio`.
 11. **Repo tooling.** Two folders side by side (`node/`, `python/`). No monorepo tool.
+    > Superseded 2026-08-04 by ADR 0006 (docs/adr/0006-monorepo-restructure.md): node/ and python/ become workspaces for the I-004 entity-spec layer.
 12. **Node backward compatibility.** `npm install server-decorator` continues to work unchanged (apart from the v2.0.0 eventemitter3 swap).
 
 ## Additional decisions (locked 2026-05-08, after plan review)

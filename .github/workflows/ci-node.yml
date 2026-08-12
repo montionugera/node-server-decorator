@@ -27,8 +27,9 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: node/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:unit
-      - run: pnpm run build
+      # Build before unit tests: gen-zod's specs import @montionugera/entity-spec's dist/.
+      - run: pnpm -r run build
+      - run: pnpm -r test:unit
 
   e2e:
     if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-e2e')
@@ -46,13 +47,16 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: node/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:e2e
+      - run: pnpm -r test:e2e
 
   publish:
     name: Bump & Publish (Node + Python)
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # PyPI trusted publisher for server-decorator-gen-pydantic is registered against
+    # this GitHub environment; the other publishers accept any environment.
+    environment: pypi
     permissions:
       contents: write
       packages: write
@@ -80,7 +84,7 @@ jobs:
 
       - name: Install Python dependencies
         working-directory: python
-        run: uv sync --extra dev
+        run: uv sync --all-packages --all-extras
 
       - name: Configure git
         run: |
@@ -96,7 +100,7 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git add node/package.json node/pnpm-lock.yaml python/pyproject.toml
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock
           git commit -m "chore: bump patch version [skip ci]"
           git push
 
@@ -106,13 +110,13 @@ jobs:
 
       - name: Publish Node to npm
         working-directory: node
-        run: pnpm publish --no-git-checks --access public
+        run: pnpm -r publish --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Python package
+      - name: Build Python packages (core, entity, gen_pydantic)
         working-directory: python
-        run: uv build
+        run: uv build --all-packages
 
       - name: Publish Python to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

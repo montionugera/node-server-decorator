@@ -26,12 +26,12 @@ export INTEROP_STREAM="interop-${RANDOM}"
     uv sync --extra dev >/dev/null
     uv run python ../interop/scenarios/python-producer-node-consumer/producer.py
   else
-    python3 -m pip install --quiet -e . redis >/dev/null
+    python3 -m pip install --quiet -e packages/core redis >/dev/null
     python3 ../interop/scenarios/python-producer-node-consumer/producer.py
   fi )
 
 # Consumer: Node
 ( cd node && pnpm install --frozen-lockfile >/dev/null && \
-  pnpm exec tsx ../interop/scenarios/python-producer-node-consumer/consumer.ts )
+  cd packages/core && pnpm exec tsx ../../../interop/scenarios/python-producer-node-consumer/consumer.ts )
 
 echo "interop: python-producer / node-consumer PASSED"

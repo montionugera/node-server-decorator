@@ -1,0 +1,26 @@
+[
+  {
+    "id": "I-001",
+    "title": "Cross-language consumption: RabbitMQ/Kafka interop scenarios, BullMQ-aware Python consumer, @on_event consumer decorator",
+    "created_at": "2026-06-07T09:23:14.310203+00:00",
+    "promoted_to": "F-001"
+  },
+  {
+    "id": "I-002",
+    "title": "Decorator surface growth: @property wrapping (N1), retry decorator, circuit-breaker decorator",
+    "created_at": "2026-06-07T09:23:20.405801+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-003",
+    "title": "Cross-language consumption Plan 2: Kafka + BullMQ + RabbitMQ consumers (both languages) + interop scenarios",
+    "created_at": "2026-06-19T16:03:31.566584+00:00",
+    "promoted_to": "F-002"
+  },
+  {
+    "id": "I-004",
+    "title": "Entity-spec framework: declarative entity \u2192 REST/RPC/SSE/WS (polyglot IR compiler)",
+    "created_at": "2026-08-03T17:03:05.584030+00:00",
+    "promoted_to": "F-003"
+  }
+]

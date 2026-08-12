@@ -9,5 +9,7 @@ ADRs document the *why* behind architectural choices. Each one is short, dated, 
 | [0003](./0003-cache-key-format.md) | Cache key format | Accepted |
 | [0004](./0004-cache-miss-sentinel.md) | `CACHE_MISS` sentinel for adapter contract | Accepted |
 | [0005](./0005-eventemitter3-swap.md) | Replace `@nestjs/event-emitter` with `eventemitter3` | Accepted |
+| [0006](./0006-cross-language-consumption.md) | Cross-language consumption (consume side) | Accepted |
+| [0007](./0007-monorepo-restructure.md) | Monorepo workspaces for the entity-spec layer | Accepted |
 
 The decisions table in the root [`DECISIONS.md`](../../DECISIONS.md) is the at-a-glance reference; the ADRs here carry the rationale.

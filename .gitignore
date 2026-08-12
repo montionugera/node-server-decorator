@@ -12,6 +12,8 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json  # Use pnpm-lock.yaml instead
 yarn.lock         # Use pnpm-lock.yaml instead
+# uv is dev-only; do not commit the lockfile
+python/uv.lock
 
 # iCloud-style duplicate files (D-D)
 * 2
@@ -27,3 +29,9 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# ps-release-workflow (gitignored state)
+.claude/state/
+.claude/worktrees/
+
+# Rendered design HTML — local view artifacts only (global rule)
+docs/superpowers/**/*.html
