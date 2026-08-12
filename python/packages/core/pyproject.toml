@@ -32,6 +32,7 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
     "jsonschema>=4.21",
+    "tomli>=2.0; python_version < '3.11'",
     "redis>=5.0",
     "aio-pika>=9.4",
     "aiokafka>=0.11",

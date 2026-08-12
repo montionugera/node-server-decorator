@@ -1,6 +1,9 @@
 from pathlib import Path
 
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 — tomllib is stdlib only from 3.11
+    import tomli as tomllib  # type: ignore[no-redef]
 
 
 def test_bullmq_extra_present() -> None:
