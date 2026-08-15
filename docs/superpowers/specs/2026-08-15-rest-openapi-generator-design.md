@@ -33,6 +33,10 @@ Explicitly deferred, and not to be smuggled in:
 - **`ref` relation expansion** — `ref` fields emit as their scalar id type; no `$ref`
   chasing, no embedded-resource expansion.
 - **Runtime auth enforcement** — the contract declares requirements; it never checks them.
+- **Object-level / ownership authorization** — "only the owner may update this record"
+  depends on the loaded row and the caller identity at request time. A static document
+  declares one requirement per operation and has nowhere to express a per-instance
+  relationship. This belongs in an adapter or handler, permanently, not in the contract.
 
 ## Architecture
 
@@ -108,6 +112,34 @@ containment. This is what keeps the model language-neutral: enforcement lives in
 adapter or an upstream gateway, and consumers using ABAC or a policy engine can map scopes
 onto their own model without the contract fighting them.
 </div>
+
+### Scope string convention
+
+Scope strings are opaque to the contract, but the convention is binding on this repo's own
+fixtures and examples: **use permission strings, not role names.**
+
+| Form | Example | Use it? |
+| --- | --- | --- |
+| Permission — what may be done | `user:write` | **Yes.** Stable, deployment-neutral |
+| Role — who the caller is | `superadmin` | No. Roles are deployment-specific and churn |
+| Relationship — caller vs this record | `owner` | Never. Not expressible; see non-goals |
+
+The intended layering keeps roles out of the wire format entirely:
+
+```
+identity provider   alice has role "superadmin"
+        v           role expands to permissions when the token is minted
+token scopes        ["user:read", "user:write", "user:delete"]
+        v
+this contract       create requires ["user:write"]
+        v
+adapter (1.3+)      does the token carry every required scope?
+```
+
+`superadmin` never appears in an EntitySpec. It is a role that grants many scopes, resolved
+upstream. Naming roles in the contract would assert an authorization model that consumers
+with a different model cannot use — the same reason ADR 0008 chooses scopes over roles.
+
 
 ### Decorator surface
 
