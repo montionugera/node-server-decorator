@@ -22,5 +22,11 @@
     "title": "Entity-spec framework: declarative entity \u2192 REST/RPC/SSE/WS (polyglot IR compiler)",
     "created_at": "2026-08-03T17:03:05.584030+00:00",
     "promoted_to": "F-003"
+  },
+  {
+    "id": "I-005",
+    "title": "REST API delivery layer: gen-openapi (IR to OpenAPI 3.1) + HTTP adapters for Express and FastAPI over EntitySpec",
+    "created_at": "2026-08-15T06:26:49.232284+00:00",
+    "promoted_to": null
   }
 ]
