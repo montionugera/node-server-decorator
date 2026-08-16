@@ -12,7 +12,14 @@ const FORMAT_PATTERN: Record<string, RegExp> = {
   email: EMAIL_PATTERN, uuid: UUID_PATTERN, uri: URI_PATTERN,
 };
 
-export function jsonSchemaForField(f: FieldSpec): JsonSchema {
+// `include` threads through EVERY level of nesting — obj members and list items alike —
+// because contracts/rules/rest-conventions.md filters nested obj and list members by the same
+// rule as their parent, and gen-zod's zodForField already does exactly this. Without it a
+// create DTO would keep a readonly member that lives inside a list of objects.
+export function jsonSchemaForField(
+  f: FieldSpec,
+  include: (f: FieldSpec) => boolean = () => true,
+): JsonSchema {
   const base = BASE_TYPE[f.type];
   const s: JsonSchema = { type: f.nullable ? [base, 'null'] : base };
 
@@ -32,13 +39,16 @@ export function jsonSchemaForField(f: FieldSpec): JsonSchema {
   }
   if (f.type === 'enum' && f.enum) s.enum = [...f.enum];
   if (f.type === 'list') {
-    s.items = f.item ? jsonSchemaForField(f.item) : {};
+    s.items = f.item ? jsonSchemaForField(f.item, include) : {};
     if (f.min !== undefined) s.minItems = f.min;
     if (f.max !== undefined) s.maxItems = f.max;
   }
   if (f.type === 'obj') {
-    s.properties = objectProperties(f.fields ?? [], () => true);
-    const required = (f.fields ?? []).filter((n) => !n.optional).map((n) => n.name);
+    const kept = (f.fields ?? []).filter(include);
+    s.properties = objectProperties(kept, include);
+    // Filter `required` by `include` too: an excluded member left in `required` would make the
+    // schema impossible to satisfy, since its property is not emitted at all.
+    const required = kept.filter((n) => !n.optional).map((n) => n.name);
     if (required.length > 0) s.required = required;
     s.additionalProperties = false;
   }
@@ -52,9 +62,7 @@ export function objectProperties(
 ): Record<string, JsonSchema> {
   const out: Record<string, JsonSchema> = {};
   for (const f of fields.filter(include)) {
-    const nested: FieldSpec =
-      f.type === 'obj' && f.fields ? { ...f, fields: f.fields.filter(include) } : f;
-    out[f.name] = jsonSchemaForField(nested);
+    out[f.name] = jsonSchemaForField(f, include);
   }
   return out;
 }

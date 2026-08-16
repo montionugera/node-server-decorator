@@ -548,6 +548,77 @@
         ],
         "/components/schemas/ProfileRead/properties/meta/additionalProperties": false
       }
+    },
+    {
+      "name": "include-rule-recurses-into-nested-obj-and-list-items",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Order",
+        "path": "orders",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "meta",
+            "type": "obj",
+            "fields": [
+              {
+                "name": "createdBy",
+                "type": "str",
+                "readonly": true
+              },
+              {
+                "name": "note",
+                "type": "str"
+              }
+            ]
+          },
+          {
+            "name": "lines",
+            "type": "list",
+            "item": {
+              "name": "lines",
+              "type": "obj",
+              "fields": [
+                {
+                  "name": "sku",
+                  "type": "str"
+                },
+                {
+                  "name": "computedTotal",
+                  "type": "float",
+                  "readonly": true
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "/components/schemas/OrderCreate/properties/meta/properties/note/type": "string",
+        "/components/schemas/OrderCreate/properties/meta/properties/createdBy": null,
+        "/components/schemas/OrderCreate/properties/meta/required": [
+          "note"
+        ],
+        "/components/schemas/OrderCreate/properties/lines/items/properties/sku/type": "string",
+        "/components/schemas/OrderCreate/properties/lines/items/properties/computedTotal": null,
+        "/components/schemas/OrderCreate/properties/lines/items/required": [
+          "sku"
+        ],
+        "/components/schemas/OrderRead/properties/meta/properties/createdBy/type": "string",
+        "/components/schemas/OrderRead/properties/lines/items/properties/computedTotal/type": "number"
+      }
     }
   ]
 }

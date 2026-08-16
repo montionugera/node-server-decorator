@@ -28,7 +28,15 @@ _FORMAT_PATTERN = {"email": EMAIL_PATTERN, "uuid": UUID_PATTERN, "uri": URI_PATT
 Include = Callable[[dict[str, Any]], bool]
 
 
-def json_schema_for_field(f: dict[str, Any]) -> dict[str, Any]:
+def json_schema_for_field(f: dict[str, Any], include: Include | None = None) -> dict[str, Any]:
+    """Map one IR field to JSON Schema.
+
+    ``include`` threads through EVERY level of nesting — obj members and list items alike —
+    because contracts/rules/rest-conventions.md filters nested obj and list members by the same
+    rule as their parent, and gen_pydantic's model builder already does exactly this. Without it
+    a create DTO would keep a readonly member that lives inside a list of objects.
+    """
+    keep: Include = (lambda _f: True) if include is None else include
     t = f["type"]
     base = _BASE_TYPE[t]
     s: dict[str, Any] = {"type": [base, "null"] if f.get("nullable") else base}
@@ -53,15 +61,17 @@ def json_schema_for_field(f: dict[str, Any]) -> dict[str, Any]:
     if t == "enum":
         s["enum"] = list(f["enum"])
     if t == "list":
-        s["items"] = json_schema_for_field(f["item"]) if f.get("item") else {}
+        s["items"] = json_schema_for_field(f["item"], keep) if f.get("item") else {}
         if "min" in f:
             s["minItems"] = f["min"]
         if "max" in f:
             s["maxItems"] = f["max"]
     if t == "obj":
-        nested = f.get("fields", [])
-        s["properties"] = object_properties(nested, lambda _f: True)
-        required = [n["name"] for n in nested if not n.get("optional")]
+        kept = [n for n in f.get("fields", []) if keep(n)]
+        s["properties"] = object_properties(kept, keep)
+        # Filter `required` by `include` too: an excluded member left in `required` would make
+        # the schema impossible to satisfy, since its property is not emitted at all.
+        required = [n["name"] for n in kept if not n.get("optional")]
         if required:
             s["required"] = required
         s["additionalProperties"] = False
@@ -73,10 +83,7 @@ def json_schema_for_field(f: dict[str, Any]) -> dict[str, Any]:
 def object_properties(fields: list[dict[str, Any]], include: Include) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for f in [x for x in fields if include(x)]:
-        nested = f
-        if f["type"] == "obj" and f.get("fields"):
-            nested = {**f, "fields": [n for n in f["fields"] if include(n)]}
-        out[f["name"]] = json_schema_for_field(nested)
+        out[f["name"]] = json_schema_for_field(f, include)
     return out
 
 
