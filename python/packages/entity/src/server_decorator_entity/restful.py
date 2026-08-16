@@ -86,7 +86,7 @@ def restful(
             if callable(member) and hasattr(member, _ATTR):
                 actions.append(getattr(member, _ATTR))
         spec: dict[str, Any] = {
-            "specVersion": "1.1.0",
+            "specVersion": "1.2.0",
             "entity": cls.__name__,
             "path": path,
             "transports": resolved_transports,

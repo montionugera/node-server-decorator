@@ -2,6 +2,27 @@
 
 All notable changes to the wire-format contracts will be documented here. The format is loosely [Keep a Changelog](https://keepachangelog.com/), and the contract version follows [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-08-16 / entity-spec descriptions, tags and security (F-004)
+
+### Added
+
+- `schemas/entity-spec.schema.json`: `specVersion` const moves to `1.2.0` and the `$id` to `.../entity-spec/1.2.0.json`. New optional members — `description` (on the entity, on every field, and on every action), `tags` (entity-level, unique strings) and `security` (entity-level). `$defs/security` requires a non-empty `schemes` array and carries optional `ops`/`actions` maps of op/action name → scope-string list; `$defs/securityScheme` closes `type` to `http | apiKey` with `scheme`, `bearerFormat`, `in` and `paramName`.
+- `rules/rest-conventions.md` — normative route mapping (`update` is PATCH, never PUT), component naming (`{Entity}Create` / `Update` / `Read` / `{Action}Input` / `ListResponse`, shared `Problem` and `ValidationProblem`), field-to-JSON-Schema mapping, offset and cursor pagination envelopes, filtering, RFC 9457 error placement, security requirement emission and document assembly. Binds every generator and every future HTTP adapter.
+- `fixtures/entity-spec.valid-user.json` regenerated: the golden `User` gains an entity `description` and `tags`, a `security` block (one `http`/`bearer` scheme plus `ops` and `actions` scope maps), a field-level `description` on `email` and an action-level `description` on `activate` — so the new members are exercised by the parity gate rather than only by the schema.
+
+### Changed
+
+- `fixtures/entity-spec.invalid-missing-entity.json` moves to `specVersion: "1.2.0"`. It is a negative fixture; leaving it at `1.1.0` would have made it fail on the `specVersion` const as well, so it would no longer isolate the missing-`entity` rejection it exists to prove.
+
+### Compatibility
+
+Additive for readers: every new member is optional, absent keys stay absent, and every
+1.1.0-era declaration emits byte-identical canonical JSON. The cache-key algorithm is
+untouched, so **no cache flush is required**. The one breaking edge is the `specVersion`
+const itself — IR emitted by a 1.2.0 package reads `"1.2.0"`, so a consumer pinned to the
+1.1.0 schema will reject it until it upgrades. Scope strings are opaque permission strings
+(`user:write`); they are not roles and carry no hierarchy, wildcards or implied containment.
+
 ## [1.1.0] — 2026-06-17 / entity-spec schema, canonical rule, fixtures (I-004 P1)
 
 ### Added

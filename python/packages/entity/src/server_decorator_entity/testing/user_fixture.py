@@ -16,10 +16,22 @@ from server_decorator_entity import (
 )
 
 
-@restful(path="users", transports=["rest", "rpc", "sse", "ws"])
+@restful(
+    path="users",
+    transports=["rest", "rpc", "sse", "ws"],
+    description="A registered user account",
+    tags=["identity"],
+    security={
+        "schemes": [
+            {"name": "bearerAuth", "type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+        ],
+        "ops": {"create": ["user:write"], "update": ["user:write"], "delete": ["user:admin"]},
+        "actions": {"activate": ["user:admin"]},
+    },
+)
 class User:
     id: Annotated[str, Id()]
-    email: Annotated[str, Email(filterable=True)]
+    email: Annotated[str, Email(filterable=True, description="Primary contact address")]
     name: Annotated[str, Str(min=2, max=80)]
     status: Annotated[str, EnumOf("inactive", "active", "banned", filterable=True)]
     login_count: Annotated[int, Int(min=0, readonly=True)]
@@ -37,6 +49,7 @@ class User:
 
     @action(
         "activate",
+        description="Move a dormant account back to active",
         from_state="inactive",
         to_state="active",
         input=[("reason", Str(max=200, optional=True))],

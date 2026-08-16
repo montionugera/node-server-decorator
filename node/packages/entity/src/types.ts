@@ -48,7 +48,7 @@ export interface SecuritySpec {
 }
 
 export interface EntitySpec {
-  specVersion: '1.1.0';
+  specVersion: '1.2.0';
   entity: string;
   path: string;
   transports: Transport[];

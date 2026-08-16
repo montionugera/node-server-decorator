@@ -33,7 +33,7 @@ export function Restful(opts: RestfulOpts): ClassDecorator {
   return (ctor) => {
     const draft = specFor(ctor);
     const spec: EntitySpec = {
-      specVersion: '1.1.0',
+      specVersion: '1.2.0',
       entity: ctor.name,
       path: opts.path,
       // `??` is null-coalescing, not empty-coalescing — an explicit `transports: []`/`ops: []`
