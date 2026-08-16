@@ -117,7 +117,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Python packages (core, entity, gen_pydantic)
+      - name: Build Python packages (core, entity, gen_pydantic, gen_openapi)
         working-directory: python
         run: uv build --all-packages
 

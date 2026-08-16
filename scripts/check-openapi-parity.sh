@@ -4,6 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 fixture=contracts/fixtures/openapi.valid-user.json
+
+# The emitter resolves @montionugera/entity-spec through dist/, which does not exist on a
+# clean checkout — build it first, the same reason gen-*/package.json carries pretest:unit.
+# (check-entity-parity.sh needs no equivalent: its emitter imports ../src directly.)
+( cd node && pnpm --filter @montionugera/entity-spec run build >/dev/null )
+
 ts_out=$(cd node/packages/gen-openapi && pnpm exec tsx scripts/emit-openapi.ts)
 py_out=$(cd python && uv run --package server-decorator-gen-openapi \
   python packages/gen_openapi/scripts/emit_openapi.py)

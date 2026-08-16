@@ -12,7 +12,7 @@ A **polyglot** library shipping decorators for caching, tracking, and queue emis
 
 Three layers, in dependency order:
 
-1. **`contracts/`** — source of truth for the wire format. JSON Schemas (`schemas/`), algorithm specs (`rules/cache-key.md`, `rules/topic-naming.md`, `rules/tracking-key.md`, `rules/cache-adapter.md`), golden fixtures, and a `VERSION` file. CI asserts `contracts/VERSION`, `node/packages/core/src/_contract.ts`, and `python/packages/core/src/server_decorator/_contract.py` all agree. `contracts/schemas/entity-spec.schema.json` and `contracts/fixtures/entity-spec.*.json` are the same kind of source-of-truth for the entity-spec IR layer described below.
+1. **`contracts/`** — source of truth for the wire format. JSON Schemas (`schemas/`), algorithm specs (`rules/cache-key.md`, `rules/topic-naming.md`, `rules/tracking-key.md`, `rules/cache-adapter.md`, `rules/rest-conventions.md`), golden fixtures, and a `VERSION` file. CI asserts `contracts/VERSION`, `node/packages/core/src/_contract.ts`, and `python/packages/core/src/server_decorator/_contract.py` all agree. `contracts/schemas/entity-spec.schema.json` and `contracts/fixtures/entity-spec.*.json` are the same kind of source-of-truth for the entity-spec IR layer described below.
 2. **`node/` and `python/`** — pnpm/uv workspace roots, each holding a `packages/core` reference implementation (ADR 0006) plus the entity-spec layer:
    - **`entity` packages** (`node/packages/entity` = `@montionugera/entity-spec`, `python/packages/entity` = `server-decorator-entity`) — declarative decorators (`@Restful`/`@action`/field markers in Node, `@restful`/`@action`/field markers in Python) that emit the language-neutral **EntitySpec IR**, validated byte-identical across languages against `contracts/schemas/entity-spec.schema.json`.
    - **`gen-*` packages** (`node/packages/gen-zod` = `@montionugera/entity-spec-gen-zod`, `python/packages/gen_pydantic` = `server-decorator-gen-pydantic`) — compile an EntitySpec IR into `create`/`update`/`read`/action-input DTO validators (zod / pydantic v2), applying the same include/exclude rules (`readonly` excluded from create, `writeonly` excluded from read, nested obj/list fields filtered recursively) in both languages.
@@ -39,6 +39,9 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | Python lint+type+unit | `cd python && bash scripts/check.sh` (runs every package's own `scripts/check.sh`; uses `uv` if present, ruff + ruff format + mypy strict + pytest) |
 | Single pytest | `cd python/packages/core && uv run pytest tests/unit/test_cache.py::test_x -q` |
 | gen_pydantic tests | `cd python/packages/gen_pydantic && bash scripts/check.sh` (DTO models checked against `contracts/fixtures/entity-spec.cases.json`) |
+| gen-openapi tests | `cd node/packages/gen-openapi && pnpm test:unit` (builds `entity` first via `pretest:unit`) |
+| gen_openapi tests | `cd python/packages/gen_openapi && bash scripts/check.sh` |
+| OpenAPI parity | `bash scripts/check-openapi-parity.sh` (asserts Node and Python emit byte-identical OpenAPI, equal to `contracts/fixtures/openapi.valid-user.json`) |
 | Python integration (Docker) | `cd python/packages/core && uv run pytest -m integration` |
 | Contract validation | `bash contracts/scripts/validate.sh` (requires `npm i -g ajv-cli@5`) |
 | Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node and Python `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
