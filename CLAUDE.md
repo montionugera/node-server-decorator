@@ -35,7 +35,7 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | Backend-specific e2e | `cd node && pnpm -r test:e2e:redis` / `:rabbitmq` / `:kafka` |
 | Single Jest test file | `cd node/packages/core && pnpm test -- --testPathPattern=cache.spec` |
 | Build Node | `cd node && pnpm -r run build` (outputs `node/packages/core/dist/`) |
-| gen-zod tests | `cd node/packages/gen-zod && pnpm test:unit` (schemas checked against `contracts/fixtures/entity-spec.cases.json`) |
+| gen-zod tests | `cd node/packages/gen-zod && pnpm test:unit` (builds `entity` first via `pretest:unit`; schemas checked against `contracts/fixtures/entity-spec.cases.json`) |
 | Python lint+type+unit | `cd python && bash scripts/check.sh` (runs every package's own `scripts/check.sh`; uses `uv` if present, ruff + ruff format + mypy strict + pytest) |
 | Single pytest | `cd python/packages/core && uv run pytest tests/unit/test_cache.py::test_x -q` |
 | gen_pydantic tests | `cd python/packages/gen_pydantic && bash scripts/check.sh` (DTO models checked against `contracts/fixtures/entity-spec.cases.json`) |

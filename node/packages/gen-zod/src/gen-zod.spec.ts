@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { entitySpec } from '@montionugera/entity-spec';
-import { UserFixture } from '@montionugera/entity-spec/dist/testing/user-fixture';
+import { UserFixture } from '@montionugera/entity-spec/testing';
 import { actionInputSchema, createSchema, updateSchema, readSchema, validationErrorFields } from './index';
 
 interface Case {
