@@ -276,5 +276,278 @@
         "secretNote"
       ]
     }
+  ],
+  "openapi": [
+    {
+      "name": "ops-list-only-emits-no-other-routes",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Widget",
+        "path": "widgets",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          }
+        ]
+      },
+      "expect": {
+        "/paths/~1widgets/get/operationId": "listWidget",
+        "/paths/~1widgets/post": null,
+        "/paths/~1widgets~1{id}": null
+      }
+    },
+    {
+      "name": "cursor-pagination-envelope-and-query",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Token",
+        "path": "tokens",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list"
+        ],
+        "pagination": "cursor",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          }
+        ]
+      },
+      "expect": {
+        "/components/schemas/TokenListResponse/required": [
+          "items",
+          "nextCursor"
+        ],
+        "/components/schemas/TokenListResponse/properties/nextCursor/type": [
+          "string",
+          "null"
+        ],
+        "/paths/~1tokens/get/parameters/0/name": "cursor",
+        "/paths/~1tokens/get/parameters/1/name": "limit"
+      }
+    },
+    {
+      "name": "no-filterable-field-means-no-400-on-list",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Note",
+        "path": "notes",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "body",
+            "type": "str"
+          }
+        ]
+      },
+      "expect": {
+        "/paths/~1notes/get/responses/200/description": "OK",
+        "/paths/~1notes/get/responses/400": null,
+        "/paths/~1notes/get/parameters/1/name": "offset"
+      }
+    },
+    {
+      "name": "no-security-block-means-every-operation-is-public",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Public",
+        "path": "publics",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list",
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "label",
+            "type": "str"
+          }
+        ]
+      },
+      "expect": {
+        "/paths/~1publics/post/operationId": "createPublic",
+        "/components/securitySchemes": null,
+        "/paths/~1publics/post/security": null,
+        "/paths/~1publics/get/security": null
+      }
+    },
+    {
+      "name": "apikey-scheme-maps-in-and-paramName",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Key",
+        "path": "keys",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "label",
+            "type": "str"
+          }
+        ],
+        "security": {
+          "schemes": [
+            {
+              "name": "apiKeyAuth",
+              "type": "apiKey",
+              "in": "header",
+              "paramName": "X-API-Key"
+            }
+          ],
+          "ops": {
+            "create": [
+              "key:write"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "/components/securitySchemes/apiKeyAuth": {
+          "type": "apiKey",
+          "in": "header",
+          "name": "X-API-Key"
+        },
+        "/paths/~1keys/post/security/0/apiKeyAuth/0": "key:write"
+      }
+    },
+    {
+      "name": "409-only-on-an-action-declaring-a-from-state",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Job",
+        "path": "jobs",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "get"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "status",
+            "type": "enum",
+            "enum": [
+              "queued",
+              "running"
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "name": "start",
+            "stateField": "status",
+            "from": "queued",
+            "to": "running"
+          },
+          {
+            "name": "ping"
+          }
+        ]
+      },
+      "expect": {
+        "/paths/~1jobs~1{id}~1actions~1start/post/responses/409/description": "Conflict",
+        "/paths/~1jobs~1{id}~1actions~1ping/post/responses/409": null,
+        "/components/schemas/JobPingInput": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "name": "nullable-inside-a-nested-obj-renders-a-type-array",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Profile",
+        "path": "profiles",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "get"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "meta",
+            "type": "obj",
+            "fields": [
+              {
+                "name": "note",
+                "type": "str",
+                "nullable": true
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "/components/schemas/ProfileRead/properties/meta/properties/note/type": [
+          "string",
+          "null"
+        ],
+        "/components/schemas/ProfileRead/properties/meta/additionalProperties": false
+      }
+    }
   ]
 }
