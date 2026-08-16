@@ -1,0 +1,42 @@
+{
+  "name": "@montionugera/entity-spec-gen-openapi",
+  "version": "2.0.4",
+  "description": "IR-derived OpenAPI 3.1 document (contracts/rules/rest-conventions.md).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "pretest:unit": "pnpm --filter @montionugera/entity-spec run build",
+    "test:unit": "jest",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm test:unit && pnpm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/server-decorator.git",
+    "directory": "node/packages/gen-openapi"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@montionugera/entity-spec": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.16.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@9.14.2"
+}
