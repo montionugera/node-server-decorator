@@ -11,6 +11,7 @@ _ATTR = "__entity_action__"
 def action(
     name: str,
     *,
+    description: str | None = None,
     state_field: str | None = None,
     from_state: str | None = None,
     to_state: str | None = None,
@@ -26,6 +27,8 @@ def action(
                 f"'{underlying.__name__}')"
             )
         spec: dict[str, Any] = {"name": name}
+        if description is not None:
+            spec["description"] = description
         if from_state is not None or to_state is not None:
             spec["stateField"] = state_field or "status"
             if from_state is not None:

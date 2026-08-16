@@ -125,3 +125,31 @@ __all__ = [
     "assert_portable_pattern",
     "assert_wire_name_not_reserved",
 ]
+
+
+def assert_valid_security(
+    security: dict[str, Any] | None,
+    ops: list[str],
+    action_names: list[str],
+    entity: str,
+) -> None:
+    """Mirror of Node's validateSecurity() in packages/entity/src/validate.ts."""
+    if security is None:
+        return
+    schemes = security.get("schemes", [])
+    if not schemes:
+        raise ValueError(f"{entity}: security.schemes must not be empty")
+    for s in schemes:
+        name = s.get("name")
+        if s.get("type") not in ("http", "apiKey"):
+            raise ValueError(f'{entity}: scheme "{name}": type must be "http" or "apiKey"')
+        if s["type"] == "http" and "scheme" not in s:
+            raise ValueError(f'{entity}: scheme "{name}": http requires "scheme"')
+        if s["type"] == "apiKey" and ("in" not in s or "paramName" not in s):
+            raise ValueError(f'{entity}: scheme "{name}": apiKey requires "in" and "paramName"')
+    for op in security.get("ops", {}):
+        if op not in ops:
+            raise ValueError(f"{entity}: security.ops.{op} is not declared in ops")
+    for action_name in security.get("actions", {}):
+        if action_name not in action_names:
+            raise ValueError(f"{entity}: security.actions.{action_name} is not a declared action")
