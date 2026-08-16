@@ -5,20 +5,14 @@ from_idea: I-005
 status: refined
 ---
 
-# REST API delivery layer: gen-openapi (IR to OpenAPI 3.1) + HTTP adapters for Express and FastAPI over EntitySpec — design
+# Spec
 
-## Goal
+The full approved design lives at:
 
-(one sentence)
+**`docs/superpowers/specs/2026-08-15-rest-openapi-generator-design.md`**
 
-## Architecture
+Release 1.2 covers **part 1 only** — the OpenAPI 3.1 generator. HTTP adapters
+(Express / FastAPI) are deferred to a later release and will be conformance-tested
+against the document this release produces.
 
-(2-3 sentences)
-
-## Components
-
-(list — each with one responsibility)
-
-## Data flow / state
-
-## Tests / acceptance criteria
+See `HANDOFF.md` in this folder for current state and the next command.

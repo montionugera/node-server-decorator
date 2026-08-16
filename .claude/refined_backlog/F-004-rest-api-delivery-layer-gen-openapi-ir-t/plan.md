@@ -1,3 +1,15 @@
-# REST API delivery layer: gen-openapi (IR to OpenAPI 3.1) + HTTP adapters for Express and FastAPI over EntitySpec Implementation Plan
+---
+title: "REST API delivery layer — implementation plan"
+id: F-004
+status: planned
+---
 
-> Fill via `/superpowers:writing-plans` once the spec is final.
+# Plan
+
+The full 12-task TDD plan lives at:
+
+**`docs/superpowers/plans/2026-08-15-rest-openapi-generator.md`**
+
+Committed as `f83a76f`. Every task carries complete source — no placeholders.
+
+See `HANDOFF.md` in this folder for current state and the next command.
