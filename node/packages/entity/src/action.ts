@@ -2,6 +2,7 @@ import { addAction } from './registry';
 import { ActionSpec, FieldSpec } from './types';
 
 export interface ActionOpts {
+  description?: string;
   stateField?: string;
   from?: string;
   to?: string;
@@ -22,6 +23,7 @@ export function action(name: string, opts: ActionOpts = {}): MethodDecorator {
       );
     }
     const spec: ActionSpec = { name };
+    if (opts.description !== undefined) spec.description = opts.description;
     if (opts.from !== undefined || opts.to !== undefined) {
       spec.stateField = opts.stateField ?? 'status';
       // Only assign when defined: an unconditional assignment creates a

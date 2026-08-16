@@ -1,4 +1,4 @@
-import { ActionSpec, FieldSpec } from './types';
+import { ActionSpec, FieldSpec, SecuritySpec } from './types';
 
 // Public pydantic.BaseModel attribute names (pydantic v2) — see
 // contracts/rules/entity-spec-validation.md "Reserved wire names" for how this list is derived
@@ -107,12 +107,46 @@ export function validateField(f: FieldSpec, path: string): void {
   if (f.fields) for (const nested of f.fields) validateField(nested, `${path}.${nested.name}`);
 }
 
+export function validateSecurity(
+  security: SecuritySpec | undefined,
+  ops: unknown[],
+  actionNames: string[],
+  entity: string,
+): void {
+  if (!security) return;
+  if (security.schemes.length === 0) {
+    throw new Error(`${entity}: security.schemes must not be empty`);
+  }
+  for (const s of security.schemes) {
+    if (s.type !== 'http' && s.type !== 'apiKey') {
+      throw new Error(`${entity}: scheme "${s.name}": type must be "http" or "apiKey"`);
+    }
+    if (s.type === 'http' && s.scheme === undefined) {
+      throw new Error(`${entity}: scheme "${s.name}": http requires "scheme"`);
+    }
+    if (s.type === 'apiKey' && (s.in === undefined || s.paramName === undefined)) {
+      throw new Error(`${entity}: scheme "${s.name}": apiKey requires "in" and "paramName"`);
+    }
+  }
+  for (const op of Object.keys(security.ops ?? {})) {
+    if (!ops.includes(op)) {
+      throw new Error(`${entity}: security.ops.${op} is not declared in ops`);
+    }
+  }
+  for (const name of Object.keys(security.actions ?? {})) {
+    if (!actionNames.includes(name)) {
+      throw new Error(`${entity}: security.actions.${name} is not a declared action`);
+    }
+  }
+}
+
 export interface ValidatableEntitySpec {
   entity: string;
   transports: unknown[];
   ops: unknown[];
   fields: FieldSpec[];
   actions?: ActionSpec[];
+  security?: SecuritySpec;
 }
 
 export function validateEntitySpec(spec: ValidatableEntitySpec): void {
@@ -128,4 +162,5 @@ export function validateEntitySpec(spec: ValidatableEntitySpec): void {
       for (const f of a.input ?? []) validateField(f, `${a.name}.${f.name}`);
     }
   }
+  validateSecurity(spec.security, spec.ops, (spec.actions ?? []).map((a) => a.name), spec.entity);
 }

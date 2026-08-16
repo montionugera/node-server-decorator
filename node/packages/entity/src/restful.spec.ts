@@ -1,4 +1,4 @@
-import { Restful, action, entitySpec, id, listOf, obj } from './index';
+import { Restful, action, entitySpec, id, listOf, obj, str } from './index';
 
 describe('entitySpec() deep freeze', () => {
   it('freezes the spec, the fields array, each field object, and nested item/fields', () => {
@@ -61,5 +61,59 @@ describe('entitySpec() deep freeze', () => {
     const spec2 = entitySpec(Thing3);
     expect(spec2.fields).toHaveLength(1);
     expect(spec2.fields).toBe(spec1.fields);
+  });
+});
+
+describe('1.2.0 metadata', () => {
+  it('carries description, tags and security into the spec', () => {
+    @Restful({
+      path: 'widgets',
+      description: 'A widget',
+      tags: ['catalog'],
+      security: {
+        schemes: [{ name: 'bearerAuth', type: 'http', scheme: 'bearer' }],
+        ops: { create: ['widget:write'] },
+      },
+    })
+    class Widget {
+      @id() id!: string;
+      @str({ description: 'Display name' }) name!: string;
+    }
+
+    const spec = entitySpec(Widget);
+    expect(spec.description).toBe('A widget');
+    expect(spec.tags).toEqual(['catalog']);
+    expect(spec.security?.ops?.create).toEqual(['widget:write']);
+    expect(spec.fields[1].description).toBe('Display name');
+  });
+
+  it('rejects a security op the entity does not expose', () => {
+    expect(() => {
+      @Restful({
+        path: 'widgets',
+        ops: ['list'],
+        security: {
+          schemes: [{ name: 'bearerAuth', type: 'http', scheme: 'bearer' }],
+          ops: { create: ['widget:write'] },
+        },
+      })
+      class Widget {
+        @id() id!: string;
+      }
+      return Widget;
+    }).toThrow(/security.ops.create.*not declared in ops/);
+  });
+
+  it('rejects an unknown scheme type', () => {
+    expect(() => {
+      @Restful({
+        path: 'widgets',
+        security: { schemes: [{ name: 'x', type: 'oauth2' } as never] },
+      })
+      class Widget {
+        @id() id!: string;
+      }
+      return Widget;
+    }).toThrow(/scheme "x": type must be "http" or "apiKey"/);
   });
 });
