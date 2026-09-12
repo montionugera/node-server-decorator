@@ -15,7 +15,7 @@ import pytest
 from server_decorator_gen_pydantic import create_model_for, read_model_for, validation_error_fields
 
 SPEC: dict[str, Any] = {
-    "specVersion": "1.1.0",
+    "specVersion": "1.2.0",
     "entity": "Widget",
     "path": "widgets",
     "transports": ["rest"],
