@@ -21,7 +21,10 @@ export function field(def: FieldOpts & { type: FieldSpec['type'] }): PropertyDec
   };
 }
 
-type Flags = Pick<FieldSpec, 'optional' | 'nullable' | 'readonly' | 'writeonly' | 'filterable'>;
+type Flags = Pick<
+  FieldSpec,
+  'optional' | 'nullable' | 'readonly' | 'writeonly' | 'filterable' | 'description'
+>;
 type StrOpts = Flags & Pick<FieldSpec, 'min' | 'max' | 'pattern' | 'format'>;
 type NumOpts = Flags & Pick<FieldSpec, 'min' | 'max'>;
 

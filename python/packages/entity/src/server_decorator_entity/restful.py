@@ -8,6 +8,7 @@ from typing import Any, TypeVar
 from server_decorator_entity.action import _ATTR
 from server_decorator_entity.canonical import canonical_json
 from server_decorator_entity.markers import FieldMarker
+from server_decorator_entity.validate import assert_valid_security
 
 C = TypeVar("C", bound=type)
 
@@ -27,6 +28,9 @@ def restful(
     transports: list[str] | None = None,
     ops: list[str] | None = None,
     pagination: str = "offset",
+    description: str | None = None,
+    tags: list[str] | None = None,
+    security: dict[str, Any] | None = None,
 ) -> Callable[[C], C]:
     def wrap(cls: C) -> C:
         # Own-class declarations only (N2: no MRO walk) — a @restful subclass must not
@@ -82,7 +86,7 @@ def restful(
             if callable(member) and hasattr(member, _ATTR):
                 actions.append(getattr(member, _ATTR))
         spec: dict[str, Any] = {
-            "specVersion": "1.1.0",
+            "specVersion": "1.2.0",
             "entity": cls.__name__,
             "path": path,
             "transports": resolved_transports,
@@ -92,6 +96,14 @@ def restful(
         }
         if actions:
             spec["actions"] = actions
+        assert_valid_security(security, resolved_ops, [a["name"] for a in actions], cls.__name__)
+        # Keep absent keys absent so canonical JSON is byte-unchanged for 1.1-era declarations.
+        if description is not None:
+            spec["description"] = description
+        if tags is not None:
+            spec["tags"] = tags
+        if security is not None:
+            spec["security"] = security
         setattr(cls, _SPEC_ATTR, spec)
         return cls
 

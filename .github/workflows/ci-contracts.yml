@@ -67,3 +67,4 @@ jobs:
       - run: cd node && pnpm install --frozen-lockfile
       - run: cd python && uv sync --all-packages
       - run: bash scripts/check-entity-parity.sh
+      - run: bash scripts/check-openapi-parity.sh
