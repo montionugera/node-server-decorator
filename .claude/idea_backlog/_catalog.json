@@ -28,5 +28,11 @@
     "title": "REST API delivery layer: gen-openapi (IR to OpenAPI 3.1) + HTTP adapters for Express and FastAPI over EntitySpec",
     "created_at": "2026-08-15T06:26:49.232284+00:00",
     "promoted_to": "F-004"
+  },
+  {
+    "id": "I-006",
+    "title": "Go lane: third language via go generate \u2014 entity builder API emitting EntitySpec IR + gen-openapi in Go",
+    "created_at": "2026-09-12T17:37:10.383956+00:00",
+    "promoted_to": null
   }
 ]
