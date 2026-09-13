@@ -35,3 +35,11 @@ __pycache__/
 
 # Rendered design HTML — local view artifacts only (global rule)
 docs/superpowers/**/*.html
+
+# Nim (F-006): `nim c` drops binaries beside sources; `nim r`/`nimble test` do not, but be safe.
+nimcache/
+nim/tests/t_*
+!nim/tests/t_*.nim
+nim/examples/emit_*
+!nim/examples/emit_*.nim
+nim/examples/user
