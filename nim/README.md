@@ -12,15 +12,21 @@ in lockstep with the other lanes (`nim/server_decorator.nimble` `version`, asser
 
 ## Install
 
-Not on the nimble directory. Install from the git tag that matches the other lanes:
+Not on the nimble directory. Install straight from the git tag that matches the other lanes:
 
 ```bash
-nimble install "https://github.com/montionugera/node-server-decorator@#vX.Y.Z?subdir=nim"
+nimble install "https://github.com/montionugera/node-server-decorator?subdir=nim@#vX.Y.Z"
 ```
 
-> The `@#tag?subdir=` URL form is untested against a published tag (the package is not yet tagged). If nimble
-> rejects it, try `...?subdir=nim@#vX.Y.Z`, or clone the repo and run `nimble install` inside `nim/`.
-(`nimble install` needs the `nim/` subdir because the repository root is a polyglot workspace.)
+`?subdir=nim` is required: the repository root is a polyglot workspace, and without it nimble reports "Could not find a file with a .nimble extension". CI installs every release tag this way (`scripts/smoke-install-nim.sh`).
+
+Fallback, or to develop against a checkout:
+
+```bash
+git clone --depth 1 --branch vX.Y.Z https://github.com/montionugera/node-server-decorator.git
+cd node-server-decorator/nim
+nimble install -y          # no trailing "." — `nimble install -y .` fails on this manifest (use `nimble develop` for local dev)
+```
 
 ## Declare an entity
 

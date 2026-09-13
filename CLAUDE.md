@@ -55,6 +55,7 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | Contract validation | `bash contracts/scripts/validate.sh` (requires `npm i -g ajv-cli@5`) |
 | Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node, Python, Go and Nim `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
 | Cross-version assert | `bash scripts/check-versions.sh` (fails if Node, Python, Go or Nim package versions diverge) |
+| Go/Nim install smoke test | `bash scripts/smoke-install-go.sh vX.Y.Z` / `bash scripts/smoke-install-nim.sh vX.Y.Z` (post-tag; the `smoke` job in `ci-node.yml` runs both) |
 | Lockstep version bump | `bash scripts/bump-version.sh patch\|minor\|major` then commit + `git push --tags` |
 
 Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses **uv** as the dev runner. `package-lock.json` and `yarn.lock` are gitignored on purpose — do not create them.
@@ -77,7 +78,7 @@ Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses *
 
 `.github/workflows/`:
 
-- `ci-node.yml` — unit + build on every Node/contracts PR; e2e only on `push: main` or PRs with the `run-e2e` label; auto-publishes (Node + Python) on `push: main` by patch-bumping and pushing back.
+- `ci-node.yml` — unit + build on every Node/contracts PR; e2e only on `push: main` or PRs with the `run-e2e` label; auto-publishes (Node + Python) on `push: main` touching `node/`, `contracts/`, `go/`, `go.mod` or `nim/` by patch-bumping, pushing back and tagging `vX.Y.Z`; a follow-up `smoke` job then installs the Go module and Nim package at that tag (fail-closed, re-runnable alone).
 - `ci-python.yml` — equivalent for the Python side.
 - `ci-nim.yml` — `nimble check` + `nim check` + `nimble test` on every `nim/`/`contracts/` PR and on `push: main`; Nim parity with the other lanes runs in `ci-contracts.yml`.
 - `ci-contracts.yml` — schema/fixture validation + version-match enforcement.
