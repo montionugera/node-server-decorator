@@ -15,6 +15,9 @@ on:
       - 'node/packages/**'
       - 'python/packages/**'
       - 'scripts/**'
+      - 'go/**'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/ci-contracts.yml'
   push:
     branches: [main]
@@ -23,6 +26,9 @@ on:
       - 'node/packages/**'
       - 'python/packages/**'
       - 'scripts/**'
+      - 'go/**'
+      - 'go.mod'
+      - 'go.sum'
       - '.github/workflows/ci-contracts.yml'
 
 concurrency:
@@ -64,6 +70,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20', cache: 'pnpm', cache-dependency-path: node/pnpm-lock.yaml }
       - uses: astral-sh/setup-uv@v5
+      # check-entity-parity.sh runs the Go producer too (I-006).
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: false }
       - run: cd node && pnpm install --frozen-lockfile
       - run: cd python && uv sync --all-packages
       - run: bash scripts/check-entity-parity.sh

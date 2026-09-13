@@ -103,7 +103,7 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go
           git commit -m "chore: bump patch version [skip ci]"
           git push
 
@@ -125,3 +125,16 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist
+
+      # Go resolves module versions only from vX.Y.Z tags (I-006); this also gives Node and
+      # Python releases the single tag ADR 0002 assumes. Last step, so a tag marks only a
+      # fully published version; skipped when the tag already exists (idempotent re-runs).
+      - name: Tag release
+        run: |
+          tag="v$(node -p "require('./node/packages/core/package.json').version")"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists on origin; skipping."
+          else
+            git tag "$tag"
+            git push origin "$tag"
+          fi
