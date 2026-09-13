@@ -58,5 +58,11 @@
     "title": "Nim lane: queue decorators \u2014 emitOnSuccess/onEvent, in-house Redis Streams adapter, Node/Python interop; Kafka/RabbitMQ stretch",
     "created_at": "2026-09-13T06:59:48.891597+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-011",
+    "title": "Go and Nim lanes: publish/ship jobs matching Node+Python",
+    "created_at": "2026-09-13T15:21:04.610206+00:00",
+    "promoted_to": null
   }
 ]
