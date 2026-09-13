@@ -4,6 +4,8 @@ package example
 
 import e "github.com/montionugera/node-server-decorator/v2/go/entity"
 
+//go:generate go run ../../cmd/gen-entity-spec -out testdata
+
 // UserSpec must marshal byte-identical to contracts/fixtures/entity-spec.valid-user.json.
 var UserSpec = e.New("User", "users").
 	Desc("A registered user account").
