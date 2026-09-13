@@ -32,6 +32,11 @@ done
 for v in python/packages/*/src/*/_version.py; do
   sed -i.bak "s/^__version__ = .*/__version__ = \"$new_version\"/" "$v" && rm "$v.bak"
 done
+# Mirror into the Go module's runtime version constant (I-006) — Go consumers read it, and
+# check-versions.sh asserts it.
+go_version_file=go/entity/version.go
+sed -i.bak -E "s/^const Version = \"[^\"]+\"$/const Version = \"$new_version\"/" "$go_version_file" \
+  && rm "$go_version_file.bak"
 # uv.lock pins each workspace member's own version (python/uv.lock's `[[package]]
 # name = "server-decorator" version = "..."` entry) — refresh it so the lockfile doesn't
 # go stale on every publish (unlike pnpm-lock, which doesn't record a workspace member's

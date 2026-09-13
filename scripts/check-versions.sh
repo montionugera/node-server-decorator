@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assert every published package (Node + Python) is at the same version (Decision #2, ADR 0007).
+# Assert every published package (Node + Python + Go) is at the same version (Decision #2, ADR 0007).
 set -euo pipefail
 shopt -s nullglob
 cd "$(dirname "$0")/.."
@@ -19,6 +19,11 @@ for v in python/packages/*/src/*/_version.py; do
   ver=$(grep -oE '^__version__\s*=\s*"[^"]+"' "$v" | grep -oE '"[^"]+"' | tr -d '"')
   versions+="$v=$ver\n"
 done
+
+# go/entity/version.go is the Go module's runtime version constant (I-006).
+go_v=$(grep -oE '^const Version = "[^"]+"' go/entity/version.go | grep -oE '"[^"]+"' | tr -d '"') \
+  || { echo "FAIL: no 'const Version = \"x.y.z\"' in go/entity/version.go" >&2; exit 1; }
+versions+="go/entity/version.go=$go_v\n"
 
 count=$(printf "%b" "$versions" | cut -d= -f2 | sort -u | wc -l | tr -d ' ')
 if [ "$count" != "1" ]; then

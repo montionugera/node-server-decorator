@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A **polyglot** library shipping decorators for caching, tracking, and queue emission in two languages — Node/TypeScript (`node/`, npm: `@montionugera/server-decorator`) and Python (`python/`, PyPI: `server-decorator`) — kept in lockstep behind a shared wire-format contract (`contracts/`). Both packages publish together under one semver tag (Decision #2). The published artifact lives in `node/` and `python/`; the repo root is a workspace, not a package — its `package.json` only proxies scripts.
 
+A third lane, **Go** (`go/`, module `github.com/montionugera/node-server-decorator/v2`, root `go.mod`), ships only the `entity` IR producer (`go/entity`), byte-identical to the Node/Python `entity` packages; see `go/README.md`.
+
 **Before changing anything non-trivial, read `DECISIONS.md`** — it holds the 12 locked decisions (plus D-A…D-D, N1…N4) that constrain the design. Revisit any item only via a new ADR under `docs/adr/`.
 
 ## High-level architecture
@@ -41,10 +43,13 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | gen_pydantic tests | `cd python/packages/gen_pydantic && bash scripts/check.sh` (DTO models checked against `contracts/fixtures/entity-spec.cases.json`) |
 | gen-openapi tests | `cd node/packages/gen-openapi && pnpm test:unit` (builds `entity` first via `pretest:unit`) |
 | gen_openapi tests | `cd python/packages/gen_openapi && bash scripts/check.sh` |
+| Go tests (byte parity, guards, drift gate) | `go test ./go/...` (repo root; stdlib only, no install) |
+| Go hygiene | `test -z "$(gofmt -l go)" && go vet ./go/...` |
+| Regenerate Go example IR | `go generate ./go/...` |
 | OpenAPI parity | `bash scripts/check-openapi-parity.sh` (asserts Node and Python emit byte-identical OpenAPI, equal to `contracts/fixtures/openapi.valid-user.json`) |
 | Python integration (Docker) | `cd python/packages/core && uv run pytest -m integration` |
 | Contract validation | `bash contracts/scripts/validate.sh` (requires `npm i -g ajv-cli@5`) |
-| Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node and Python `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
+| Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node, Python and Go `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
 | Cross-version assert | `bash scripts/check-versions.sh` (fails if Node/Python package versions diverge) |
 | Lockstep version bump | `bash scripts/bump-version.sh patch\|minor\|major` then commit + `git push --tags` |
 
