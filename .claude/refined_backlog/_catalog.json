@@ -45,5 +45,14 @@
     "release_version": "1.2",
     "claimed_at": "2026-08-16T03:02:44.431256+00:00",
     "shipped_at": "2026-09-12T16:04:41.035199+00:00"
+  },
+  {
+    "id": "F-005",
+    "title": "Go lane: third language via go generate \u2014 entity builder API emitting EntitySpec IR + gen-openapi in Go",
+    "from_idea": "I-006",
+    "created_at": "2026-09-13T03:08:12.389716+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
