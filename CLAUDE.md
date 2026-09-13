@@ -54,7 +54,7 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | Python integration (Docker) | `cd python/packages/core && uv run pytest -m integration` |
 | Contract validation | `bash contracts/scripts/validate.sh` (requires `npm i -g ajv-cli@5`) |
 | Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node, Python, Go and Nim `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
-| Cross-version assert | `bash scripts/check-versions.sh` (fails if Node/Python package versions diverge) |
+| Cross-version assert | `bash scripts/check-versions.sh` (fails if Node, Python, Go or Nim package versions diverge) |
 | Lockstep version bump | `bash scripts/bump-version.sh patch\|minor\|major` then commit + `git push --tags` |
 
 Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses **uv** as the dev runner. `package-lock.json` and `yarn.lock` are gitignored on purpose — do not create them.
@@ -79,6 +79,7 @@ Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses *
 
 - `ci-node.yml` — unit + build on every Node/contracts PR; e2e only on `push: main` or PRs with the `run-e2e` label; auto-publishes (Node + Python) on `push: main` by patch-bumping and pushing back.
 - `ci-python.yml` — equivalent for the Python side.
+- `ci-nim.yml` — `nimble check` + `nim check` + `nimble test` on every `nim/`/`contracts/` PR and on `push: main`; Nim parity with the other lanes runs in `ci-contracts.yml`.
 - `ci-contracts.yml` — schema/fixture validation + version-match enforcement.
 - `ci-interop.yml` — heavy cross-language scenarios; runs on `push: main`, weekly schedule, or PRs with the `run-interop` label.
 

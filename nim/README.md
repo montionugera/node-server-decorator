@@ -74,6 +74,7 @@ rule violation is a **compile error** naming the field (same messages as `valida
 | `DateTime` | `datetime` | — |
 | `seq[T]` | `list` (item recursive, item name = field name) | `min`/`max` (items) |
 | nested object type | `obj` | — |
+
 Flags on any field: `optional nullable readonly writeonly filterable`; `description: "…"`; `role: "id"`.
 
 Options: `description`, `tags`, `transports` (default `[rest]`), `ops` (default all five),
