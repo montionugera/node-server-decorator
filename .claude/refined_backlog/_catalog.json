@@ -56,5 +56,14 @@
     "release_version": "1.2",
     "claimed_at": "2026-09-13T03:08:45.659183+00:00",
     "shipped_at": "2026-09-13T04:12:37.528023+00:00"
+  },
+  {
+    "id": "F-006",
+    "title": "Nim lane: fourth language \u2014 entity IR producer + OpenAPI emitter in Nim",
+    "from_idea": "I-007",
+    "created_at": "2026-09-13T07:10:07.499577+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
