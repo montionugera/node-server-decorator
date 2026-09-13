@@ -1144,7 +1144,7 @@ feature's backlog entry; the library code is unaffected.
 ## Appendix — audit trail
 
 - 2026-09-13 self-grill-audit: verdict safe-with-fixes (0 CRITICAL, 1 HIGH, 4 MEDIUM, 2 LOW; Tasks 1–6 replayed in a scratch copy, every Expected FAIL/PASS, edit anchor, trial bump and CI structural check confirmed). Corrected:
-  - HIGH: `SetEscapeHTML(false)` alone leaves U+2028/U+2029 escaped (Go ` ` vs raw bytes in Node/Python). Added `unescapeLineSeparators` to `MarshalCanonical`, extended the `html-escape.json` golden (raw U+2028, U+2029, literal `\\u2028`), added guard 2b. Re-verified from plan text: tests pass, removing the call fails.
+  - HIGH: `SetEscapeHTML(false)` alone leaves U+2028/U+2029 escaped (Go `\u2028` vs raw bytes in Node/Python). Added `unescapeLineSeparators` to `MarshalCanonical`, extended the `html-escape.json` golden (raw U+2028, U+2029, literal `\\u2028`), added guard 2b. Re-verified from plan text: tests pass, removing the call fails.
   - MEDIUM: `TestGeneratedFileIsCurrent` now regenerates through `WriteFiles` into `t.TempDir()` (it compared against `MarshalCanonical`, so a generator bug would pass). Re-verified: missing → fail, generated → pass, hand edit → stale.
   - MEDIUM: go:generate insertion wording fixed to exactly one blank line each side (literal reading made `gofmt -l` flag `user.go`). Re-verified gofmt clean.
   - MEDIUM: Task 7 sweep `git status --short` expectation corrected (it runs before the Step 4 docs commit).
