@@ -52,5 +52,11 @@
     "title": "Nim lane: core decorators \u2014 cached (in-memory + Redis, cache-key contract) and tracked (tracking-key contract)",
     "created_at": "2026-09-13T06:59:48.648271+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-010",
+    "title": "Nim lane: queue decorators \u2014 emitOnSuccess/onEvent, in-house Redis Streams adapter, Node/Python interop; Kafka/RabbitMQ stretch",
+    "created_at": "2026-09-13T06:59:48.891597+00:00",
+    "promoted_to": null
   }
 ]
