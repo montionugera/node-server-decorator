@@ -1,6 +1,6 @@
 ## JsonNode → EntitySpec (inverse of emit.nim). Used by the cases.json test runner and by consumers
 ## that receive IR over the wire.
-import std/[json, options]
+import std/[json, options, strutils]
 import ./types
 
 proc optStr(n: JsonNode, k: string): Option[string] =
@@ -10,9 +10,10 @@ proc optInt(n: JsonNode, k: string): Option[int] =
 proc flag(n: JsonNode, k: string): bool = n.hasKey(k) and n[k].getBool
 
 proc parseFieldType*(s: string): FieldType =
-  for ft in FieldType:
-    if $ft == s: return ft
-  raise newException(ValueError, "unknown field type: " & s)
+  try:
+    parseEnum[FieldType](s)
+  except ValueError:
+    raise newException(ValueError, "unknown field type: " & s)
 
 proc parseField*(n: JsonNode): FieldSpec =
   result = FieldSpec(name: n["name"].getStr, `type`: parseFieldType(n["type"].getStr),

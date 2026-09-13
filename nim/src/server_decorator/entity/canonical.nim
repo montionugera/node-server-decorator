@@ -1,12 +1,4 @@
-import std/[json, algorithm, unicode, strutils]
-
-# Compare by Unicode code point (== UTF-8 byte order), like Python sorted() / canonical.ts.
-proc cmpCodePoints(a, b: string): int =
-  let ra = a.toRunes; let rb = b.toRunes
-  for i in 0 ..< min(ra.len, rb.len):
-    let d = int(ra[i]) - int(rb[i])
-    if d != 0: return d
-  ra.len - rb.len
+import std/[json, algorithm, strutils]
 
 proc escapeString(s: string): string =
   ## JSON.stringify-compatible escaping: short forms for " \ \b \f \n \r \t, LOWERCASE
@@ -33,7 +25,9 @@ proc canonicalJson*(n: JsonNode): string =
   of JObject:
     var keys: seq[string] = @[]
     for k in n.keys: keys.add k
-    keys.sort(cmpCodePoints)
+    # Plain string `cmp` sorts by byte value, which equals Unicode code point order for
+    # UTF-8 (Python sorted() / canonical.ts rely on the same equivalence) — no rune decoding needed.
+    keys.sort(cmp)
     result = "{"
     for i, k in keys:
       if i > 0: result.add ","

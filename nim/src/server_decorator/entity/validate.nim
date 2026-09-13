@@ -11,6 +11,7 @@ const ReservedWireNames* = ["construct", "copy", "dict", "from_orm", "json", "mo
   "parse_obj", "parse_raw", "schema", "schema_json", "update_forward_refs", "validate"]
 
 const LookaroundMarkers = ["(?=", "(?!", "(?<=", "(?<!"]
+const ValidSchemeTypes = ["http", "apiKey"]
 
 proc fail(msg: string) = raise newException(ValueError, msg)
 
@@ -51,7 +52,7 @@ proc validateSecurity*(security: Option[SecuritySpec], ops: seq[string], actionN
   let s = security.get
   if s.schemes.len == 0: fail(entity & ": security.schemes must not be empty")
   for sc in s.schemes:
-    if sc.`type` notin ["http", "apiKey"]: fail(entity & ": scheme \"" & sc.name & "\": type must be \"http\" or \"apiKey\"")
+    if sc.`type` notin ValidSchemeTypes: fail(entity & ": scheme \"" & sc.name & "\": type must be \"http\" or \"apiKey\"")
     if sc.`type` == "http" and sc.scheme.isNone: fail(entity & ": scheme \"" & sc.name & "\": http requires \"scheme\"")
     if sc.`type` == "apiKey" and (sc.`in`.isNone or sc.paramName.isNone):
       fail(entity & ": scheme \"" & sc.name & "\": apiKey requires \"in\" and \"paramName\"")

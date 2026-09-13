@@ -2,9 +2,7 @@
 import std/[json, options]
 import ./types, ./canonical
 
-proc putOpt(n: JsonNode, key: string, v: Option[string]) =
-  if v.isSome: n[key] = %v.get
-proc putOpt(n: JsonNode, key: string, v: Option[int]) =
+proc putOpt[T](n: JsonNode, key: string, v: Option[T]) =
   if v.isSome: n[key] = %v.get
 
 proc toJson*(f: FieldSpec): JsonNode =
@@ -71,7 +69,7 @@ proc toJson*(e: EntitySpec): JsonNode =
   result["ops"] = %e.ops
   result["pagination"] = %e.pagination
   result.putOpt("description", e.description)
-  if e.tags.isSome: result["tags"] = %e.tags.get
+  result.putOpt("tags", e.tags)
   if e.security.isSome: result["security"] = toJson(e.security.get)
   var fs = newJArray()
   for f in e.fields: fs.add toJson(f)

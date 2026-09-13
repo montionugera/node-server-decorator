@@ -1,6 +1,6 @@
 ## Canonical JSON: sorted keys by code point, no whitespace, raw non-ASCII / <>& / U+2028 (entity-spec-canonical.md).
 import std/[unittest, json, os]
-import server_decorator/entity/canonical
+import server_decorator/entity/[canonical, parse, emit]
 
 let root = currentSourcePath().parentDir / "../.."
 
@@ -19,3 +19,10 @@ suite "canonical JSON":
     test "round-trips " & f & " byte-identically":
       let raw = readFile(root / f)
       check canonicalJson(parseJson(raw)) == raw
+
+suite "entity IR emit/parse lock":
+  test "parseEntitySpec -> toJson -> canonicalJson reproduces the fixture byte-for-byte":
+    ## Locks emit.nim + parse.nim (not just canonical.nim) against contracts/fixtures/entity-spec.valid-user.json.
+    let raw = readFile(root / "contracts/fixtures/entity-spec.valid-user.json")
+    let spec = parseEntitySpec(parseJson(raw))
+    check canonicalJson(toJson(spec)) == raw
