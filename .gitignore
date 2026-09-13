@@ -43,3 +43,5 @@ nim/tests/t_*
 nim/examples/emit_*
 !nim/examples/emit_*.nim
 nim/examples/user
+nim/nimble.lock
+# ^ the package has zero dependencies (plan constraint) — this lockfile must never be committed.

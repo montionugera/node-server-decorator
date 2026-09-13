@@ -8,7 +8,8 @@ ts_out=$(cd node/packages/entity && pnpm exec tsx scripts/emit-fixture.ts)
 py_out=$(cd python && uv run --package server-decorator-entity python packages/entity/scripts/emit_fixture.py)
 go_out=$(go run ./go/internal/example/emitfixture)
 command -v nim >/dev/null || { echo "nim not on PATH (export PATH=\$HOME/.nimble/bin:\$PATH)" >&2; exit 1; }
-# nim/config.nims adds ../src to the path; --hints:off keeps stdout to the program's output.
+# nim/config.nims adds ../src to the path and turns hints off; --hints:off is repeated so the
+# script does not depend on it.
 nim_out=$(nim r --hints:off nim/examples/emit_fixture.nim)
 expected=$(cat "$fixture")
 
