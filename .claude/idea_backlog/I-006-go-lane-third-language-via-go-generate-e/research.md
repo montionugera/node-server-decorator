@@ -100,6 +100,16 @@ makes it byte-equal to the fixture.
   no additional IR expressiveness. Its exact API surface was **not** verified.
 - **Struct tags + reflection**: field-level only, so entity-level and action-level metadata
   have nowhere to live, and nested `obj` / `list` fields have no tag representation.
+  **Revisited 2026-09-13 by prototype — still rejected, for different reasons.** A hybrid
+  (field tags on a real struct, entity/actions/security in code, `etag.MustRestful[User]`)
+  was built in a scratch module and emitted the full `valid-user` fixture byte-identically,
+  so both reasons above are wrong: entity metadata lives in the constructor call, and nesting
+  comes from Go types. It was rejected because: a misspelled tag *key* (`sepc:"readonly"`) is
+  silently ignored (a builder typo is a compile error); a pointer (`*Profile`) forces
+  `nullable:true`, blurring optional vs nullable; and the parser is ~3x the builder
+  (305 vs 100 lines) while the declaration is longer (60 vs 39 lines). User chose the builder.
+  Tags remain possible later as an optional layer on top of the builder, only if consumers want
+  the entity struct to double as their runtime type.
 
 ## Not investigated
 
