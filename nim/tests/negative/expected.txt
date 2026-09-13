@@ -1,0 +1,4 @@
+typo_pragma.nim|unknown field pragma 'rolee' on field 'id'
+reserved_name.nim|field "json": wire name "json" is reserved
+outside_nested_type.nim|nested object types must be declared inside the same `restful` block
+format_and_pattern.nim|field "email": format and pattern are mutually exclusive

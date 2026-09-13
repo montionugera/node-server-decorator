@@ -1,0 +1,33 @@
+name: CI - Nim
+
+on:
+  pull_request:
+    paths: ['nim/**', 'contracts/**', '.github/workflows/ci-nim.yml']
+  push:
+    branches: [main]
+    paths: ['nim/**', 'contracts/**', '.github/workflows/ci-nim.yml']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: nim }
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned to the version in nim/README.md / CLAUDE.md; the package has no third-party deps,
+      # so there is no lockfile and nothing to cache.
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.12'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}  # avoids GitHub API rate-limit flakes when resolving the toolchain
+      - run: nimble check
+      - name: nim check (no warnings)
+        run: |
+          out=$(nim check --hints:off src/server_decorator.nim 2>&1) || { echo "$out"; exit 1; }
+          echo "$out" | grep -q 'Warning' && { echo "$out"; exit 1; } || true
+      # Byte parity with both fixtures, the cases.json openapi suite, validate.ts port, compile-error harness.
+      - run: nimble -y test

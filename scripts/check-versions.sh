@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assert every published package (Node + Python + Go) is at the same version (Decision #2, ADR 0007).
+# Assert every published package (Node + Python + Go + Nim) is at the same version (Decision #2, ADR 0007).
 set -euo pipefail
 shopt -s nullglob
 cd "$(dirname "$0")/.."
@@ -24,6 +24,11 @@ done
 go_v=$(grep -oE '^const Version = "[^"]+"' go/entity/version.go | grep -oE '"[^"]+"' | tr -d '"') \
   || { echo "FAIL: no 'const Version = \"x.y.z\"' in go/entity/version.go" >&2; exit 1; }
 versions+="go/entity/version.go=$go_v\n"
+
+# nim/server_decorator.nimble is the Nim package's only version source (F-006); nimble reads it.
+nim_v=$(grep -oE '^version[[:space:]]*=[[:space:]]*"[^"]+"' nim/server_decorator.nimble | grep -oE '"[^"]+"' | tr -d '"') \
+  || { echo "FAIL: no 'version = \"x.y.z\"' in nim/server_decorator.nimble" >&2; exit 1; }
+versions+="nim/server_decorator.nimble=$nim_v\n"
 
 count=$(printf "%b" "$versions" | cut -d= -f2 | sort -u | wc -l | tr -d ' ')
 if [ "$count" != "1" ]; then

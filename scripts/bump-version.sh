@@ -37,6 +37,11 @@ done
 go_version_file=go/entity/version.go
 sed -i.bak -E "s/^const Version = \"[^\"]+\"$/const Version = \"$new_version\"/" "$go_version_file" \
   && rm "$go_version_file.bak"
+# Mirror into the Nim package manifest (F-006) — nimble reads `version` from it and
+# check-versions.sh asserts it. The capture group keeps the manifest's own spacing.
+nimble_file=nim/server_decorator.nimble
+sed -i.bak -E "s/^(version[[:space:]]*=[[:space:]]*)\"[^\"]+\"/\1\"$new_version\"/" "$nimble_file" \
+  && rm "$nimble_file.bak"
 # uv.lock pins each workspace member's own version (python/uv.lock's `[[package]]
 # name = "server-decorator" version = "..."` entry) — refresh it so the lockfile doesn't
 # go stale on every publish (unlike pnpm-lock, which doesn't record a workspace member's

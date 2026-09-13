@@ -18,6 +18,7 @@ on:
       - 'go/**'
       - 'go.mod'
       - 'go.sum'
+      - 'nim/**'
       - '.github/workflows/ci-contracts.yml'
   push:
     branches: [main]
@@ -29,6 +30,7 @@ on:
       - 'go/**'
       - 'go.mod'
       - 'go.sum'
+      - 'nim/**'
       - '.github/workflows/ci-contracts.yml'
 
 concurrency:
@@ -73,6 +75,11 @@ jobs:
       # check-entity-parity.sh runs the Go producer too (I-006).
       - uses: actions/setup-go@v5
         with: { go-version-file: go.mod, cache: false }
+      # check-entity-parity.sh and check-openapi-parity.sh run the Nim producers too (F-006).
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.12'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}  # avoids GitHub API rate-limit flakes when resolving the toolchain
       - run: cd node && pnpm install --frozen-lockfile
       - run: cd python && uv sync --all-packages
       - run: bash scripts/check-entity-parity.sh
