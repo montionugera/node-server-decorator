@@ -103,6 +103,8 @@ suite "canonical JSON":
     check canonicalJson(%*{"k": [true, false, 0, 7, "s"]}) == """{"k":[true,false,0,7,"s"]}"""
   test "leaves non-ASCII, <>& and U+2028 raw (no \\uXXXX)":
     check canonicalJson(%"a <b> & c é  ") == "\"a <b> & c é  \""
+  test "control chars: short forms + LOWERCASE \\u00xx like JSON.stringify (not escapeJson's \\u001F)":
+    check canonicalJson(%"\x1f\x0e\x01\b\t\n\r\f\"\\/") == "\"\\u001f\\u000e\\u0001\\b\\t\\n\\r\\f\\\"\\\\/\""
   for f in ["contracts/fixtures/entity-spec.valid-user.json", "contracts/fixtures/openapi.valid-user.json",
             "go/entity/testdata/html-escape.json"]:
     test "round-trips " & f & " byte-identically":
@@ -180,7 +182,7 @@ const SpecVersion* = "1.2.0"
 
 `nim/src/server_decorator/entity/canonical.nim`:
 ```nim
-import std/[json, algorithm, unicode]
+import std/[json, algorithm, unicode, strutils]
 
 # Compare by Unicode code point (== UTF-8 byte order), like Python sorted() / canonical.ts.
 proc cmpCodePoints(a, b: string): int =
@@ -189,6 +191,26 @@ proc cmpCodePoints(a, b: string): int =
     let d = int(ra[i]) - int(rb[i])
     if d != 0: return d
   ra.len - rb.len
+
+proc escapeString(s: string): string =
+  ## JSON.stringify-compatible escaping: short forms for " \ \b \f \n \r \t, LOWERCASE
+  ## \u00xx for the other control chars, everything else (non-ASCII, <>&, U+2028) raw.
+  ## Not std/json.escapeJson: it emits UPPERCASE hex (\u001F), breaking byte parity with
+  ## Node/Python/Go for 0x0E-0x1F (F-006 plan audit, HIGH-1).
+  result = newStringOfCap(s.len + 2)
+  result.add '"'
+  for c in s:
+    case c
+    of '"': result.add "\\\""
+    of '\\': result.add "\\\\"
+    of '\b': result.add "\\b"
+    of '\f': result.add "\\f"
+    of '\n': result.add "\\n"
+    of '\r': result.add "\\r"
+    of '\t': result.add "\\t"
+    of '\0'..'\7', '\11', '\14'..'\31': result.add "\\u00" & toHex(ord(c), 2).toLowerAscii
+    else: result.add c
+  result.add '"'
 
 proc canonicalJson*(n: JsonNode): string =
   case n.kind
@@ -199,7 +221,7 @@ proc canonicalJson*(n: JsonNode): string =
     result = "{"
     for i, k in keys:
       if i > 0: result.add ","
-      result.add escapeJson(k); result.add ":"; result.add canonicalJson(n[k])
+      result.add escapeString(k); result.add ":"; result.add canonicalJson(n[k])
     result.add "}"
   of JArray:
     result = "["
@@ -207,7 +229,7 @@ proc canonicalJson*(n: JsonNode): string =
       if i > 0: result.add ","
       result.add canonicalJson(e)
     result.add "]"
-  of JString: result = escapeJson(n.str)
+  of JString: result = escapeString(n.str)
   of JInt: result = $n.num
   of JFloat: result = $n.fnum
   of JBool: result = (if n.bval: "true" else: "false")
@@ -1268,7 +1290,7 @@ git commit -m "feat(nim): gen_openapi port — byte-identical OpenAPI 3.1 + enti
 ### Task 5: Wiring — parity scripts, version lockstep, CI, gitignore
 
 **Files:**
-- Modify: `scripts/check-entity-parity.sh`, `scripts/check-openapi-parity.sh`, `scripts/check-versions.sh:22-25`, `scripts/bump-version.sh:36-38`, `.github/workflows/ci-contracts.yml:13-31,64-79`, `.github/workflows/ci-node.yml:106`, `.gitignore`
+- Modify: `scripts/check-entity-parity.sh`, `scripts/check-openapi-parity.sh`, `scripts/check-versions.sh:23-26`, `scripts/bump-version.sh:35-39`, `.github/workflows/ci-contracts.yml:13-31,64-79`, `.github/workflows/ci-node.yml:106`, `.gitignore`
 - Create: `.github/workflows/ci-nim.yml`
 
 **Interfaces:**
@@ -1288,6 +1310,7 @@ fixture=contracts/fixtures/entity-spec.valid-user.json
 ts_out=$(cd node/packages/entity && pnpm exec tsx scripts/emit-fixture.ts)
 py_out=$(cd python && uv run --package server-decorator-entity python packages/entity/scripts/emit_fixture.py)
 go_out=$(go run ./go/internal/example/emitfixture)
+command -v nim >/dev/null || { echo "nim not on PATH (export PATH=\$HOME/.nimble/bin:\$PATH)" >&2; exit 1; }
 # nim/examples/config.nims adds ../src to the path; --hints:off keeps stdout to the program's output.
 nim_out=$(nim r --hints:off nim/examples/emit_fixture.nim)
 expected=$(cat "$fixture")
@@ -1317,6 +1340,7 @@ fixture=contracts/fixtures/openapi.valid-user.json
 ts_out=$(cd node/packages/gen-openapi && pnpm exec tsx scripts/emit-openapi.ts)
 py_out=$(cd python && uv run --package server-decorator-gen-openapi \
   python packages/gen_openapi/scripts/emit_openapi.py)
+command -v nim >/dev/null || { echo "nim not on PATH (export PATH=\$HOME/.nimble/bin:\$PATH)" >&2; exit 1; }
 nim_out=$(nim r --hints:off nim/examples/emit_openapi.nim)
 expected=$(cat "$fixture")
 
@@ -1326,7 +1350,7 @@ expected=$(cat "$fixture")
 echo "OK: openapi parity (TS == PY == NIM == contract fixture)"
 ```
 
-- [ ] **Step 3: `scripts/check-versions.sh`** — insert after the `versions+="go/entity/version.go=$go_v\n"` line (line 25):
+- [ ] **Step 3: `scripts/check-versions.sh`** — insert after the `versions+="go/entity/version.go=$go_v\n"` line (line 26; the Go block is lines 23–26):
 
 ```bash
 
@@ -1337,7 +1361,7 @@ versions+="nim/server_decorator.nimble=$nim_v\n"
 ```
 Also change the header comment `(Node + Python + Go)` to `(Node + Python + Go + Nim)`.
 
-- [ ] **Step 4: `scripts/bump-version.sh`** — insert after the `go_version_file` block (after line 38, before the `uv.lock` comment):
+- [ ] **Step 4: `scripts/bump-version.sh`** — insert after the `go_version_file` block (after line 39 — the `&& rm "$go_version_file.bak"` line; line 38 ends with a `\` continuation, so inserting after 38 would split the sed command — and before the `uv.lock` comment):
 
 ```bash
 # Mirror into the Nim package manifest (F-006) — nimble reads `version` from it and
@@ -1371,7 +1395,9 @@ Expected: `OK: all packages at 2.0.5` (n+1) and the nimble line shows the same v
 ```yaml
       # check-entity-parity.sh and check-openapi-parity.sh run the Nim producers too (F-006).
       - uses: jiro4989/setup-nim-action@v2
-        with: { nim-version: '2.2.12' }
+        with:
+          nim-version: '2.2.12'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}  # avoids GitHub API rate-limit flakes when resolving the toolchain
 ```
 
 - [ ] **Step 7: Create `.github/workflows/ci-nim.yml`** (mirrors `ci-go.yml`: check + tests only; parity stays in `ci-contracts.yml`)
@@ -1400,7 +1426,9 @@ jobs:
       # Pinned to the version in nim/README.md / CLAUDE.md; the package has no third-party deps,
       # so there is no lockfile and nothing to cache.
       - uses: jiro4989/setup-nim-action@v2
-        with: { nim-version: '2.2.12' }
+        with:
+          nim-version: '2.2.12'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}  # avoids GitHub API rate-limit flakes when resolving the toolchain
       - run: nimble check
       - name: nim check (no warnings)
         run: |
@@ -1425,6 +1453,7 @@ nim/tests/t_*
 !nim/tests/t_*.nim
 nim/examples/emit_*
 !nim/examples/emit_*.nim
+nim/examples/user
 ```
 
 - [ ] **Step 10: Verify YAML + commit**
@@ -1468,6 +1497,9 @@ Not on the nimble directory. Install from the git tag that matches the other lan
 ```bash
 nimble install "https://github.com/montionugera/node-server-decorator@#vX.Y.Z?subdir=nim"
 ```
+
+> The `@#tag?subdir=` URL form is untested against a published tag (the package is not yet tagged). If nimble
+> rejects it, try `...?subdir=nim@#vX.Y.Z`, or clone the repo and run `nimble install` inside `nim/`.
 (`nimble install` needs the `nim/` subdir because the repository root is a polyglot workspace.)
 
 ## Declare an entity
@@ -1541,7 +1573,9 @@ echo openapiCanonical(@[entitySpec(User)], "1.2.0")
 - Keys sorted by Unicode code point at every level; no whitespace; no trailing newline.
 - Absent optionals omitted; boolean flags only when `true`; `actions`/`input` only when non-empty;
   `transactional` only when `false`; `tags: some(@[])` emits `"tags":[]` (Node behaviour).
-- Non-ASCII, `< > &`, U+2028/2029 are written raw (`std/json.escapeJson` — verified on 2.2.12).
+- Non-ASCII, `< > &`, U+2028/2029 are written raw; control chars 0x00–0x1F use the JSON.stringify forms
+  (`\b \f \n \r \t`, otherwise lowercase `\u00xx`). `canonical.nim` hand-rolls this because
+  `std/json.escapeJson` emits uppercase hex (`\u001F`) and would break byte parity.
 - `min`/`max` are `Option[int]`, so the IR never contains a Nim float and `1.0`-style rendering
   never reaches the wire.
 
@@ -1611,3 +1645,7 @@ git commit -m "docs(nim): README + CLAUDE.md for the Nim lane (F-006)"
 - Spec coverage: Goals 1–3 → Tasks 3, 4, 5. AC1/AC2 → Task 5 Step 5; AC3 → Tasks 1–4 + `t_compile_errors`; AC4 → Task 5 Steps 3–5; AC5 → Task 5 Steps 6–8; AC6 → Task 6. Non-goals respected (no `contracts/` change; Nim follows Node on `tags:[]`). Spec H3 (nested types in the same block) → `outside_nested_type.nim`; M5 (`Option[int]` on floats) → `types.nim` + `t_entity` "explicit min: 0"; M6 (ci-nim = check/test only) → Task 5 Step 7.
 - Placeholders: none — every code block is the file that ran in the scratchpad.
 - Type consistency: `Keep`, `keepAll`, `ScopeEntry`, `SpecVersion`, `entitySpec(User)`, `canonical`, `openapiCanonical` are spelled identically across tasks and tests.
+
+## Appendix — audit trail
+- 2026-09-13 self-grill-audit (independent agent; re-materialised all plan Nim files in /tmp/f006-audit: nimble check valid, 32/32 tests OK, both fixtures byte-identical, no lockfile): verdict **safe-with-fixes**. Corrected: HIGH-1 `canonical.nim` now hand-rolls `escapeString` (lowercase `\u00xx`; `std/json.escapeJson` emits uppercase and breaks parity for 0x0E–0x1F) + new `t_canonical` case — escaper re-verified byte-identical to `JSON.stringify` for all 32 control chars; MED-2 `bump-version.sh` insert moved to after line 39 (line 38 is a `\` continuation), `check-versions.sh` block cited as 23–26 / insert after 26; MED-3 `command -v nim` guard added to both parity scripts; MED-4 `repo-token` added to both `setup-nim-action` steps; LOW-5 `nim/examples/user` binary gitignored; LOW-6 README install URL marked untested with fallback. Left: LOW-7 `ci-contracts.yml:62` step name still says "(Node <-> Python)" (cosmetic).
+  Open: none.
