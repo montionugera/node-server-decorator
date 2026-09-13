@@ -1,0 +1,1 @@
+{"description":"a <b> & c    ","entity":"Escape","fields":[{"description":"x < y && y > z \\u2028","name":"id","type":"str"}],"ops":["get"],"pagination":"offset","path":"escapes","specVersion":"1.2.0","transports":["rest"]}
