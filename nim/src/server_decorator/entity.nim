@@ -18,6 +18,8 @@ proc strLit(n: NimNode, what: string): NimNode =
 
 proc someOf(n: NimNode): NimNode = newCall(ident"some", n)
 
+proc seqLit(arr: NimNode): NimNode = nnkPrefix.newTree(ident"@", arr)
+
 # Build `FieldSpec(...)` for one `name {.pragmas.}: Type` declaration.
 proc fieldCstr(nameNode, typeNode: NimNode, pragmas: NimNode, nested: Table[string, NimNode]): NimNode
 
@@ -43,7 +45,7 @@ proc typeToKind(t: NimNode, name: string, nested: Table[string, NimNode],
     if t[0].kind == nnkIdent and t[0].strVal == "seq":
       # list: item carries the SAME name at every nesting level (fields.ts injectListItemNames)
       let item = fieldCstr(ident(name), t[1], newEmptyNode(), nested)
-      cstr.add newColonExpr(ident"item", nnkPrefix.newTree(ident"@", nnkBracket.newTree(item)))
+      cstr.add newColonExpr(ident"item", seqLit(nnkBracket.newTree(item)))
       "ftList"
     else: error("field '" & name & "': unsupported type " & t.repr, t)
   else: error("field '" & name & "': unsupported type " & t.repr, t)
@@ -68,14 +70,16 @@ proc fieldCstr(nameNode, typeNode: NimNode, pragmas: NimNode, nested: Table[stri
           cstr.add newColonExpr(ident(n), someOf(v))
       elif n in ["min", "max"]:
         if p.kind notin {nnkExprColonExpr, nnkExprEqExpr} or p[1].kind != nnkIntLit:
-          error("field '" & name & "': '" & n & "' must be an integer literal (even on float fields)", p)
+          # a negative literal parses as nnkPrefix("-", nnkIntLit), not nnkIntLit itself --
+          # name that as the real cause instead of the generic "must be an integer literal"
+          error("field '" & name & "': '" & n & "' must be a non-negative integer literal (negative literals are not supported)", p)
         cstr.add newColonExpr(ident(n), someOf(p[1]))
       elif n == "enumOf":
         if p.kind notin {nnkExprColonExpr, nnkExprEqExpr} or p[1].kind != nnkBracket or p[1].len == 0:
           error("field '" & name & "': enumOf needs a non-empty [\"a\", \"b\"] literal", p)
         for e in p[1]: discard strLit(e, "field '" & name & "': enumOf value")
         kind = "ftEnum"
-        enumVals = nnkPrefix.newTree(ident"@", p[1].copyNimTree)
+        enumVals = seqLit(p[1].copyNimTree)
       else:
         error("unknown field pragma '" & n & "' on field '" & name & "'", p)
   cstr.add newColonExpr(ident"type", ident(kind))
@@ -106,7 +110,7 @@ proc fieldsOfObject(td: NimNode, nested: Table[string, NimNode]): NimNode =
     arr.add fieldCstr(nameNode, def[1], pragmas, nested)
     # strip pragmas so the emitted Nim type is plain
     if def[0].kind == nnkPragmaExpr: recList[i][0] = def[0][0]
-  nnkPrefix.newTree(ident"@", arr)
+  seqLit(arr)
 
 proc parseAction(stmt: NimNode, nested: Table[string, NimNode]): NimNode =
   ## `action "name"[, description = "..."][, transactional = false]:` body with `transition`/`input`.
@@ -123,20 +127,19 @@ proc parseAction(stmt: NimNode, nested: Table[string, NimNode]): NimNode =
     else: error("action: unexpected argument " & a.repr, a)
   if body.kind != nnkEmpty:
     for s in body:
-      if s.kind in {nnkCommand, nnkCall} and s[0].strVal == "transition":
+      if s.kind in {nnkCommand, nnkCall} and s[0].kind == nnkIdent and s[0].strVal == "transition":
         if s.len != 4: error("transition needs (stateField, from, to)", s)
         cstr.add newColonExpr(ident"stateField", someOf(strLit(s[1], "transition stateField")))
         cstr.add newColonExpr(ident"from", someOf(strLit(s[2], "transition from")))
         cstr.add newColonExpr(ident"to", someOf(strLit(s[3], "transition to")))
-      elif s.kind == nnkCall and s[0].strVal == "input":
+      elif s.kind == nnkCall and s[0].kind == nnkIdent and s[0].strVal == "input":
         var arr = nnkBracket.newTree()
         for f in s[1]:
           # `reason {.max: 200, optional.}: string` parses as Call(PragmaExpr|Ident, StmtList(Type))
           if f.kind != nnkCall or f.len != 2: error("input: expected `name {.pragmas.}: Type`", f)
-          var n = f[0]; var pragmas = newEmptyNode()
-          if n.kind == nnkPragmaExpr: pragmas = n[1]; n = n[0]
+          let (n, pragmas) = splitIdentDefs(f)
           arr.add fieldCstr(n, f[1][0], pragmas, nested)
-        cstr.add newColonExpr(ident"input", nnkPrefix.newTree(ident"@", arr))
+        cstr.add newColonExpr(ident"input", seqLit(arr))
       else: error("action body: expected `transition` or `input:`", s)
   result = nnkObjConstr.newTree(ident"ActionSpec")
   for c in cstr: result.add c
@@ -147,7 +150,7 @@ proc identList(n: NimNode, what: string): NimNode =
   for e in n:
     if e.kind == nnkIdent: arr.add newLit(e.strVal)
     else: arr.add strLit(e, what)
-  nnkPrefix.newTree(ident"@", arr)
+  seqLit(arr)
 
 macro restful*(path: string, args: varargs[untyped]): untyped =
   ## restful "users", description = "...", tags = ["x"], transports = [rest, rpc], ops = [list, get],
@@ -158,8 +161,8 @@ macro restful*(path: string, args: varargs[untyped]): untyped =
   let body = args[^1]
   var e: seq[NimNode] = @[newColonExpr(ident"specVersion", ident"SpecVersion"),
                           newColonExpr(ident"path", strLit(path, "restful path"))]
-  var transports = nnkPrefix.newTree(ident"@", nnkBracket.newTree(newLit"rest"))
-  var ops = nnkPrefix.newTree(ident"@", nnkBracket.newTree(newLit"list", newLit"get", newLit"create", newLit"update", newLit"delete"))
+  var transports = seqLit(nnkBracket.newTree(newLit"rest"))
+  var ops = seqLit(nnkBracket.newTree(newLit"list", newLit"get", newLit"create", newLit"update", newLit"delete"))
   var pagination = newLit"offset"
   for i in 0 ..< args.len - 1:
     let a = args[i]
@@ -199,7 +202,7 @@ macro restful*(path: string, args: varargs[untyped]): untyped =
   if typeSection == nil: error("restful: block needs a `type` section with the entity object", body)
   e.add newColonExpr(ident"entity", newLit(entityName))
   e.add newColonExpr(ident"fields", fields)
-  if actions.len > 0: e.add newColonExpr(ident"actions", nnkPrefix.newTree(ident"@", actions))
+  if actions.len > 0: e.add newColonExpr(ident"actions", seqLit(actions))
   var cstr = nnkObjConstr.newTree(ident"EntitySpec")
   for c in e: cstr.add c
   let specSym = genSym(nskConst, entityName & "Spec")

@@ -129,6 +129,11 @@ proc problem(status, description: string, component = "Problem"): (string, JsonN
 proc jsonBody(refName: string): JsonNode =
   %*{"content": {"application/json": {"schema": {"$ref": "#/components/schemas/" & refName}}}}
 
+proc requestBody(refName: string): JsonNode =
+  ## jsonBody(...) plus the "required" flag every request body in this port sets to true.
+  result = jsonBody(refName)
+  result["required"] = %true
+
 proc idField(spec: EntitySpec): FieldSpec =
   for f in spec.fields:
     if f.role == some("id"): return f
@@ -163,10 +168,11 @@ proc paginationParams(spec: EntitySpec): seq[JsonNode] =
 
 proc op(spec: EntitySpec, operationId: string, extra: JsonNode, responses: seq[(string, JsonNode)],
         security: Option[JsonNode]): JsonNode =
-  result = newJObject()
+  ## `extra` is always a fresh object literal built at the call site (never reused afterwards),
+  ## so we grow it in place rather than merging its keys into a second empty object.
+  result = extra
   if spec.tags.isSome: result["tags"] = %spec.tags.get
   result["operationId"] = %operationId
-  for k, v in extra.pairs: result[k] = v
   var resp = newJObject()
   for (code, body) in responses: resp[code] = body
   result["responses"] = resp
@@ -183,29 +189,26 @@ proc openapiPaths*(spec: EntitySpec): JsonNode =
   var collection = newJObject()
   var item = newJObject()
   let ok200 = proc(refName: string): (string, JsonNode) =
-    var r = %*{"description": "OK"}
-    for k, v in jsonBody(refName).pairs: r[k] = v
+    var r = jsonBody(refName)
+    r["description"] = %"OK"
     ("200", r)
   if "list" in spec.ops:
-    var params = paginationParams(spec) & filterParams(spec)
+    let fp = filterParams(spec)
+    var params = paginationParams(spec) & fp
     params.sort(proc(a, b: JsonNode): int = cmp(a["name"].getStr, b["name"].getStr))
     var responses = @[ok200(e & "ListResponse")]
-    if filterParams(spec).len > 0: responses.add problem("400", "Bad Request", "ValidationProblem")
+    if fp.len > 0: responses.add problem("400", "Bad Request", "ValidationProblem")
     collection["get"] = op(spec, "list" & e, %*{"parameters": params}, responses, securityFor(spec, "list", "ops"))
   if "create" in spec.ops:
-    var body = %*{"required": true}
-    for k, v in jsonBody(e & "Create").pairs: body[k] = v
-    var created = %*{"description": "Created"}
-    for k, v in jsonBody(e & "Read").pairs: created[k] = v
-    collection["post"] = op(spec, "create" & e, %*{"requestBody": body},
+    var created = jsonBody(e & "Read")
+    created["description"] = %"Created"
+    collection["post"] = op(spec, "create" & e, %*{"requestBody": requestBody(e & "Create")},
       @[("201", created), problem("400", "Bad Request", "ValidationProblem")], securityFor(spec, "create", "ops"))
   if "get" in spec.ops:
     item["get"] = op(spec, "get" & e, %*{"parameters": [idParam]},
       @[ok200(e & "Read"), problem("404", "Not Found")], securityFor(spec, "get", "ops"))
   if "update" in spec.ops:
-    var body = %*{"required": true}
-    for k, v in jsonBody(e & "Update").pairs: body[k] = v
-    item["patch"] = op(spec, "update" & e, %*{"parameters": [idParam], "requestBody": body},
+    item["patch"] = op(spec, "update" & e, %*{"parameters": [idParam], "requestBody": requestBody(e & "Update")},
       @[ok200(e & "Read"), problem("400", "Bad Request", "ValidationProblem"), problem("404", "Not Found")],
       securityFor(spec, "update", "ops"))
   if "delete" in spec.ops:
@@ -216,9 +219,7 @@ proc openapiPaths*(spec: EntitySpec): JsonNode =
   for a in spec.actions:
     var extra = %*{"parameters": [idParam]}
     if a.description.isSome: extra["description"] = %a.description.get
-    var body = %*{"required": true}
-    for k, v in jsonBody(e & capitalize(a.name) & "Input").pairs: body[k] = v
-    extra["requestBody"] = body
+    extra["requestBody"] = requestBody(e & capitalize(a.name) & "Input")
     var responses = @[ok200(e & "Read"), problem("400", "Bad Request", "ValidationProblem"), problem("404", "Not Found")]
     if a.`from`.isSome: responses.add problem("409", "Conflict")
     var post = newJObject()
