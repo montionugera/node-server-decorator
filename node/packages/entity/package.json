@@ -1,6 +1,6 @@
 {
   "name": "@montionugera/entity-spec",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Declarative entity decorators emitting the language-neutral EntitySpec IR (contracts/schemas/entity-spec.schema.json).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
