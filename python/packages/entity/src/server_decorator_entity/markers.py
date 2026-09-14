@@ -15,6 +15,7 @@ from server_decorator_entity.validate import (
 @dataclass(frozen=True)
 class FieldMarker:
     type: str
+    description: str | None = None
     role: str | None = None
     format: str | None = None
     enum: tuple[str, ...] | None = None
@@ -52,6 +53,8 @@ class FieldMarker:
             ir["max"] = self.max
         if self.pattern is not None:
             ir["pattern"] = self.pattern
+        if self.description is not None:
+            ir["description"] = self.description
         for flag in ("optional", "nullable", "readonly", "writeonly", "filterable"):
             if getattr(self, flag):
                 ir[flag] = True

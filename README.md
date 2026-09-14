@@ -12,7 +12,7 @@ The wire format and shared rules (cache key algorithm, queue message schema, top
 ## Entity-spec layer
 
 Alongside the core decorators, each language ships a small **entity-spec** stack for declaring
-REST-ish entities once and deriving validation DTOs from that declaration:
+REST-ish entities once and deriving validation DTOs and a REST contract from that declaration:
 
 | Package | Language | What it does |
 | ------- | -------- | ------------- |
@@ -20,11 +20,17 @@ REST-ish entities once and deriving validation DTOs from that declaration:
 | `server-decorator-entity` | Python | Same, via `@restful`/`@action`/field markers |
 | `@montionugera/entity-spec-gen-zod` | Node | Compiles an EntitySpec IR into zod `create`/`update`/`read`/action-input DTOs |
 | `server-decorator-gen-pydantic` | Python | Same, compiling into pydantic v2 DTO models |
+| `@montionugera/entity-spec-gen-openapi` | Node | Compiles an EntitySpec IR into an OpenAPI 3.1 document |
+| `server-decorator-gen-openapi` | Python | Same, emitting a byte-identical document |
 
 Both languages' `entity` packages emit byte-identical IR for the same declaration (checked by
 `scripts/check-entity-parity.sh`), and both `gen-*` packages are validated against the same
 `contracts/fixtures/entity-spec.cases.json` cases, so DTO behavior — which fields a `create`
-payload accepts, which a `read` payload exposes — stays in lockstep across languages too.
+payload accepts, which a `read` payload exposes — stays in lockstep across languages too. The
+two `gen-openapi` packages emit a byte-identical OpenAPI 3.1 document from the same IR, checked
+by `scripts/check-openapi-parity.sh` against `contracts/fixtures/openapi.valid-user.json`;
+routes, component names and error shapes are pinned in `contracts/rules/rest-conventions.md`.
+HTTP adapters that serve those routes are not part of this release.
 
 ## Why polyglot
 
@@ -34,8 +40,8 @@ Many microservice estates run a Node producer and a Python consumer, or vice ver
 
 ```
 .
-├── node/         # pnpm workspace: packages/core, packages/entity, packages/gen-zod
-├── python/       # uv workspace: packages/core, packages/entity, packages/gen_pydantic
+├── node/         # pnpm workspace: packages/core, entity, gen-zod, gen-openapi
+├── python/       # uv workspace: packages/core, entity, gen_pydantic, gen_openapi
 ├── contracts/    # JSON schemas + rule docs + fixtures (the wire format)
 ├── interop/      # Cross-language end-to-end tests (Node ↔ Python)
 ├── docs/adr/     # Architecture Decision Records

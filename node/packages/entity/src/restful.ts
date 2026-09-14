@@ -1,6 +1,6 @@
 import { canonicalJson } from './canonical';
 import { specFor } from './registry';
-import { EntitySpec, FieldSpec, Op, Transport } from './types';
+import { EntitySpec, FieldSpec, Op, SecuritySpec, Transport } from './types';
 import { validateEntitySpec } from './validate';
 
 export interface RestfulOpts {
@@ -8,6 +8,9 @@ export interface RestfulOpts {
   transports?: Transport[];
   ops?: Op[];
   pagination?: 'offset' | 'cursor';
+  description?: string;
+  tags?: string[];
+  security?: SecuritySpec;
 }
 
 const finalized = new WeakMap<Function, EntitySpec>();
@@ -30,7 +33,7 @@ export function Restful(opts: RestfulOpts): ClassDecorator {
   return (ctor) => {
     const draft = specFor(ctor);
     const spec: EntitySpec = {
-      specVersion: '1.1.0',
+      specVersion: '1.2.0',
       entity: ctor.name,
       path: opts.path,
       // `??` is null-coalescing, not empty-coalescing — an explicit `transports: []`/`ops: []`
@@ -40,6 +43,10 @@ export function Restful(opts: RestfulOpts): ClassDecorator {
       transports: opts.transports ?? ['rest'],
       ops: opts.ops ?? ['list', 'get', 'create', 'update', 'delete'],
       pagination: opts.pagination ?? 'offset',
+      // Keep absent keys absent so canonical JSON is byte-unchanged for 1.1-era declarations.
+      ...(opts.description !== undefined ? { description: opts.description } : {}),
+      ...(opts.tags !== undefined ? { tags: opts.tags } : {}),
+      ...(opts.security !== undefined ? { security: opts.security } : {}),
       fields: draft.fields,
       ...(draft.actions.length > 0 ? { actions: draft.actions } : {}),
     };

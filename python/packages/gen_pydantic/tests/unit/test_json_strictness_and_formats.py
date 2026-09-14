@@ -17,7 +17,7 @@ from server_decorator_gen_pydantic import create_model_for
 
 def _spec(fields: list[dict[str, Any]]) -> dict[str, Any]:
     return {
-        "specVersion": "1.1.0",
+        "specVersion": "1.2.0",
         "entity": "Fuzz",
         "path": "fuzz",
         "transports": ["rest"],

@@ -23,6 +23,11 @@ fail=0
 for fixture in "$FIXTURES"/*.valid*.json; do
   [ -f "$fixture" ] || continue
   base=$(basename "$fixture")
+  # The golden OpenAPI document is not EntitySpec IR and has no local JSON Schema — it is
+  # checked against the OpenAPI 3.1 meta-schema by the redocly step at the end instead.
+  if [ "$base" = "openapi.valid-user.json" ]; then
+    continue
+  fi
   schema_name=$(echo "$base" | sed -E 's/\.valid([-.][a-zA-Z0-9_-]+)?\.json$//')
   schema="$SCHEMAS/$schema_name.schema.json"
   if [ ! -f "$schema" ]; then
@@ -69,6 +74,26 @@ for examples in "$FIXTURES"/*.examples.json; do
     fail=1
   fi
 done
+
+# The golden OpenAPI document must be a valid OpenAPI 3.1 document, not merely valid JSON.
+# `--extends=minimal` is the structural (meta-schema) check. redocly's default `recommended`
+# ruleset additionally enforces style opinions this contract deliberately does not follow —
+# notably `security-defined`, which flags every public operation, whereas
+# contracts/rules/rest-conventions.md defines an operation with no security entry as public
+# by design. Structural breakage (a dangling $ref, a malformed path item) still fails here.
+openapi_doc="$FIXTURES/openapi.valid-user.json"
+if [ -f "$openapi_doc" ]; then
+  echo
+  echo "Validating OpenAPI document against the 3.1 meta-schema..."
+  if npx --yes @redocly/cli@1 lint "$openapi_doc" \
+      --extends=minimal --format=stylish >/dev/null 2>&1; then
+    green "OK   openapi.valid-user.json (valid OpenAPI 3.1)"
+  else
+    red "FAIL openapi.valid-user.json is not a valid OpenAPI 3.1 document"
+    npx --yes @redocly/cli@1 lint "$openapi_doc" --extends=minimal --format=stylish || true
+    fail=1
+  fi
+fi
 
 if [ "$fail" -eq 0 ]; then
   echo

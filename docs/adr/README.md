@@ -11,5 +11,6 @@ ADRs document the *why* behind architectural choices. Each one is short, dated, 
 | [0005](./0005-eventemitter3-swap.md) | Replace `@nestjs/event-emitter` with `eventemitter3` | Accepted |
 | [0006](./0006-cross-language-consumption.md) | Cross-language consumption (consume side) | Accepted |
 | [0007](./0007-monorepo-restructure.md) | Monorepo workspaces for the entity-spec layer | Accepted |
+| [0008](./0008-authorization-metadata-in-contract.md) | Authorization metadata in the wire contract: scopes, not roles | Accepted |
 
 The decisions table in the root [`DECISIONS.md`](../../DECISIONS.md) is the at-a-glance reference; the ADRs here carry the rationale.

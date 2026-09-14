@@ -6,13 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A **polyglot** library shipping decorators for caching, tracking, and queue emission in two languages — Node/TypeScript (`node/`, npm: `@montionugera/server-decorator`) and Python (`python/`, PyPI: `server-decorator`) — kept in lockstep behind a shared wire-format contract (`contracts/`). Both packages publish together under one semver tag (Decision #2). The published artifact lives in `node/` and `python/`; the repo root is a workspace, not a package — its `package.json` only proxies scripts.
 
+A third lane, **Go** (`go/`, module `github.com/montionugera/node-server-decorator/v2`, root `go.mod`), ships only the `entity` IR producer (`go/entity`), byte-identical to the Node/Python `entity` packages; see `go/README.md`.
+
+A fourth lane, **Nim** (`nim/`, nimble package `server_decorator`, Nim 2.2.12), ships the `entity` IR producer (a `restful` block macro + field pragmas — the decorator ergonomics Go could not offer) **and** the OpenAPI generator (`server_decorator/gen_openapi`), both byte-identical to the Node/Python twins; see `nim/README.md`.
+
 **Before changing anything non-trivial, read `DECISIONS.md`** — it holds the 12 locked decisions (plus D-A…D-D, N1…N4) that constrain the design. Revisit any item only via a new ADR under `docs/adr/`.
 
 ## High-level architecture
 
 Three layers, in dependency order:
 
-1. **`contracts/`** — source of truth for the wire format. JSON Schemas (`schemas/`), algorithm specs (`rules/cache-key.md`, `rules/topic-naming.md`, `rules/tracking-key.md`, `rules/cache-adapter.md`), golden fixtures, and a `VERSION` file. CI asserts `contracts/VERSION`, `node/packages/core/src/_contract.ts`, and `python/packages/core/src/server_decorator/_contract.py` all agree. `contracts/schemas/entity-spec.schema.json` and `contracts/fixtures/entity-spec.*.json` are the same kind of source-of-truth for the entity-spec IR layer described below.
+1. **`contracts/`** — source of truth for the wire format. JSON Schemas (`schemas/`), algorithm specs (`rules/cache-key.md`, `rules/topic-naming.md`, `rules/tracking-key.md`, `rules/cache-adapter.md`, `rules/rest-conventions.md`), golden fixtures, and a `VERSION` file. CI asserts `contracts/VERSION`, `node/packages/core/src/_contract.ts`, and `python/packages/core/src/server_decorator/_contract.py` all agree. `contracts/schemas/entity-spec.schema.json` and `contracts/fixtures/entity-spec.*.json` are the same kind of source-of-truth for the entity-spec IR layer described below.
 2. **`node/` and `python/`** — pnpm/uv workspace roots, each holding a `packages/core` reference implementation (ADR 0006) plus the entity-spec layer:
    - **`entity` packages** (`node/packages/entity` = `@montionugera/entity-spec`, `python/packages/entity` = `server-decorator-entity`) — declarative decorators (`@Restful`/`@action`/field markers in Node, `@restful`/`@action`/field markers in Python) that emit the language-neutral **EntitySpec IR**, validated byte-identical across languages against `contracts/schemas/entity-spec.schema.json`.
    - **`gen-*` packages** (`node/packages/gen-zod` = `@montionugera/entity-spec-gen-zod`, `python/packages/gen_pydantic` = `server-decorator-gen-pydantic`) — compile an EntitySpec IR into `create`/`update`/`read`/action-input DTO validators (zod / pydantic v2), applying the same include/exclude rules (`readonly` excluded from create, `writeonly` excluded from read, nested obj/list fields filtered recursively) in both languages.
@@ -26,7 +30,7 @@ Queue routing on the Node side: `@EmitOnSuccess` → `globalQueueRegistry` → a
 
 ## Common commands
 
-Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Python lives at `python/packages/core` under a uv workspace rooted at `python/` (ADR 0006). Multi-package commands run from the workspace root (`cd node`, `cd python`); single-package commands (a specific test file) need `cd node/packages/core` / `cd python/packages/core`. The root `package.json` has thin proxies:
+Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Python lives at `python/packages/core` under a uv workspace rooted at `python/` (ADR 0006); Nim lives at `nim/` as a single nimble package. Multi-package commands run from the workspace root (`cd node`, `cd python`); single-package commands (a specific test file) need `cd node/packages/core` / `cd python/packages/core`. The root `package.json` has thin proxies:
 
 | Task | Command |
 |------|---------|
@@ -35,14 +39,23 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | Backend-specific e2e | `cd node && pnpm -r test:e2e:redis` / `:rabbitmq` / `:kafka` |
 | Single Jest test file | `cd node/packages/core && pnpm test -- --testPathPattern=cache.spec` |
 | Build Node | `cd node && pnpm -r run build` (outputs `node/packages/core/dist/`) |
-| gen-zod tests | `cd node/packages/gen-zod && pnpm test:unit` (schemas checked against `contracts/fixtures/entity-spec.cases.json`) |
+| gen-zod tests | `cd node/packages/gen-zod && pnpm test:unit` (builds `entity` first via `pretest:unit`; schemas checked against `contracts/fixtures/entity-spec.cases.json`) |
 | Python lint+type+unit | `cd python && bash scripts/check.sh` (runs every package's own `scripts/check.sh`; uses `uv` if present, ruff + ruff format + mypy strict + pytest) |
 | Single pytest | `cd python/packages/core && uv run pytest tests/unit/test_cache.py::test_x -q` |
 | gen_pydantic tests | `cd python/packages/gen_pydantic && bash scripts/check.sh` (DTO models checked against `contracts/fixtures/entity-spec.cases.json`) |
+| gen-openapi tests | `cd node/packages/gen-openapi && pnpm test:unit` (builds `entity` first via `pretest:unit`) |
+| gen_openapi tests | `cd python/packages/gen_openapi && bash scripts/check.sh` |
+| Go tests (byte parity, guards, drift gate) | `go test ./go/...` (repo root; stdlib only, no install) |
+| Go hygiene | `test -z "$(gofmt -l go)" && go vet ./go/...` |
+| Regenerate Go example IR | `go generate ./go/...` |
+| Nim tests (byte parity, cases.json openapi suite, compile-error harness) | `export PATH=$HOME/.nimble/bin:$PATH && cd nim && nimble test` (Nim 2.2.12, stdlib only) |
+| Nim hygiene | `cd nim && nimble check && nim check --hints:off src/server_decorator.nim` |
+| OpenAPI parity | `bash scripts/check-openapi-parity.sh` (asserts Node, Python and Nim emit byte-identical OpenAPI, equal to `contracts/fixtures/openapi.valid-user.json`) |
 | Python integration (Docker) | `cd python/packages/core && uv run pytest -m integration` |
 | Contract validation | `bash contracts/scripts/validate.sh` (requires `npm i -g ajv-cli@5`) |
-| Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node and Python `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
-| Cross-version assert | `bash scripts/check-versions.sh` (fails if Node/Python package versions diverge) |
+| Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node, Python, Go and Nim `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
+| Cross-version assert | `bash scripts/check-versions.sh` (fails if Node, Python, Go or Nim package versions diverge) |
+| Go/Nim install smoke test | `bash scripts/smoke-install-go.sh vX.Y.Z` / `bash scripts/smoke-install-nim.sh vX.Y.Z` (post-tag; the `smoke` job in `ci-node.yml` runs both) |
 | Lockstep version bump | `bash scripts/bump-version.sh patch\|minor\|major` then commit + `git push --tags` |
 
 Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses **uv** as the dev runner. `package-lock.json` and `yarn.lock` are gitignored on purpose — do not create them.
@@ -59,13 +72,15 @@ Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses *
 - **iCloud-doubled files (`* 2`, `* 2.*`, `* 3*`) are gitignored** (D-D). If you're on a Mac with iCloud Documents on, double-check your tree before committing.
 - **The npm registry is GitHub Packages**, not npmjs.com — see `.npmrc` and `node/packages/core/package.json` `publishConfig`. Publishing needs `GITHUB_TOKEN` in env.
 - **`contracts/fixtures/entity-spec.cases.json` is the cross-language validation contract** — it drives both `gen-zod`'s and `gen_pydantic`'s DTO test suites. Changing generator behavior (a new include/exclude rule, a new field type, a validation edge case) requires adding or updating a case there, and both languages must pass it — a change that only updates one language's tests is incomplete.
+- **Nim is pinned to 2.2.12** (`ci-nim.yml`, `ci-contracts.yml`, `nim/README.md`); on the maintainer Mac it lives at `~/.nimble/bin` (not on PATH — `export PATH=$HOME/.nimble/bin:$PATH` first; do not use brew/choosenim). The package has zero dependencies: never commit `nimble.lock`. Nested `obj` types must be declared inside the same `restful` block, and `min`/`max` are integer literals even on `float` fields.
 
 ## CI workflow gating
 
 `.github/workflows/`:
 
-- `ci-node.yml` — unit + build on every Node/contracts PR; e2e only on `push: main` or PRs with the `run-e2e` label; auto-publishes (Node + Python) on `push: main` by patch-bumping and pushing back.
+- `ci-node.yml` — unit + build on every Node/contracts PR; e2e only on `push: main` or PRs with the `run-e2e` label; auto-publishes (Node + Python) on `push: main` touching `node/`, `contracts/`, `go/`, `go.mod` or `nim/` by patch-bumping, pushing back and tagging `vX.Y.Z`; a follow-up `smoke` job then installs the Go module and Nim package at that tag (fail-closed, re-runnable alone).
 - `ci-python.yml` — equivalent for the Python side.
+- `ci-nim.yml` — `nimble check` + `nim check` + `nimble test` on every `nim/`/`contracts/` PR and on `push: main`; Nim parity with the other lanes runs in `ci-contracts.yml`.
 - `ci-contracts.yml` — schema/fixture validation + version-match enforcement.
 - `ci-interop.yml` — heavy cross-language scenarios; runs on `push: main`, weekly schedule, or PRs with the `run-interop` label.
 

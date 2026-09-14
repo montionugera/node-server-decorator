@@ -8,7 +8,7 @@ import { createSchema, readSchema, validationErrorFields } from './index';
 // (rather than the shared UserFixture, which has no nested readonly field)
 // isolates the bug.
 const spec: EntitySpec = {
-  specVersion: '1.1.0',
+  specVersion: '1.2.0',
   entity: 'Widget',
   path: 'widgets',
   transports: ['rest'],

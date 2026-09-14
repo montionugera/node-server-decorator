@@ -5,7 +5,7 @@ on:
     paths: ['node/**', 'contracts/**', '.github/workflows/ci-node.yml']
   push:
     branches: [main]
-    paths: ['node/**', 'contracts/**', '.github/workflows/ci-node.yml']
+    paths: ['node/**', 'contracts/**', 'go/**', 'go.mod', 'nim/**', '.github/workflows/ci-node.yml']
   # Manual retrigger for the publish lane (e.g. after fixing registry-side
   # trusted-publisher config) — publishes whatever main currently holds.
   workflow_dispatch:
@@ -57,6 +57,8 @@ jobs:
     needs: [test]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     # PyPI trusted publisher for server-decorator-gen-pydantic is registered against
     # this GitHub environment; the other publishers accept any environment.
     environment: pypi
@@ -103,7 +105,7 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go nim/server_decorator.nimble
           git commit -m "chore: bump patch version [skip ci]"
           git push
 
@@ -139,7 +141,7 @@ jobs:
           pnpm -r publish --no-git-checks --access public
           git checkout -- .
 
-      - name: Build Python packages (core, entity, gen_pydantic)
+      - name: Build Python packages (core, entity, gen_pydantic, gen_openapi)
         working-directory: python
         run: uv build --all-packages
 
@@ -147,3 +149,57 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist
+
+      # Go resolves module versions only from vX.Y.Z tags (I-006); this also gives Node and
+      # Python releases the single tag ADR 0002 assumes. Last step, so a tag marks only a
+      # fully published version; skipped when the tag already exists (idempotent re-runs).
+      - name: Tag release
+        id: tag
+        run: |
+          tag="v$(node -p "require('./node/packages/core/package.json').version")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists on origin; skipping."
+          else
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+
+  # Go and Nim have no registry push: "published" means the tag installs (F-007). Separate
+  # job so a failure can be re-run alone — re-running `publish` would fail at the bump push.
+  # Fail-closed, but npm, PyPI and the tag are already out: red means investigate, not rollback.
+  smoke:
+    name: Smoke-install Go + Nim at tag
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.tag }}
+
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod, cache: false }
+
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.12'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}  # avoids GitHub API rate-limit flakes when resolving the toolchain
+
+      # The repo is private and scratch-dir fetches carry no checkout auth header. The rewrite
+      # lives in step env (not `git config --global`), so the token never lands in ~/.gitconfig
+      # and never touches the checkout step.
+      - name: Go module installs at tag
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/montionugera/.insteadOf
+          GIT_CONFIG_VALUE_0: https://github.com/montionugera/
+        run: bash scripts/smoke-install-go.sh "${{ needs.publish.outputs.tag }}"
+
+      - name: Nim package installs at tag
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/montionugera/.insteadOf
+          GIT_CONFIG_VALUE_0: https://github.com/montionugera/
+        run: bash scripts/smoke-install-nim.sh "${{ needs.publish.outputs.tag }}"

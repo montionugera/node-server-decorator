@@ -1,0 +1,6 @@
+version       = "2.0.6"
+author        = "montionugera"
+description   = "server-decorator: entity IR + OpenAPI (Nim lane)"
+license       = "MIT"
+srcDir        = "src"
+requires "nim >= 2.2.12"
