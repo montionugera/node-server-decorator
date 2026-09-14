@@ -119,6 +119,28 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Also publish the public copies to npmjs.com. No-op until the NPM_TOKEN
+      # secret (npmjs granular access token, publish scope for @montionugera/*)
+      # exists — safe to merge before the token is provisioned.
+      - name: Publish Node to npmjs.com
+        working-directory: node
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN secret not set — skipping npmjs.com publish"
+            exit 0
+          fi
+          # Point each publishable package's publishConfig at npmjs for this
+          # step only (working-tree edit, reverted below; GH Packages publish
+          # above already ran against the original config).
+          for pkg in packages/*/package.json; do
+            node -e "const f='$pkg',p=require('./'+f); if(!p.private){p.publishConfig={registry:'https://registry.npmjs.org'};require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')}"
+          done
+          echo '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
+          pnpm -r publish --no-git-checks --access public
+          git checkout -- .
+
       - name: Build Python packages (core, entity, gen_pydantic, gen_openapi)
         working-directory: python
         run: uv build --all-packages
