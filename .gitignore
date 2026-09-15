@@ -45,3 +45,6 @@ nim/examples/emit_*
 nim/examples/user
 nim/nimble.lock
 # ^ the package has zero dependencies (plan constraint) — this lockfile must never be committed.
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/

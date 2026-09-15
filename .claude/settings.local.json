@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "graft"
+  ],
+  "enableAllProjectMcpServers": true
+}
