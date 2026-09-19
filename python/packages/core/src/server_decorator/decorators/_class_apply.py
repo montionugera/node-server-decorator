@@ -55,8 +55,19 @@ def apply_to_class(
         elif isinstance(attr, property):
             if not wrap_properties:
                 continue
-            # v1.1+: wrap fget/fset; deferred per N1.
-            continue
+            fget = attr.fget
+            fset = attr.fset
+            fdel = attr.fdel
+            if fget is not None and not _is_wrapped_by(fget, decorator_name):
+                fget = method_decorator(fget)
+                _mark_wrapped(fget, decorator_name)
+            if fset is not None and not _is_wrapped_by(fset, decorator_name):
+                fset = method_decorator(fset)
+                _mark_wrapped(fset, decorator_name)
+            if fdel is not None and not _is_wrapped_by(fdel, decorator_name):
+                fdel = method_decorator(fdel)
+                _mark_wrapped(fdel, decorator_name)
+            setattr(cls, attr_name, property(fget, fset, fdel, attr.__doc__))
         elif inspect.isfunction(attr) or inspect.iscoroutinefunction(attr):
             if _is_wrapped_by(attr, decorator_name):
                 continue
