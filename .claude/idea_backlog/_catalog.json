@@ -105,6 +105,6 @@
     "id": "I-018",
     "title": "Multi-tier call coalescing: L1 in-memory LRU + L2 Redis MGET + L3 batch DB query with SingleFlight",
     "created_at": "2026-09-19T16:41:05.140181+00:00",
-    "promoted_to": null
+    "promoted_to": "F-015"
   }
 ]
