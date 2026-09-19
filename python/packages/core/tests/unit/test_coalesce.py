@@ -165,3 +165,92 @@ async def test_batch_load_context_isolation() -> None:
     assert svc.call_count == 2
     assert t1_res == "val-1"
     assert t2_res == "val-2"
+
+
+class MockL2Cache:
+    def __init__(self) -> None:
+        self.data: dict[str, Any] = {}
+        self.mget_count = 0
+        self.set_count = 0
+        self.del_count = 0
+
+    async def mget(self, keys: list[str]) -> dict[str, Any]:
+        self.mget_count += 1
+        return {k: self.data[k] for k in keys if k in self.data}
+
+    async def set_many(self, items: dict[str, Any], ttl: float = 0) -> None:
+        self.set_count += 1
+        self.data.update(items)
+
+    async def delete(self, keys: list[str]) -> None:
+        self.del_count += 1
+        for k in keys:
+            self.data.pop(k, None)
+
+
+@pytest.mark.asyncio
+async def test_batch_load_multi_tier_caching_and_eviction() -> None:
+    l2 = MockL2Cache()
+    db_calls = 0
+
+    class MultiTierUserService:
+        async def find_users(self, ids: list[str]) -> dict[str, dict[str, str]]:
+            nonlocal db_calls
+            db_calls += 1
+            return {i: {"id": i, "name": f"User {i}"} for i in ids if i != "missing"}
+
+        @batch_load(
+            batch_method="find_users",
+            l1_max_size=100,
+            l1_ttl_seconds=5.0,
+            l2_cache=l2,
+            l2_ttl_seconds=300.0,
+            negative_ttl_seconds=5.0,
+            window_seconds=0.005,
+        )
+        async def find_user(self, user_id: str) -> dict[str, str] | None:
+            return None
+
+    svc = MultiTierUserService()
+
+    # 1. Initial query -> misses L1 & L2 -> fetches from L3 DB -> backfills L2 & L1
+    u1 = await svc.find_user("1")
+    assert u1 == {"id": "1", "name": "User 1"}
+    assert db_calls == 1
+    assert l2.set_count == 1
+    assert "1" in l2.data
+
+    # 2. Immediate second query -> hits L1 -> 0 new DB calls, 0 new MGET calls
+    u1_again = await svc.find_user("1")
+    assert u1_again == {"id": "1", "name": "User 1"}
+    assert db_calls == 1
+    assert l2.mget_count == 1  # Did not increment
+
+    # 3. Pre-populate L2 for user '2' -> hits L2, backfills L1, skips DB
+    import json
+
+    l2.data["2"] = json.dumps({"id": "2", "name": "From Redis"})
+    u2 = await svc.find_user("2")
+    assert u2 == {"id": "2", "name": "From Redis"}
+    assert db_calls == 1  # DB was skipped!
+    assert l2.mget_count == 2
+
+    # 4. Negative caching: query missing key
+    missing1 = await svc.find_user("missing")
+    assert missing1 is None
+    assert db_calls == 2
+
+    # Second query for missing key -> hits negative cache -> 0 new DB calls
+    missing2 = await svc.find_user("missing")
+    assert missing2 is None
+    assert db_calls == 2
+
+    # 5. Eviction test: clear user '1'
+    await svc.find_user.clear("1")  # type: ignore[attr-defined]
+    assert l2.del_count == 1
+    assert "1" not in l2.data
+
+    # Querying user '1' after eviction hits DB again
+    u1_refetched = await svc.find_user("1")
+    assert u1_refetched == {"id": "1", "name": "User 1"}
+    assert db_calls == 3
