@@ -1,15 +1,16 @@
 ---
 title: Reactive Call Coalescing (@batchLoad)
-description: Transparent query batching (DataLoader pattern) and in-flight deduplication (SingleFlight) across Go, TypeScript, and Python.
+description: Transparent query batching (DataLoader), in-flight deduplication (SingleFlight), and multi-tier caching (L1 memory + L2 Redis MGET).
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-# Reactive Call Coalescing & Batch Loading
+# Reactive Call Coalescing & Multi-Tier Batch Loading
 
-When microservices or GraphQL/REST resolvers resolve entities individually (e.g. iterating over a list of items and calling `repo.findById(item.id)`), systems suffer from the **N+1 query problem**, network round-trip overhead, and database connection pool starvation under high concurrency.
+When microservices or resolvers resolve entities individually (e.g. iterating over a list of items and calling `repo.findById(item.id)`), systems suffer from the **N+1 query problem**, network round-trip overhead, and database connection pool starvation under high concurrency.
 
-The Call Coalescing subsystem transparently intercepts concurrent individual lookups within a microtask tick or fixed time window (e.g., 500µs–2ms) and batches them into a single consolidated bulk operation (e.g., `WHERE id IN (...)` or `MGET`), while concurrently deduplicating identical in-flight keys.
+The Call Coalescing subsystem transparently intercepts concurrent individual lookups within a microtask tick or fixed time window (e.g., 500µs–2ms) and routes them through a coordinated **3-tier read hierarchy**:
+`L1 In-Memory LRU ➔ L2 Distributed Redis MGET ➔ L3 Database Batch Query`
 
 ```mermaid
 sequenceDiagram
@@ -17,28 +18,49 @@ sequenceDiagram
     actor CallerA as Concurrent Caller A (ID=1)
     actor CallerB as Concurrent Caller B (ID=2)
     actor CallerC as Concurrent Caller C (ID=1)
-    participant Coalescer as Coalesce Queue / SingleFlight
-    participant DB as Database / Remote API
+    participant Coalescer as Coalesce Pipeline
+    participant L1 as L1 In-Memory LRU (RAM)
+    participant L2 as L2 Distributed Redis (MGET)
+    participant DB as L3 Database Batch
 
     CallerA->>Coalescer: load(ID=1)
     CallerB->>Coalescer: load(ID=2)
     CallerC->>Coalescer: load(ID=1) (In-Flight Dedup)
-    Note over Coalescer: Microtask Tick / Buffer Window
-    Coalescer->>DB: Batch Query: WHERE id IN (1, 2)
-    DB-->>Coalescer: Returns Map: {1: Data1, 2: Data2}
-    Coalescer-->>CallerA: Resolves Data1
-    Coalescer-->>CallerB: Resolves Data2
-    Coalescer-->>CallerC: Resolves Data1 (Shared Promise)
+    Note over Coalescer: Microtask Tick / Window
+
+    Coalescer->>L1: Check L1 RAM
+    L1-->>Coalescer: Hit: 1 found in RAM! (Miss: 2)
+    Coalescer-->>CallerA: Resolves Data 1 (<0.01ms)
+    Coalescer-->>CallerC: Resolves Data 1 (Shared Promise)
+
+    Coalescer->>L2: Bulk MGET [2]
+    L2-->>Coalescer: Hit: 2 found in Redis!
+    Coalescer->>L1: Backfills Data 2 into RAM
+    Coalescer-->>CallerB: Resolves Data 2 (~0.5ms)
 ```
 
 ---
 
 ## Key Features
 
-- **Microtask Event Loop Coalescing**: By default, lookups queued in the exact same event loop tick (`queueMicrotask` / `process.nextTick` in Node, `call_soon` in Python) coalesce without artificial sleep delays.
-- **In-Flight Deduplication (SingleFlight)**: Multiple concurrent callers asking for the same key await the same in-flight future or batch entry, avoiding redundant database lookups.
-- **Context Cancellation Isolation**: In Go, individual caller context cancellations do not abort shared batch execution unless all callers abort.
-- **Request-Scoped Tenant Isolation**: Pass `AsyncLocalStorage` in Node or `contextvars.ContextVar` in Python to guarantee batch buffers never leak across distinct tenants or request boundaries.
+- **Microtask Event Loop Coalescing**: Lookups queued in the exact same event loop tick (`queueMicrotask` in Node, `call_soon` in Python) coalesce without artificial sleep delays.
+- **In-Flight Deduplication (SingleFlight)**: Multiple concurrent callers asking for the same key await the same in-flight future or batch entry, avoiding redundant database or cache lookups.
+- **Multi-Tier Caching (L1/L2/L3)**:
+  - **L1 RAM**: Microsecond lookups without network hops. Bounded by LRU capacity and micro-TTL.
+  - **L2 Redis MGET**: Bulk pipelined read for L1 misses in a single network round-trip.
+  - **L3 DB Query**: Fallback for remaining misses (`WHERE id IN (...)`). Automatically backfills L2 and L1.
+- **Cache Penetration Defense (Negative Caching)**: Non-existent keys in the database are cached as empty sentinels for a short negative TTL (e.g. 5s) to protect the DB from malicious or high-rate 404 queries.
+- **Explicit Cache Eviction**: Call `.clear(key)` on write/delete operations to immediately purge both L1 memory and L2 Redis.
+
+---
+
+## Stale Data Prevention & Consistency Profiles
+
+| Profile | Staleness Window | Invalidation Mechanism | Ideal Use Case |
+|---|---|---|---|
+| **Request-Scoped (Default)** | **0 ms (Zero)** | L1 is destroyed when request/tick completes | Financial transactions, orders, account balances |
+| **Micro-TTL LRU** | **< 1–5 seconds** | Bounded LRU with micro-expiration (e.g. 5s) | High-volume read feeds, product catalogs, public profiles |
+| **Active Eviction (`clear`)** | **~1–2 ms** | `method.clear(id)` purges L1 locally + L2 in Redis | Standard CRUD entity repositories on update/delete |
 
 ---
 
@@ -47,24 +69,33 @@ sequenceDiagram
 <Tabs syncKey="lang">
   <TabItem label="TypeScript / Node" icon="seti:typescript">
 ```typescript
-import { batchLoad } from '@montionugera/server-decorator';
+import { batchLoad, MGetCacheAdapter } from '@montionugera/server-decorator';
 
 export class UserService {
-  // Batch loader method that accepts an array of IDs
+  // Batch loader method executed only for true cache misses
   async findUsersByIds(ids: string[]): Promise<Map<string, User>> {
     const users = await db.users.findMany({ where: { id: { in: ids } } });
     return new Map(users.map(u => [u.id, u]));
   }
 
-  // Individual lookup method decorated with @batchLoad
+  // Individual lookup method decorated with @batchLoad and multi-tier cache
   @batchLoad({
     batchMethod: 'findUsersByIds',
     deduplicate: true,
-    maxBatchSize: 100,
+    cache: {
+      l1: { maxEntries: 10000, ttlMs: 5000 },
+      l2: { adapter: redisAdapter, ttlSeconds: 300 },
+      negativeTtlSeconds: 5,
+    },
   })
   async findUserById(id: string): Promise<User | undefined> {
-    // Transparently intercepted and dispatched via findUsersByIds
     return undefined;
+  }
+
+  async updateUser(id: string, data: Partial<User>) {
+    await db.users.update({ where: { id }, data });
+    // Invalidate L1 and L2 across the cluster
+    await (this.findUserById as any).clear(id);
   }
 }
 ```
@@ -76,14 +107,24 @@ from server_decorator import batch_load
 
 class UserService:
     async def find_users_by_ids(self, ids: list[str]) -> dict[str, dict]:
-        # Bulk query executed once
         users = await db.users.find({"_id": {"$in": ids}}).to_list(length=len(ids))
         return {u["_id"]: u for u in users}
 
-    @batch_load(batch_method="find_users_by_ids", deduplicate=True, max_batch_size=100)
+    @batch_load(
+        batch_method="find_users_by_ids",
+        l1_max_size=10000,
+        l1_ttl_seconds=5.0,
+        l2_cache=redis_adapter,
+        l2_ttl_seconds=300.0,
+        negative_ttl_seconds=5.0,
+    )
     async def find_user_by_id(self, user_id: str) -> dict | None:
-        # Transparently coalesced in the same event-loop tick
         return None
+
+    async def update_user(self, user_id: str, data: dict) -> None:
+        await db.users.update_one({"_id": user_id}, {"$set": data})
+        # Evict key from L1 and L2
+        await self.find_user_by_id.clear(user_id)
 ```
   </TabItem>
 
@@ -99,19 +140,27 @@ import (
 )
 
 func main() {
-    // Create a pure standard-library coalesce loader
-    loader := coalesce.NewLoader(coalesce.LoaderConfig[string, *User]{
+    loader := coalesce.NewMultiTierLoader(coalesce.MultiTierConfig[string, *User]{
+        L1Capacity:   10000,
+        L1TTL:        5 * time.Second,
+        L2Cache:      redisAdapter, // Implements coalesce.MGetCache
+        L2TTL:        5 * time.Minute,
+        NegativeTTL:  5 * time.Second,
         MaxBatchSize: 100,
         BatchTimeout: 1 * time.Millisecond,
-        BatchFn: func(ctx context.Context, keys []string) (map[string]*User, error) {
-            // Executed once with all keys collected in the window
-            return db.FindUsersByIDs(ctx, keys)
+        BatchFn: func(ctx context.Context, missKeys []string) (map[string]*User, error) {
+            return db.FindUsersByIDs(ctx, missKeys)
         },
+        Serialize:   serializeUser,
+        Deserialize: deserializeUser,
     })
     defer loader.Close()
 
-    // Callers load individual keys concurrently:
+    // Concurrent callers resolve via L1 -> L2 MGET -> L3 DB
     user, err := loader.Load(ctx, "user-123")
+
+    // On mutation, evict from all tiers:
+    _ = loader.Clear(ctx, "user-123")
 }
 ```
   </TabItem>
@@ -119,11 +168,14 @@ func main() {
 
 ---
 
-## Configuration Options
+## Configuration Reference
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `maxBatchSize` | `number` / `int` | `100` | Maximum number of keys collected before immediately dispatching a batch. |
 | `windowMs` / `BatchTimeout` | `number` / `Duration` | `0` (Microtask tick) | Buffer window duration. If `0`, dispatches on the event loop's microtask tick. |
 | `deduplicate` | `boolean` / `bool` | `true` | If true, concurrent lookups for the identical key share the same in-flight promise. |
-| `contextStorage` / `context_var` | Object | `None` | Optional request context store (`AsyncLocalStorage` or `ContextVar`) for multi-tenant isolation. |
+| `l1.maxEntries` / `L1Capacity` | `number` / `int` | `10000` | Maximum entries retained in local process RAM LRU cache. |
+| `l1.ttlMs` / `L1TTL` | `number` / `Duration` | `0` (tick only) | In-memory LRU TTL. Set to small micro-TTL (1–5s) for read-heavy workloads. |
+| `l2.adapter` / `L2Cache` | Adapter / Interface | `None` | Distributed cache adapter implementing bulk `mget` and pipelined `setMany`. |
+| `negativeTtlSeconds` / `NegativeTTL` | `number` / `Duration` | `5s` | Duration to cache missing/non-existent keys to prevent cache penetration. |
