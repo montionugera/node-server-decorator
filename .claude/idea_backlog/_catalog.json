@@ -99,6 +99,6 @@
     "id": "I-017",
     "title": "Reactive call coalescing & batch loading: transparent DataLoader + SingleFlight for microservices",
     "created_at": "2026-09-19T15:57:37.600619+00:00",
-    "promoted_to": null
+    "promoted_to": "F-014"
   }
 ]
