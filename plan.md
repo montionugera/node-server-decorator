@@ -19,11 +19,11 @@
 - Produces: `NewCircuitBreaker(opts CircuitBreakerOptions) *CircuitBreaker` and `CircuitBreakerWrapper[In, Out any](cb *CircuitBreaker, fn ...)`
 - Produces: `NewTokenBucketLimiter(capacity float64, refillRate float64) *TokenBucketLimiter` and `RateLimit[In, Out any](limiter *TokenBucketLimiter, fn ...)`
 
-- [ ] **Step 1: Write unit tests in `retry_test.go`, `circuit_breaker_test.go`, and `rate_limit_test.go`**
-- [ ] **Step 2: Run tests to verify red/missing state**
-- [ ] **Step 3: Implement `retry.go`, `circuit_breaker.go`, and `rate_limit.go` in `go/core`**
-- [ ] **Step 4: Run `CGO_ENABLED=0 go test -v ./go/core/...` and verify green**
-- [ ] **Step 5: Git commit**
+- [x] **Step 1: Write unit tests in `retry_test.go`, `circuit_breaker_test.go`, and `rate_limit_test.go`**
+- [x] **Step 2: Run tests to verify red/missing state**
+- [x] **Step 3: Implement `retry.go`, `circuit_breaker.go`, and `rate_limit.go` in `go/core`**
+- [x] **Step 4: Run `CGO_ENABLED=0 go test -v ./go/core/...` and verify green**
+- [x] **Step 5: Git commit**
 
 ---
 
@@ -43,11 +43,11 @@
 - Produces: `@circuitBreaker(options?: CircuitBreakerOptions)` & `CircuitBreakerOpenError`
 - Produces: `@rateLimit(options?: RateLimitOptions)` & `RateLimitExceededError`
 
-- [ ] **Step 1: Write test specifications for retry, circuit breaker, and rate limiter**
-- [ ] **Step 2: Run tests to verify failures**
-- [ ] **Step 3: Implement decorators in `src/decorators/` and export in `src/index.ts`**
-- [ ] **Step 4: Run `pnpm --filter @montionugera/server-decorator test:unit` and verify all tests pass**
-- [ ] **Step 5: Git commit**
+- [x] **Step 1: Write test specifications for retry, circuit breaker, and rate limiter**
+- [x] **Step 2: Run tests to verify failures**
+- [x] **Step 3: Implement decorators in `src/decorators/` and export in `src/index.ts`**
+- [x] **Step 4: Run `pnpm --filter @montionugera/server-decorator test:unit` and verify all tests pass**
+- [x] **Step 5: Git commit**
 
 ---
 
@@ -71,10 +71,10 @@
 - Produces: `@rate_limit`, `@rate_limit_class`, `RateLimitExceededError`
 - Resolves: Decision N1: `wrap_properties=True` in `_class_apply.py` wraps `@property` getters/setters.
 
-- [ ] **Step 1: Write pytest test cases for retry, circuit breaker, rate limiter, and property wrapping**
-- [ ] **Step 2: Implement resilience modules and update `_class_apply.py`**
-- [ ] **Step 3: Run `uv run --package server-decorator --extra dev pytest packages/core/tests/unit` and verify green**
-- [ ] **Step 4: Git commit**
+- [x] **Step 1: Write pytest test cases for retry, circuit breaker, rate limiter, and property wrapping**
+- [x] **Step 2: Implement resilience modules and update `_class_apply.py`**
+- [x] **Step 3: Run `uv run --package server-decorator --extra dev pytest packages/core/tests/unit` and verify green**
+- [x] **Step 4: Git commit**
 
 ---
 
@@ -84,3 +84,7 @@
 - Create: `website/src/content/docs/core/resilience.mdx`
 - Run `bash scripts/contributor-check.sh`
 - Execute `psrw ship`
+
+- [x] **Step 1: Create documentation in `website/src/content/docs/core/resilience.mdx`**
+- [x] **Step 2: Run `bash scripts/contributor-check.sh` and verify all 7 gates pass**
+- [ ] **Step 3: Execute `psrw ship`**
