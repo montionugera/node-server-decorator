@@ -1,96 +1,90 @@
-# Implementation Plan - F-011: Universal SSE Transport & Scoped Auth Middleware
+# Implementation Plan - F-012: Polyglot Resilience Suite (@retry, @circuit_breaker, @rate_limit) & Property Wrapping
 
-**Goal:** Implement real-time Server-Sent Events (SSE) streaming transport and declarative scope-based authorization middleware across Go, Node/TypeScript, and Python.
-
-**Architecture:**
-- Real-Time Streaming: Standardized `text/event-stream` with heartbeat ping, non-blocking subscriber queues, and `Last-Event-ID` resume.
-- Declarative Auth: Matches `spec.Security` against extracted caller scopes, producing standardized RFC 9457 `401 Unauthorized` and `403 Forbidden` Problem Details across all runtimes.
+**Goal (Verbatim):** Open release 2.1, refine idea I-002, and implement the polyglot Resilience Suite (@retry, @circuit_breaker, @rate_limit) across Go, Node/TypeScript, and Python.
 
 ---
 
-### Task 1: Go SSE Transport Engine (`go/sse`)
+### Task 1: Go Resilience Engine (`go/core`)
 
 **Files:**
-- Create: `go/sse/event.go`
-- Create: `go/sse/broadcaster.go`
-- Create: `go/sse/sse_test.go`
+- Create: `go/core/retry.go`
+- Create: `go/core/retry_test.go`
+- Create: `go/core/circuit_breaker.go`
+- Create: `go/core/circuit_breaker_test.go`
+- Create: `go/core/rate_limit.go`
+- Create: `go/core/rate_limit_test.go`
 
 **Interfaces:**
-- Produces: `Broadcaster[T]` with `Subscribe()`, `Publish()`, and `ServeHTTP()`.
+- Produces: `Retry[In, Out any](opts RetryOptions, fn func(context.Context, In) (Out, error))`
+- Produces: `NewCircuitBreaker(opts CircuitBreakerOptions) *CircuitBreaker` and `CircuitBreakerWrapper[In, Out any](cb *CircuitBreaker, fn ...)`
+- Produces: `NewTokenBucketLimiter(capacity float64, refillRate float64) *TokenBucketLimiter` and `RateLimit[In, Out any](limiter *TokenBucketLimiter, fn ...)`
 
-- [ ] **Step 1: Write unit tests for Go SSE broadcaster**
-  Test subscriber connect, event receipt, keep-alive ping emission, non-blocking queue overflow protection, and `Last-Event-ID` replay.
-- [ ] **Step 2: Run test to verify it fails**
-  Run `CGO_ENABLED=0 go test ./go/sse/...` (fails).
-- [ ] **Step 3: Implement `go/sse/event.go` and `go/sse/broadcaster.go`**
-  Implement pure standard library `http.Flusher`-based SSE handler with generic types and zero external dependencies.
-- [ ] **Step 4: Run tests to verify they pass**
-  Run `CGO_ENABLED=0 go test -v ./go/sse/...` (passes).
-- [ ] **Step 5: Commit**
-  Stage and commit Task 1.
+- [x] **Step 1: Write unit tests in `retry_test.go`, `circuit_breaker_test.go`, and `rate_limit_test.go`**
+- [x] **Step 2: Run tests to verify red/missing state**
+- [x] **Step 3: Implement `retry.go`, `circuit_breaker.go`, and `rate_limit.go` in `go/core`**
+- [x] **Step 4: Run `CGO_ENABLED=0 go test -v ./go/core/...` and verify green**
+- [x] **Step 5: Git commit**
 
 ---
 
-### Task 2: Go Scoped Authorization Middleware (`go/http`)
+### Task 2: Node/TypeScript Resilience Suite (`node/packages/core`)
 
 **Files:**
-- Modify: `go/http/router.go`
-- Create: `go/http/auth.go`
-- Create: `go/http/auth_test.go`
+- Create: `node/packages/core/src/decorators/retry.ts`
+- Create: `node/packages/core/src/decorators/retry.spec.ts`
+- Create: `node/packages/core/src/decorators/circuit-breaker.ts`
+- Create: `node/packages/core/src/decorators/circuit-breaker.spec.ts`
+- Create: `node/packages/core/src/decorators/rate-limit.ts`
+- Create: `node/packages/core/src/decorators/rate-limit.spec.ts`
+- Modify: `node/packages/core/src/index.ts`
 
 **Interfaces:**
-- Produces: `type ScopeExtractor func(r *http.Request) (authenticated bool, scopes []string, err error)`
-- Produces: `MountRoutesWithAuth(mux *http.ServeMux, spec entity.Spec, handler EntityHandler, auth ScopeExtractor)`
+- Produces: `@retry(options?: RetryOptions)`
+- Produces: `@circuitBreaker(options?: CircuitBreakerOptions)` & `CircuitBreakerOpenError`
+- Produces: `@rateLimit(options?: RateLimitOptions)` & `RateLimitExceededError`
 
-- [ ] **Step 1: Write auth middleware tests in `go/http/auth_test.go`**
-  Test public endpoints allow access, protected endpoints without token return 401 Problem Details, and endpoints with missing scopes return 403 Problem Details.
-- [ ] **Step 2: Run tests to verify they fail**
-  Run `CGO_ENABLED=0 go test ./go/http/...` (fails).
-- [ ] **Step 3: Implement `go/http/auth.go`**
-  Evaluate `spec.Security.Ops[op]` and `spec.Security.Actions[act]` against caller scopes.
-- [ ] **Step 4: Verify all tests pass**
-  Run `CGO_ENABLED=0 go test -v ./go/http/...`.
-- [ ] **Step 5: Commit**
-  Stage and commit Task 2.
+- [x] **Step 1: Write test specifications for retry, circuit breaker, and rate limiter**
+- [x] **Step 2: Run tests to verify failures**
+- [x] **Step 3: Implement decorators in `src/decorators/` and export in `src/index.ts`**
+- [x] **Step 4: Run `pnpm --filter @montionugera/server-decorator test:unit` and verify all tests pass**
+- [x] **Step 5: Git commit**
 
 ---
 
-### Task 3: TypeScript/Node SSE Transport & Auth Middleware
+### Task 3: Python Resilience Suite & Property Wrapping (`python/packages/core`)
 
 **Files:**
-- Create: `node/packages/core/src/sse/broadcaster.ts`
-- Create: `node/packages/core/src/sse/broadcaster.spec.ts`
-- Create: `node/packages/core/src/middleware/scope-auth.ts`
-- Create: `node/packages/core/src/middleware/scope-auth.spec.ts`
+- Create: `python/packages/core/src/server_decorator/decorators/retry.py`
+- Create: `python/packages/core/src/server_decorator/decorators/circuit_breaker.py`
+- Create: `python/packages/core/src/server_decorator/decorators/rate_limit.py`
+- Modify: `python/packages/core/src/server_decorator/decorators/_class_apply.py` (N1 resolution)
+- Modify: `python/packages/core/src/server_decorator/decorators/__init__.py`
+- Modify: `python/packages/core/src/server_decorator/__init__.py`
+- Create: `python/packages/core/tests/unit/test_retry.py`
+- Create: `python/packages/core/tests/unit/test_circuit_breaker.py`
+- Create: `python/packages/core/tests/unit/test_rate_limit.py`
+- Create: `python/packages/core/tests/unit/test_property_wrapping.py`
 
-- [ ] **Step 1: Write test for Node SSE Broadcaster & Auth Middleware**
-- [ ] **Step 2: Implement SSE broadcaster with heartbeat and client registry**
-- [ ] **Step 3: Implement scope auth middleware with RFC 9457 Problem Details**
-- [ ] **Step 4: Run tests via `pnpm -r test:unit`**
-- [ ] **Step 5: Commit**
-  Stage and commit Task 3.
+**Interfaces:**
+- Produces: `@retry`, `@retry_class`
+- Produces: `@circuit_breaker`, `@circuit_breaker_class`, `CircuitBreakerOpenError`
+- Produces: `@rate_limit`, `@rate_limit_class`, `RateLimitExceededError`
+- Resolves: Decision N1: `wrap_properties=True` in `_class_apply.py` wraps `@property` getters/setters.
+
+- [x] **Step 1: Write pytest test cases for retry, circuit breaker, rate limiter, and property wrapping**
+- [x] **Step 2: Implement resilience modules and update `_class_apply.py`**
+- [x] **Step 3: Run `uv run --package server-decorator --extra dev pytest packages/core/tests/unit` and verify green**
+- [x] **Step 4: Git commit**
 
 ---
 
-### Task 4: Python SSE Transport & Auth Middleware
+### Task 4: Documentation, Verification & Ship
 
 **Files:**
-- Create: `python/packages/core/src/server_decorator/sse.py`
-- Create: `python/packages/core/src/server_decorator/middleware/auth.py`
-- Create: `python/packages/core/tests/unit/test_sse.py`
-- Create: `python/packages/core/tests/unit/test_auth_middleware.py`
+- Create: `website/src/content/docs/core/resilience.mdx`
+- Run `bash scripts/contributor-check.sh`
+- Execute `psrw ship`
 
-- [ ] **Step 1: Write pytest test cases for Python SSE & Auth**
-- [ ] **Step 2: Implement `AsyncSSEBroadcaster` and scope auth dependency**
-- [ ] **Step 3: Run `uv run pytest` and verify passing**
-- [ ] **Step 4: Commit**
-  Stage and commit Task 4.
-
----
-
-### Task 5: Documentation & Release Quality Gate
-
-**Files:**
-- Modify: `website/src/content/docs/`
-- Modify: `scripts/contributor-check.sh`
-- Verify full contributor gate and cross-language parity.
+- [x] **Step 1: Create documentation in `website/src/content/docs/core/resilience.mdx`**
+- [x] **Step 2: Run `bash scripts/contributor-check.sh` and verify all 7 gates pass**
+- [ ] **Step 3: Execute `psrw ship`**
