@@ -18,6 +18,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 | **`KafkaAdapter`** | Apache Kafka topics via kafkajs (Node) / aiokafka (Python) | Production |
 | **`InMemoryQueueAdapter`** | In-process queue for unit tests and local development | Included |
 | **`BullMQAdapter`** | BullMQ Redis queues (Node only) | Production |
+| **`GinAdapter`** | Native route mounting & scope auth for Go Gin framework (`go/adapter/gin`) | Production |
 
 ---
 
@@ -58,4 +59,33 @@ global_queue_registry.register("default", redis_queue)
 set_global_cache_adapter(RedisCacheAdapter(url="redis://localhost:6379"))
 ```
   </TabItem>
+  <TabItem label="Go (Gin)" icon="seti:go">
+```go
+package main
+
+import (
+	"github.com/gin-gonic/gin"
+	ginadapter "github.com/montionugera/node-server-decorator/v2/go/adapter/gin"
+)
+
+func main() {
+	r := gin.Default()
+
+	// Extract caller authentication and scopes from Gin context
+	extractor := func(c *gin.Context) (bool, []string, error) {
+		token := c.GetHeader("Authorization")
+		if token == "Bearer admin-token" {
+			return true, []string{"user:write", "user:admin"}, nil
+		}
+		return true, []string{"user:read"}, nil
+	}
+
+	// Mounts CRUD and Action routes onto Gin with RFC 9457 errors & scope auth
+	ginadapter.MountRoutes(r, UserSpec, &UserHandler{}, ginadapter.WithAuth(extractor))
+
+	r.Run(":8080")
+}
+```
+  </TabItem>
 </Tabs>
+
