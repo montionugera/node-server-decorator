@@ -57,14 +57,14 @@ type multiTierRequest[V any] struct {
 }
 
 type multiTierBatch[K comparable, V any] struct {
-	keys         []K
-	keyMap       map[K]bool
-	requests     map[K][]*multiTierRequest[V]
-	timer        *time.Timer
-	ctx          context.Context
-	cancelBatch  context.CancelFunc
-	callerCount  int32
-	dispatched   bool
+	keys        []K
+	keyMap      map[K]bool
+	requests    map[K][]*multiTierRequest[V]
+	timer       *time.Timer
+	ctx         context.Context
+	cancelBatch context.CancelFunc
+	callerCount int32
+	dispatched  bool
 }
 
 // NewMultiTierLoader creates a new 3-tier coalescing loader.

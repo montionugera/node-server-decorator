@@ -362,4 +362,3 @@ async def test_batch_load_cascading_prefetch() -> None:
     assert item1 == {"id": "it-1-1", "title": "Item it-1-1"}
     assert item2 == {"id": "it-2-1", "title": "Item it-2-1"}
     assert item_db_calls == 1  # No new DB call!
-

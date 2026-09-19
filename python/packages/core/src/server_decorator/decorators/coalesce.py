@@ -118,7 +118,10 @@ class BatchQueue(Generic[K, V]):
         self._background_tasks: set[asyncio.Task[Any]] = set()
 
     def _spawn_task(self, coro: Awaitable[Any]) -> None:
-        task = asyncio.create_task(coro)
+        async def _run() -> Any:
+            return await coro
+
+        task: asyncio.Task[Any] = asyncio.create_task(_run())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
