@@ -1,0 +1,197 @@
+---
+title: Resilience Suite (@retry, @circuit_breaker, @rate_limit)
+description: Declarative fault tolerance across Go, Node/TypeScript, and Python with exponential backoff retries, 3-state circuit breaking, and token bucket rate limiting.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Resilience Suite
+
+`server-decorator` includes a unified resilience suite across Go, Node/TypeScript, and Python to safeguard microservices against network volatility, cascading failures, and resource exhaustion.
+
+---
+
+## 1. Retry with Exponential Backoff & Jitter (`@retry`)
+
+Automatically retries transient failures with configurable exponential backoff, randomized jitter, and custom error predicates.
+
+### Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { retry } from '@montionugera/server-decorator';
+
+export class PaymentClient {
+  @retry({
+    maxAttempts: 3,
+    backoffMs: 100,
+    maxBackoffMs: 2000,
+    factor: 2.0,
+    jitter: true,
+    retryIf: (err) => err.message.includes('timeout'),
+  })
+  async processPayment(orderId: string): Promise<PaymentReceipt> {
+    return api.post(`/orders/${orderId}/pay`);
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import retry, retry_class
+
+class PaymentClient:
+    @retry(
+        max_attempts=3,
+        backoff_ms=100.0,
+        max_backoff_ms=2000.0,
+        factor=2.0,
+        jitter=True,
+    )
+    async def process_payment(self, order_id: str) -> dict:
+        return await api.post(f"/orders/{order_id}/pay")
+```
+  </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+import (
+    "context"
+    "time"
+    "github.com/montionugera/node-server-decorator/v2/go/core"
+)
+
+retryOpts := core.RetryOptions{
+    MaxAttempts:     3,
+    InitialInterval: 100 * time.Millisecond,
+    MaxInterval:     2 * time.Second,
+    Multiplier:      2.0,
+    Jitter:          true,
+}
+
+processPayment := core.Retry(retryOpts, func(ctx context.Context, orderID string) (Receipt, error) {
+    return client.Pay(ctx, orderID)
+})
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## 2. Circuit Breaker (`@circuit_breaker` / `@circuitBreaker`)
+
+Prevents cascading failures by monitoring error rates with a 3-state state machine:
+- **`CLOSED`**: Requests proceed normally. Consecutive failures increase the failure count.
+- **`OPEN`**: Tripped when failures reach `failureThreshold`. Incoming calls fail immediately with `CircuitBreakerOpenError` (or trigger an optional fallback) without touching downstream services.
+- **`HALF-OPEN`**: After `recoveryTimeout`, trial requests are admitted to test if downstream services have recovered.
+
+### Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { circuitBreaker, CircuitBreakerOpenError } from '@montionugera/server-decorator';
+
+export class InventoryService {
+  @circuitBreaker({
+    name: 'inventory-svc',
+    failureThreshold: 5,
+    recoveryTimeoutMs: 5000,
+    fallback: (err, ...args) => ({ cached: true, available: false }),
+  })
+  async checkStock(sku: string) {
+    return upstreamInventory.query(sku);
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import circuit_breaker, CircuitBreakerOpenError
+
+class InventoryService:
+    @circuit_breaker(
+        name="inventory-svc",
+        failure_threshold=5,
+        recovery_timeout_ms=5000.0,
+        fallback=lambda err, *args: {"cached": True, "available": False},
+    )
+    async def check_stock(self, sku: str) -> dict:
+        return await upstream_inventory.query(sku)
+```
+  </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+import (
+    "context"
+    "time"
+    "github.com/montionugera/node-server-decorator/v2/go/core"
+)
+
+cb := core.NewCircuitBreaker(core.CircuitBreakerOptions{
+    Name:             "inventory-svc",
+    FailureThreshold: 5,
+    RecoveryTimeout:  5 * time.Second,
+})
+
+checkStock := core.CircuitBreakerWrapper(cb, nil, func(ctx context.Context, sku string) (StockInfo, error) {
+    return upstream.Check(ctx, sku)
+})
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## 3. Token-Bucket Rate Limiter (`@rate_limit` / `@rateLimit`)
+
+Provides burst protection and throughput smoothing using continuous token bucket replenishment.
+
+### Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { rateLimit } from '@montionugera/server-decorator';
+
+export class ApiGateway {
+  @rateLimit({
+    capacity: 20, // Max burst tokens
+    refillRate: 10, // 10 tokens per second
+    keyExtractor: (userId: string) => userId, // Per-user bucket
+  })
+  async search(userId: string, query: string) {
+    return searchEngine.query(query);
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import rate_limit
+
+class ApiGateway:
+    @rate_limit(
+        capacity=20.0,
+        refill_rate=10.0,
+        key_extractor=lambda user_id, query: str(user_id),
+    )
+    async def search(self, user_id: str, query: str) -> list:
+        return await search_engine.query(query)
+```
+  </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+import (
+    "context"
+    "github.com/montionugera/node-server-decorator/v2/go/core"
+)
+
+limiter := core.NewTokenBucketLimiter(20.0, 10.0)
+
+search := core.RateLimit(limiter, func(ctx context.Context, query string) (Result, error) {
+    return searchEngine.Query(ctx, query)
+})
+```
+  </TabItem>
+</Tabs>

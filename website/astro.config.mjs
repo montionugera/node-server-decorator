@@ -43,6 +43,7 @@ export default defineConfig({
 						{ label: 'Queue Emission (@EmitOnSuccess)', slug: 'core/emit-on-success' },
 						{ label: 'Real-Time SSE Streaming', slug: 'core/sse' },
 						{ label: 'Scoped Authorization', slug: 'core/auth' },
+						{ label: 'Resilience Suite (@retry, @circuit_breaker, @rate_limit)', slug: 'core/resilience' },
 						{ label: 'Adapters & Transports', slug: 'core/adapters' },
 					],
 				},
