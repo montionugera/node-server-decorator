@@ -138,4 +138,104 @@ describe('@batchLoad Decorator', () => {
     expect(res2.status).toBe('rejected');
     expect((res2 as PromiseRejectedResult).reason.message).toBe('Database connection failed');
   });
+
+  it('supports multi-tier L1 memory LRU and L2 distributed cache with backfill and eviction', async () => {
+    let dbCallCount = 0;
+    const l2Store = new Map<string, any>();
+    let mgetCallCount = 0;
+    let setManyCallCount = 0;
+    let delCallCount = 0;
+
+    const mockL2Adapter = {
+      async mget(keys: string[]) {
+        mgetCallCount++;
+        const res = new Map();
+        for (const k of keys) {
+          if (l2Store.has(k)) {
+            res.set(k, l2Store.get(k));
+          }
+        }
+        return res;
+      },
+      async setMany(items: Map<string, any>) {
+        setManyCallCount++;
+        for (const [k, v] of items.entries()) {
+          l2Store.set(k, v);
+        }
+      },
+      async del(keys: string[]) {
+        delCallCount++;
+        for (const k of keys) {
+          l2Store.delete(k);
+        }
+      },
+    };
+
+    class CachedUserService {
+      async findUsers(ids: string[]): Promise<Map<string, { id: string; name: string }>> {
+        dbCallCount++;
+        const map = new Map();
+        for (const id of ids) {
+          if (id !== 'missing') {
+            map.set(id, { id, name: 'User ' + id });
+          }
+        }
+        return map;
+      }
+
+      @batchLoad({
+        batchMethod: 'findUsers',
+        cache: {
+          l1: { maxEntries: 100, ttlMs: 5000 },
+          l2: { adapter: mockL2Adapter, ttlSeconds: 300 },
+          negativeTtlSeconds: 5,
+        },
+      })
+      async findUser(id: string): Promise<{ id: string; name: string } | undefined> {
+        return undefined;
+      }
+    }
+
+    const service = new CachedUserService();
+
+    // 1. Initial lookup -> misses L1 & L2 -> fetches from L3 DB
+    const u1 = await service.findUser('1');
+    expect(u1).toEqual({ id: '1', name: 'User 1' });
+    expect(dbCallCount).toBe(1);
+    expect(setManyCallCount).toBe(1);
+    expect(l2Store.get('1')).toEqual({ id: '1', name: 'User 1' });
+
+    // 2. Second lookup -> hits L1 immediately without DB or L2
+    const u1Again = await service.findUser('1');
+    expect(u1Again).toEqual({ id: '1', name: 'User 1' });
+    expect(dbCallCount).toBe(1);
+    expect(mgetCallCount).toBe(1); // Didn't increase
+
+    // 3. Pre-populate L2 for user '2', then query -> hits L2, backfills L1, skips DB
+    l2Store.set('2', { id: '2', name: 'From Redis' });
+    const u2 = await service.findUser('2');
+    expect(u2).toEqual({ id: '2', name: 'From Redis' });
+    expect(dbCallCount).toBe(1); // No new DB call!
+    expect(mgetCallCount).toBe(2);
+
+    // 4. Negative caching: query nonexistent key
+    const missing1 = await service.findUser('missing');
+    expect(missing1).toBeUndefined();
+    expect(dbCallCount).toBe(2);
+
+    // Immediate second query for 'missing' hits negative cache -> 0 new DB calls
+    const missing2 = await service.findUser('missing');
+    expect(missing2).toBeUndefined();
+    expect(dbCallCount).toBe(2);
+
+    // 5. Eviction test: clear user '1'
+    await (service.findUser as any).clear('1');
+    expect(delCallCount).toBe(1);
+    expect(l2Store.has('1')).toBe(false);
+
+    // Fetching user '1' again after eviction must hit DB again
+    const u1Refetched = await service.findUser('1');
+    expect(u1Refetched).toEqual({ id: '1', name: 'User 1' });
+    expect(dbCallCount).toBe(3);
+  });
 });
