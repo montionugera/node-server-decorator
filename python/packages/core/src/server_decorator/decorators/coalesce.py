@@ -1,7 +1,7 @@
-"""@batch_load decorator for transparent async call coalescing and batch loading.
+"""@batch_load decorator for transparent async call coalescing and multi-tier batch loading.
 
 Collects concurrent individual lookups within a micro-tick or time window and dispatches
-them as a single bulk operation, eliminating N+1 round trips and avoiding DB saturation.
+them through a 3-tier read hierarchy (L1 memory LRU, L2 distributed Redis MGET, L3 DB query).
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ import asyncio
 import contextvars
 import functools
 import inspect
+import json
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any, Generic, TypeVar, cast
 
@@ -18,6 +20,8 @@ from server_decorator.decorators._class_apply import _mark_wrapped
 F = TypeVar("F", bound=Callable[..., Any])
 K = TypeVar("K")
 V = TypeVar("V")
+
+_MISSING_SENTINEL = object()
 
 
 class QueuedItem(Generic[K, V]):
@@ -28,6 +32,40 @@ class QueuedItem(Generic[K, V]):
         self.key = key
 
 
+class LruCache:
+    def __init__(self, capacity: int = 10000, ttl_seconds: float = 0) -> None:
+        self.capacity = capacity
+        self.ttl_seconds = ttl_seconds
+        self._items: dict[Any, tuple[Any, float | None]] = {}
+
+    def get(self, key: Any) -> Any:
+        if key not in self._items:
+            return None
+        val, expires_at = self._items[key]
+        if expires_at is not None and time.monotonic() > expires_at:
+            del self._items[key]
+            return None
+        del self._items[key]
+        self._items[key] = (val, expires_at)
+        return val
+
+    def set(self, key: Any, val: Any, custom_ttl: float | None = None) -> None:
+        ttl = custom_ttl if custom_ttl is not None else self.ttl_seconds
+        expires_at = time.monotonic() + ttl if ttl > 0 else None
+        if key in self._items:
+            del self._items[key]
+        elif self.capacity > 0 and len(self._items) >= self.capacity:
+            oldest_key = next(iter(self._items))
+            del self._items[oldest_key]
+        self._items[key] = (val, expires_at)
+
+    def delete(self, key: Any) -> None:
+        self._items.pop(key, None)
+
+    def clear(self) -> None:
+        self._items.clear()
+
+
 class BatchQueue(Generic[K, V]):
     def __init__(
         self,
@@ -36,12 +74,30 @@ class BatchQueue(Generic[K, V]):
         window_seconds: float = 0.001,
         deduplicate: bool = True,
         key_of: Callable[[Any], K] | None = None,
+        l1_max_size: int = 0,
+        l1_ttl_seconds: float = 0,
+        l2_cache: Any = None,
+        l2_ttl_seconds: float = 0,
+        negative_ttl_seconds: float = 5,
+        serializer: Callable[[Any], str] | None = None,
+        deserializer: Callable[[str], Any] | None = None,
     ) -> None:
         self.loader_fn = loader_fn
         self.max_batch_size = max_batch_size
         self.window_seconds = window_seconds
         self.deduplicate = deduplicate
         self.key_of = key_of
+        self.l1_cache = (
+            LruCache(capacity=l1_max_size, ttl_seconds=l1_ttl_seconds)
+            if l1_max_size > 0 or l1_ttl_seconds > 0
+            else None
+        )
+        self.l2_cache = l2_cache
+        self.l2_ttl_seconds = l2_ttl_seconds
+        self.negative_ttl_seconds = negative_ttl_seconds
+        self.serializer = serializer or (lambda v: json.dumps(v))
+        self.deserializer = deserializer or (lambda s: json.loads(s) if isinstance(s, str) else s)
+
         self.queue: list[QueuedItem[K, V]] = []
         self.scheduled_handle: asyncio.TimerHandle | asyncio.Handle | None = None
         self.in_flight: dict[K, asyncio.Future[V]] = {}
@@ -55,10 +111,21 @@ class BatchQueue(Generic[K, V]):
     def load(self, key: K) -> asyncio.Future[V]:
         loop = asyncio.get_running_loop()
 
+        # 1. Immediate L1 check
+        if self.l1_cache is not None:
+            cached = self.l1_cache.get(key)
+            if cached is not None:
+                fut: asyncio.Future[V] = loop.create_future()
+                if cached is _MISSING_SENTINEL:
+                    fut.set_result(cast(V, None))
+                else:
+                    fut.set_result(cached)
+                return fut
+
         if self.deduplicate and key in self.in_flight:
             return self.in_flight[key]
 
-        fut: asyncio.Future[V] = loop.create_future()
+        fut = loop.create_future()
         self.queue.append(QueuedItem(key, fut))
 
         if self.deduplicate:
@@ -81,6 +148,16 @@ class BatchQueue(Generic[K, V]):
 
         return fut
 
+    async def clear(self, key: K) -> None:
+        if self.l1_cache is not None:
+            self.l1_cache.delete(key)
+        if self.l2_cache is not None:
+            del_fn = getattr(self.l2_cache, "delete", None) or getattr(self.l2_cache, "del", None)
+            if callable(del_fn):
+                res = del_fn([str(key)])
+                if inspect.isawaitable(res):
+                    await res
+
     def _schedule_dispatch(self, loop: asyncio.AbstractEventLoop) -> None:
         if self.window_seconds > 0:
             self.scheduled_handle = loop.call_later(
@@ -102,10 +179,60 @@ class BatchQueue(Generic[K, V]):
         if not batch:
             return
 
-        # Deduplicate keys while preserving order
+        # Phase A: L1 check
+        l1_misses: list[QueuedItem[K, V]] = []
+        for item in batch:
+            if self.l1_cache is not None:
+                cached = self.l1_cache.get(item.key)
+                if cached is not None:
+                    if not item.future.done():
+                        if cached is _MISSING_SENTINEL:
+                            item.future.set_result(cast(V, None))
+                        else:
+                            item.future.set_result(cached)
+                    continue
+            l1_misses.append(item)
+
+        if not l1_misses:
+            return
+
+        # Phase B: L2 Distributed Cache (MGET)
+        l2_misses: list[QueuedItem[K, V]] = []
+        if self.l2_cache is not None:
+            try:
+                mget_fn = getattr(self.l2_cache, "mget", None)
+                if callable(mget_fn):
+                    str_keys = list({str(it.key) for it in l1_misses})
+                    mget_res = mget_fn(str_keys)
+                    if inspect.isawaitable(mget_res):
+                        mget_res = await mget_res
+
+                    res_map = self._normalize_result(mget_res)
+                    for item in l1_misses:
+                        s_key = str(item.key)
+                        raw_val = res_map.get(s_key) or res_map.get(item.key)
+                        if raw_val is not None:
+                            val = self.deserializer(raw_val)
+                            if self.l1_cache is not None:
+                                self.l1_cache.set(item.key, val)
+                            if not item.future.done():
+                                item.future.set_result(val)
+                        else:
+                            l2_misses.append(item)
+                else:
+                    l2_misses = l1_misses
+            except Exception:
+                l2_misses = l1_misses
+        else:
+            l2_misses = l1_misses
+
+        if not l2_misses:
+            return
+
+        # Phase C: L3 Batch Loader
         unique_keys: list[K] = []
         seen: set[Any] = set()
-        for item in batch:
+        for item in l2_misses:
             if item.key not in seen:
                 seen.add(item.key)
                 unique_keys.append(item.key)
@@ -113,12 +240,33 @@ class BatchQueue(Generic[K, V]):
         try:
             raw_result = await self.loader_fn(unique_keys)
             result_map = self._normalize_result(raw_result)
+            l2_set_items: dict[str, Any] = {}
 
-            for item in batch:
+            for item in l2_misses:
                 if not item.future.done():
-                    item.future.set_result(result_map.get(item.key))
+                    if item.key in result_map:
+                        val = result_map[item.key]
+                        if self.l1_cache is not None:
+                            self.l1_cache.set(item.key, val)
+                        if self.l2_cache is not None:
+                            l2_set_items[str(item.key)] = self.serializer(val)
+                        item.future.set_result(val)
+                    else:
+                        # Negative cache
+                        if self.l1_cache is not None:
+                            self.l1_cache.set(
+                                item.key, _MISSING_SENTINEL, self.negative_ttl_seconds
+                            )
+                        item.future.set_result(cast(V, None))
+
+            if l2_set_items and self.l2_cache is not None:
+                set_fn = getattr(self.l2_cache, "set_many", None)
+                if callable(set_fn):
+                    set_res = set_fn(l2_set_items, self.l2_ttl_seconds)
+                    if inspect.isawaitable(set_res):
+                        await set_res
         except Exception as exc:
-            for item in batch:
+            for item in l2_misses:
                 if not item.future.done():
                     item.future.set_exception(exc)
 
@@ -155,14 +303,22 @@ def batch_load(
     deduplicate: bool = True,
     key_of: Callable[[Any], Any] | None = None,
     context_var: contextvars.ContextVar[Any] | None = None,
+    l1_max_size: int = 0,
+    l1_ttl_seconds: float = 0,
+    l2_cache: Any = None,
+    l2_ttl_seconds: float = 0,
+    negative_ttl_seconds: float = 5,
+    serializer: Callable[[Any], str] | None = None,
+    deserializer: Callable[[str], Any] | None = None,
 ) -> Callable[[F], F]:
-    """Decorator that coalesces individual async calls into a single batch call."""
+    """Decorator that coalesces individual async calls into a single multi-tier batch call."""
 
     def decorator(fn: F) -> F:
         if not inspect.iscoroutinefunction(fn):
             raise TypeError(f"@batch_load requires an async coroutine function, got {fn}")
 
         queues_by_scope: dict[Any, BatchQueue[Any, Any]] = {}
+        all_queues: set[BatchQueue[Any, Any]] = set()
 
         @functools.wraps(fn)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -205,11 +361,24 @@ def batch_load(
                     window_seconds=window_seconds,
                     deduplicate=deduplicate,
                     key_of=key_of,
+                    l1_max_size=l1_max_size,
+                    l1_ttl_seconds=l1_ttl_seconds,
+                    l2_cache=l2_cache,
+                    l2_ttl_seconds=l2_ttl_seconds,
+                    negative_ttl_seconds=negative_ttl_seconds,
+                    serializer=serializer,
+                    deserializer=deserializer,
                 )
                 queues_by_scope[scope_target] = queue
+                all_queues.add(queue)
 
             return await queue.load(key)
 
+        async def _clear(key: Any) -> None:
+            for q in list(all_queues):
+                await q.clear(key)
+
+        async_wrapper.clear = _clear  # type: ignore[attr-defined]
         _mark_wrapped(async_wrapper, "batch_load")
         return cast(F, async_wrapper)
 
