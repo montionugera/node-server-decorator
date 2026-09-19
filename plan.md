@@ -1,90 +1,126 @@
-# Implementation Plan - F-012: Polyglot Resilience Suite (@retry, @circuit_breaker, @rate_limit) & Property Wrapping
+# Reactive Call Coalescing Suite: DataLoader + SingleFlight Implementation Plan
 
-**Goal (Verbatim):** Open release 2.1, refine idea I-002, and implement the polyglot Resilience Suite (@retry, @circuit_breaker, @rate_limit) across Go, Node/TypeScript, and Python.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Implement a polyglot reactive call coalescing suite combining in-flight deduplication (SingleFlight) and micro-tick batching (DataLoader) across Go, Node/TypeScript, and Python with zero external dependencies in core.
+
+**Architecture:** 
+1. Go Core: `go/core/coalesce` provides a generic, pure-stdlib `Loader[K comparable, V any]` utilizing standard library channels, mutexes, and timers, with SingleFlight deduplication and detached root context execution with all-detached cancellation tracking.
+2. Node/TypeScript Core: `@batchLoad` method decorator in `node/packages/core` that wraps single-item lookups and coalesces concurrent calls on the microtask tick (`process.nextTick` / `queueMicrotask`), with options for in-flight deduplication and optional `AsyncLocalStorage` request-scoped context isolation.
+3. Python Core: `@batch_load` async decorator in `python/packages/core` integrating with `asyncio` event loop steps.
+
+**Tech Stack:** Go 1.22+ (stdlib only), TypeScript 5+ / Jest, Python 3.10+ / pytest.
+
+**Spec:** `docs/superpowers/specs/2026-09-19-reactive-call-coalescing-pipeline-design.md`
+
+## Global Constraints
+
+- Root `go.mod` MUST remain 100% pure standard library with zero external dependencies.
+- Debounce is strictly prohibited; all batching MUST use fixed-window micro-ticks or event-loop ticks.
+- Writes remain strictly explicit (`saveAll` or batch inserts) to preserve ACID transaction boundaries.
+- Polyglot contributor check (`scripts/contributor-check.sh`) MUST pass 7/7 gates without failure.
+- Every commit MUST be a new commit; never use `git commit --amend`.
 
 ---
 
-### Task 1: Go Resilience Engine (`go/core`)
+### Task 1: Pure Go Coalesce Loader (`go/core/coalesce`)
 
 **Files:**
-- Create: `go/core/retry.go`
-- Create: `go/core/retry_test.go`
-- Create: `go/core/circuit_breaker.go`
-- Create: `go/core/circuit_breaker_test.go`
-- Create: `go/core/rate_limit.go`
-- Create: `go/core/rate_limit_test.go`
+- Create: `go/core/coalesce/loader.go`
+- Create: `go/core/coalesce/singleflight.go`
+- Create: `go/core/coalesce/loader_test.go`
 
 **Interfaces:**
-- Produces: `Retry[In, Out any](opts RetryOptions, fn func(context.Context, In) (Out, error))`
-- Produces: `NewCircuitBreaker(opts CircuitBreakerOptions) *CircuitBreaker` and `CircuitBreakerWrapper[In, Out any](cb *CircuitBreaker, fn ...)`
-- Produces: `NewTokenBucketLimiter(capacity float64, refillRate float64) *TokenBucketLimiter` and `RateLimit[In, Out any](limiter *TokenBucketLimiter, fn ...)`
+- Produces: `type BatchFn[K comparable, V any] func(ctx context.Context, keys []K) (map[K]V, error)`
+- Produces: `type Config[K comparable, V any] struct { BatchFn BatchFn[K, V]; Window time.Duration; MaxBatchSize int; SingleFlight bool }`
+- Produces: `func New[K comparable, V any](cfg Config[K, V]) *Loader[K, V]`
+- Produces: `func (l *Loader[K, V]) Load(ctx context.Context, key K) (V, error)`
+- Produces: `func (l *Loader[K, V]) LoadMany(ctx context.Context, keys []K) (map[K]V, error)`
+- Produces: `func (l *Loader[K, V]) Prime(key K, val V)`
 
-- [x] **Step 1: Write unit tests in `retry_test.go`, `circuit_breaker_test.go`, and `rate_limit_test.go`**
-- [x] **Step 2: Run tests to verify red/missing state**
-- [x] **Step 3: Implement `retry.go`, `circuit_breaker.go`, and `rate_limit.go` in `go/core`**
-- [x] **Step 4: Run `CGO_ENABLED=0 go test -v ./go/core/...` and verify green**
-- [x] **Step 5: Git commit**
+**Deliverables & Steps:**
+- [ ] Write unit tests in `loader_test.go`:
+  - Test batching 50 concurrent `Load` calls into a single `BatchFn` invocation.
+  - Test `SingleFlight` deduplication: 10 concurrent requests for identical key execute `BatchFn` with only 1 unique key.
+  - Test context cancellation isolation: cancelling 1 caller's context returns context error to that caller without failing the batch for the remaining 49 callers. Only if all callers cancel does the underlying batch query abort.
+  - Test cache priming with `Prime(key, val)`.
+- [ ] Implement `singleflight.go`: lightweight concurrency primitive tracking in-flight keys and sharing result channels.
+- [ ] Implement `loader.go`: channel-based buffer queue with timer / `maxBatchSize` trigger and fan-out dispatch under detached context tracking.
+- [ ] Run `CGO_ENABLED=0 go test -v ./go/core/coalesce/...`.
+- [ ] Run `gofmt -w go/`.
+- [ ] Commit task: `feat(go/core): implement pure-stdlib coalesce loader and singleflight`.
 
 ---
 
-### Task 2: Node/TypeScript Resilience Suite (`node/packages/core`)
+### Task 2: Node/TypeScript Reactive Coalescing Decorator (`@batchLoad`)
 
 **Files:**
-- Create: `node/packages/core/src/decorators/retry.ts`
-- Create: `node/packages/core/src/decorators/retry.spec.ts`
-- Create: `node/packages/core/src/decorators/circuit-breaker.ts`
-- Create: `node/packages/core/src/decorators/circuit-breaker.spec.ts`
-- Create: `node/packages/core/src/decorators/rate-limit.ts`
-- Create: `node/packages/core/src/decorators/rate-limit.spec.ts`
+- Create: `node/packages/core/src/decorators/batch-load.ts`
+- Create: `node/packages/core/src/decorators/batch-load.spec.ts`
 - Modify: `node/packages/core/src/index.ts`
 
 **Interfaces:**
-- Produces: `@retry(options?: RetryOptions)`
-- Produces: `@circuitBreaker(options?: CircuitBreakerOptions)` & `CircuitBreakerOpenError`
-- Produces: `@rateLimit(options?: RateLimitOptions)` & `RateLimitExceededError`
+- Produces: `@batchLoad(options: BatchLoadOptions)`
+- Options: `{ batchMethod?: string; batchFn?: (keys: K[]) => Promise<Map<K, V> | V[]>; windowMs?: number; maxBatchSize?: number; deduplicate?: boolean; contextStorage?: AsyncLocalStorage<any> }`
 
-- [x] **Step 1: Write test specifications for retry, circuit breaker, and rate limiter**
-- [x] **Step 2: Run tests to verify failures**
-- [x] **Step 3: Implement decorators in `src/decorators/` and export in `src/index.ts`**
-- [x] **Step 4: Run `pnpm --filter @montionugera/server-decorator test:unit` and verify all tests pass**
-- [x] **Step 5: Git commit**
+**Deliverables & Steps:**
+- [ ] Write Jest unit tests in `batch-load.spec.ts`:
+  - Test multiple concurrent calls to decorated method within the same microtask tick coalesce into a single batch call.
+  - Test in-flight deduplication of identical IDs.
+  - Test `AsyncLocalStorage` request-scoped context isolation (ensuring batch buffers are scoped per request when context storage is supplied).
+  - Test error handling when the batch loader rejects.
+  - Test transparent result mapping back to the individual callers.
+- [ ] Implement `@batchLoad` in `batch-load.ts` using `queueMicrotask` / `process.nextTick`.
+- [ ] Export `@batchLoad` from `node/packages/core/src/index.ts`.
+- [ ] Run `(cd node && pnpm --filter @montionugera/server-decorator test:unit)`.
+- [ ] Commit task: `feat(node/core): implement @batchLoad decorator with microtask coalescing`.
 
 ---
 
-### Task 3: Python Resilience Suite & Property Wrapping (`python/packages/core`)
+### Task 3: Python Async Batch Coalescing Decorator (`@batch_load`)
 
 **Files:**
-- Create: `python/packages/core/src/server_decorator/decorators/retry.py`
-- Create: `python/packages/core/src/server_decorator/decorators/circuit_breaker.py`
-- Create: `python/packages/core/src/server_decorator/decorators/rate_limit.py`
-- Modify: `python/packages/core/src/server_decorator/decorators/_class_apply.py` (N1 resolution)
+- Create: `python/packages/core/src/server_decorator/decorators/coalesce.py`
+- Create: `python/packages/core/tests/unit/test_coalesce.py`
 - Modify: `python/packages/core/src/server_decorator/decorators/__init__.py`
 - Modify: `python/packages/core/src/server_decorator/__init__.py`
-- Create: `python/packages/core/tests/unit/test_retry.py`
-- Create: `python/packages/core/tests/unit/test_circuit_breaker.py`
-- Create: `python/packages/core/tests/unit/test_rate_limit.py`
-- Create: `python/packages/core/tests/unit/test_property_wrapping.py`
 
 **Interfaces:**
-- Produces: `@retry`, `@retry_class`
-- Produces: `@circuit_breaker`, `@circuit_breaker_class`, `CircuitBreakerOpenError`
-- Produces: `@rate_limit`, `@rate_limit_class`, `RateLimitExceededError`
-- Resolves: Decision N1: `wrap_properties=True` in `_class_apply.py` wraps `@property` getters/setters.
+- Produces: `@batch_load(batch_fn=None, batch_method=None, max_batch_size=100, window_seconds=0.001)`
 
-- [x] **Step 1: Write pytest test cases for retry, circuit breaker, rate limiter, and property wrapping**
-- [x] **Step 2: Implement resilience modules and update `_class_apply.py`**
-- [x] **Step 3: Run `uv run --package server-decorator --extra dev pytest packages/core/tests/unit` and verify green**
-- [x] **Step 4: Git commit**
+**Deliverables & Steps:**
+- [ ] Write pytest test cases in `test_coalesce.py`:
+  - Concurrent `asyncio.gather` calls coalesced into single batch execution.
+  - In-flight deduplication for identical keys.
+  - Exception propagation to all callers if batch fails.
+- [ ] Implement `coalesce.py` using asyncio event loop queues and `call_soon` / `call_later`.
+- [ ] Export `@batch_load` in `__init__.py`.
+- [ ] Run `(cd python && uv run --package server-decorator --extra dev pytest packages/core/tests/unit)`.
+- [ ] Commit task: `feat(python/core): implement @batch_load async decorator`.
 
 ---
 
-### Task 4: Documentation, Verification & Ship
+### Task 4: Documentation & Contributor Verification
 
 **Files:**
-- Create: `website/src/content/docs/core/resilience.mdx`
-- Run `bash scripts/contributor-check.sh`
-- Execute `psrw ship`
+- Create: `website/src/content/docs/core/coalescing.mdx`
+- Modify: `website/astro.config.mjs` (register new doc page in sidebar)
+- Verify: `scripts/contributor-check.sh`
 
-- [x] **Step 1: Create documentation in `website/src/content/docs/core/resilience.mdx`**
-- [x] **Step 2: Run `bash scripts/contributor-check.sh` and verify all 7 gates pass**
-- [ ] **Step 3: Execute `psrw ship`**
+**Deliverables & Steps:**
+- [ ] Add `website/src/content/docs/core/coalescing.mdx` with clear architecture diagrams and polyglot code examples (Go, TypeScript, Python).
+- [ ] Register `coalescing` doc page in `website/astro.config.mjs`.
+- [ ] Ensure node dependencies are installed: `(cd node && pnpm install)` and `(cd website && pnpm install)`.
+- [ ] Run `bash scripts/contributor-check.sh` and verify all 7 gates pass cleanly.
+- [ ] Commit task: `docs(core): document reactive call coalescing and batch loading`.
+
+---
+
+## Appendix — audit trail
+- 2026-09-19 self-grill-audit: verdict safe-with-fixes. Corrected:
+  - De-scoped MGET from v2.3 core plan title & scope (moved multi-tier MGET caching to follow-up stage).
+  - Added `AsyncLocalStorage` request-scoped context isolation support to `@batchLoad` to prevent tenant leakage.
+  - Defined Go context cancellation isolation: detached root execution with active caller count tracking and all-detached abort.
+  - Fixed test runner commands to change into package directories (`cd node`, `cd python`).
+  - Flagged pre-installing node/website dependencies in worktree before Gate 7 execution.
+  Open: none.
