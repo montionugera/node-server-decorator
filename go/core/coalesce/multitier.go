@@ -21,20 +21,24 @@ type multiTierHolder[V any] struct {
 	isMissing bool
 }
 
+// PrefetchHook defines a callback invoked asynchronously when items are resolved.
+type PrefetchHook[V any] func(ctx context.Context, items []V)
+
 // MultiTierConfig configures a 3-tier read coalescing pipeline.
 type MultiTierConfig[K comparable, V any] struct {
-	L1Capacity   int           // Max items in local in-memory LRU (0 = default 10,000)
-	L1TTL        time.Duration // In-memory LRU TTL (0 = default 10s)
-	L2Cache      MGetCache     // Distributed cache interface (optional)
-	L2TTL        time.Duration // Distributed cache TTL (0 = default 5m)
-	NegativeTTL  time.Duration // TTL for caching missing/non-existent keys (0 = default 5s)
-	MaxBatchSize int           // Max batch size before immediate dispatch (default 100)
-	BatchTimeout time.Duration // Time window to collect concurrent callers (default 1ms)
-	KeyToString  func(K) string
-	StringToKey  func(string) K
-	BatchFn      func(ctx context.Context, keys []K) (map[K]V, error)
-	Serialize    func(V) ([]byte, error)
-	Deserialize  func([]byte) (V, error)
+	L1Capacity    int           // Max items in local in-memory LRU (0 = default 10,000)
+	L1TTL         time.Duration // In-memory LRU TTL (0 = default 10s)
+	L2Cache       MGetCache     // Distributed cache interface (optional)
+	L2TTL         time.Duration // Distributed cache TTL (0 = default 5m)
+	NegativeTTL   time.Duration // TTL for caching missing/non-existent keys (0 = default 5s)
+	MaxBatchSize  int           // Max batch size before immediate dispatch (default 100)
+	BatchTimeout  time.Duration // Time window to collect concurrent callers (default 1ms)
+	PrefetchHooks []PrefetchHook[V]
+	KeyToString   func(K) string
+	StringToKey   func(string) K
+	BatchFn       func(ctx context.Context, keys []K) (map[K]V, error)
+	Serialize     func(V) ([]byte, error)
+	Deserialize   func([]byte) (V, error)
 }
 
 // MultiTierLoader orchestrates L1 memory, L2 distributed MGET, and L3 database batching.
@@ -259,10 +263,11 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 		return
 	}
 
-	// Backfill L1 and L2
+	var resolvedItems []V
 	l2SetItems := make(map[string][]byte)
 	for _, k := range l2Misses {
 		if val, found := resMap[k]; found {
+			resolvedItems = append(resolvedItems, val)
 			l.l1.Set(k, multiTierHolder[V]{value: val}, l.cfg.L1TTL)
 			if l.cfg.L2Cache != nil && l.cfg.Serialize != nil {
 				if bytes, sErr := l.cfg.Serialize(val); sErr == nil {
@@ -285,6 +290,80 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 	if len(l2SetItems) > 0 && l.cfg.L2Cache != nil {
 		_ = l.cfg.L2Cache.SetMany(b.ctx, l2SetItems, l.cfg.L2TTL)
 	}
+
+	// Trigger PrefetchHooks asynchronously with detached context
+	if len(resolvedItems) > 0 && len(l.cfg.PrefetchHooks) > 0 {
+		prefetchCtx, cancel := context.WithTimeout(context.WithoutCancel(b.ctx), 5*time.Second)
+		go func(ctx context.Context, items []V) {
+			defer cancel()
+			for _, hook := range l.cfg.PrefetchHooks {
+				hook(ctx, items)
+			}
+		}(prefetchCtx, resolvedItems)
+	}
+}
+
+// LoadMany fetches multiple items through the multi-tier coalescing pipeline in parallel.
+func (l *MultiTierLoader[K, V]) LoadMany(ctx context.Context, keys []K) (map[K]V, error) {
+	if len(keys) == 0 {
+		return make(map[K]V), nil
+	}
+
+	type keyResult struct {
+		key K
+		val V
+		err error
+	}
+
+	results := make(chan keyResult, len(keys))
+	var wg sync.WaitGroup
+
+	for _, k := range keys {
+		wg.Add(1)
+		go func(key K) {
+			defer wg.Done()
+			val, err := l.Load(ctx, key)
+			results <- keyResult{key: key, val: val, err: err}
+		}(k)
+	}
+
+	wg.Wait()
+	close(results)
+
+	resMap := make(map[K]V, len(keys))
+	for r := range results {
+		if r.err != nil {
+			return nil, r.err
+		}
+		resMap[r.key] = r.val
+	}
+	return resMap, nil
+}
+
+// Prime loads a key-value pair directly into L1 and optional L2 cache without invoking DB queries.
+func (l *MultiTierLoader[K, V]) Prime(key K, val V) {
+	l.l1.Set(key, multiTierHolder[V]{value: val}, l.cfg.L1TTL)
+	if l.cfg.L2Cache != nil && l.cfg.Serialize != nil {
+		if bytes, sErr := l.cfg.Serialize(val); sErr == nil {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				_ = l.cfg.L2Cache.SetMany(ctx, map[string][]byte{l.cfg.KeyToString(key): bytes}, l.cfg.L2TTL)
+			}()
+		}
+	}
+}
+
+// Prefetch requests keys in a detached background goroutine without blocking the caller.
+func (l *MultiTierLoader[K, V]) Prefetch(ctx context.Context, keys []K) {
+	if len(keys) == 0 {
+		return
+	}
+	prefetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	go func() {
+		defer cancel()
+		_, _ = l.LoadMany(prefetchCtx, keys)
+	}()
 }
 
 // Clear invalidates a key from L1 memory and L2 distributed cache.

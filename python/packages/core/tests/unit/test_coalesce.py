@@ -254,3 +254,112 @@ async def test_batch_load_multi_tier_caching_and_eviction() -> None:
     u1_refetched = await svc.find_user("1")
     assert u1_refetched == {"id": "1", "name": "User 1"}
     assert db_calls == 3
+
+
+@pytest.mark.asyncio
+async def test_batch_load_prime_bypasses_db() -> None:
+    db_calls = 0
+
+    class PrimeService:
+        async def batch_users(self, ids: list[str]) -> dict[str, dict[str, str]]:
+            nonlocal db_calls
+            db_calls += 1
+            return {uid: {"id": uid, "name": f"DB User {uid}"} for uid in ids}
+
+        @batch_load(batch_method="batch_users", window_seconds=0.005)
+        async def find_user(self, user_id: str) -> dict[str, str] | None:
+            return None
+
+    svc = PrimeService()
+
+    # Prime cache before query
+    svc.find_user.prime("user-1", {"id": "user-1", "name": "Primed User"}, instance=svc)  # type: ignore[attr-defined]
+
+    user = await svc.find_user("user-1")
+    assert user == {"id": "user-1", "name": "Primed User"}
+    assert db_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_batch_load_cascading_prefetch() -> None:
+    user_db_calls = 0
+    item_db_calls = 0
+
+    class UserService:
+        async def batch_users(self, ids: list[str]) -> dict[str, dict[str, str]]:
+            nonlocal user_db_calls
+            user_db_calls += 1
+            return {uid: {"id": uid, "name": f"User {uid}"} for uid in ids}
+
+        @batch_load(batch_method="batch_users", window_seconds=0.005)
+        async def find_user(self, user_id: str) -> dict[str, str] | None:
+            return None
+
+    class ItemService:
+        async def batch_items(self, ids: list[str]) -> dict[str, dict[str, str]]:
+            nonlocal item_db_calls
+            item_db_calls += 1
+            return {iid: {"id": iid, "title": f"Item {iid}"} for iid in ids}
+
+        @batch_load(batch_method="batch_items", window_seconds=0.005)
+        async def find_item(self, item_id: str) -> dict[str, str] | None:
+            return None
+
+    user_svc = UserService()
+    item_svc = ItemService()
+
+    class OrderService:
+        async def batch_orders(self, ids: list[str]) -> dict[str, dict[str, Any]]:
+            return {
+                oid: {
+                    "id": oid,
+                    "user_id": f"u-{oid}",
+                    "item_ids": [f"it-1-{oid}", f"it-2-{oid}"],
+                }
+                for oid in ids
+            }
+
+        @batch_load(
+            batch_method="batch_orders",
+            window_seconds=0.005,
+            prefetch=[
+                {
+                    "extract": lambda o: o["user_id"],
+                    "loader": lambda: user_svc.find_user,
+                },
+                {
+                    "extract": lambda o: o["item_ids"],
+                    "loader": lambda: item_svc.find_item,
+                },
+            ],
+        )
+        async def find_order(self, order_id: str) -> dict[str, Any] | None:
+            return None
+
+    order_svc = OrderService()
+
+    # 1. Fetch order -> triggers background prefetch for user 'u-1' and items ['it-1-1', 'it-2-1']
+    order = await order_svc.find_order("1")
+    assert order == {
+        "id": "1",
+        "user_id": "u-1",
+        "item_ids": ["it-1-1", "it-2-1"],
+    }
+
+    # Wait for micro-tick prefetch to settle
+    await asyncio.sleep(0.05)
+
+    assert user_db_calls == 1
+    assert item_db_calls == 1
+
+    # 2. Downstream queries hit L1 memory cache with 0 additional DB calls
+    user = await user_svc.find_user("u-1")
+    assert user == {"id": "u-1", "name": "User u-1"}
+    assert user_db_calls == 1  # No new DB call!
+
+    item1 = await item_svc.find_item("it-1-1")
+    item2 = await item_svc.find_item("it-2-1")
+    assert item1 == {"id": "it-1-1", "title": "Item it-1-1"}
+    assert item2 == {"id": "it-2-1", "title": "Item it-2-1"}
+    assert item_db_calls == 1  # No new DB call!
+

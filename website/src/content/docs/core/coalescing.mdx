@@ -179,3 +179,105 @@ func main() {
 | `l1.ttlMs` / `L1TTL` | `number` / `Duration` | `0` (tick only) | In-memory LRU TTL. Set to small micro-TTL (1–5s) for read-heavy workloads. |
 | `l2.adapter` / `L2Cache` | Adapter / Interface | `None` | Distributed cache adapter implementing bulk `mget` and pipelined `setMany`. |
 | `negativeTtlSeconds` / `NegativeTTL` | `number` / `Duration` | `5s` | Duration to cache missing/non-existent keys to prevent cache penetration. |
+| `prefetch` / `PrefetchHooks` | Rules array / hooks slice | `None` | Rules to extract child relational keys and trigger proactive pre-fetching on resolution. |
+
+---
+
+## Cascading Graph Pre-Fetching & Relational Loader Priming
+
+When querying parent models that reference foreign keys or nested collections (e.g. an `Order` containing `userId` and `itemIds`), applications typically suffer from relational N+1 waterfalls.
+
+With **Cascading Graph Pre-Fetching**, resolving a parent entity automatically triggers proactive background fetches for downstream entities, populating their L1/L2 caches before the application even requests them:
+
+```mermaid
+flowchart TD
+    ParentQuery["Caller: findOrder(id)"] --> OrderLoader["OrderLoader: L3 DB Query"]
+    OrderLoader --> OrderResolved["Order Resolved: { userId, itemIds }"]
+    OrderResolved --> PrefetchTrigger["Prefetch Trigger (Async Background)"]
+    PrefetchTrigger --> ExtractUser["Extract userId -> UserLoader.prefetch()"]
+    PrefetchTrigger --> ExtractItems["Extract itemIds -> ItemLoader.prefetch()"]
+    ExtractUser --> PrimedUser["UserService L1 Cache Primed"]
+    ExtractItems --> PrimedItems["ItemService L1 Cache Primed"]
+    OrderResolved --> CallerReturn["Return Order to Caller"]
+    CallerReturn -.-> SubsequentCall["Downstream: findUser(userId) & findItem(itemId)"]
+    SubsequentCall ==> CacheHit["L1 Immediate Cache HIT (0ms, 0 extra DB queries)"]
+```
+
+### Relational Priming Across Languages
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { batchLoad, PrefetchRule } from '@montionugera/server-decorator';
+
+export class OrderService {
+  @batchLoad({
+    batchMethod: 'batchOrders',
+    prefetch: [
+      {
+        extract: (order: Order) => order.userId,
+        loader: () => userService.findUser.bind(userService),
+      },
+      {
+        extract: (order: Order) => order.itemIds,
+        loader: () => itemService.findItem.bind(itemService),
+      },
+    ],
+  })
+  async findOrder(id: string): Promise<Order | undefined> {
+    return undefined;
+  }
+}
+
+// Or manually prime a loader when you already have the entity:
+(userService.findUser as any).prime('user-1', existingUser);
+```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import batch_load, PrefetchRule
+
+class OrderService:
+    @batch_load(
+        batch_method="batch_orders",
+        prefetch=[
+            PrefetchRule(
+                extract=lambda o: o["user_id"],
+                loader=lambda: user_service.find_user,
+            ),
+            PrefetchRule(
+                extract=lambda o: o["item_ids"],
+                loader=lambda: item_service.find_item,
+            ),
+        ],
+    )
+    async def find_order(self, order_id: str) -> dict | None:
+        return None
+
+# Or manually prime:
+user_service.find_user.prime("user-1", existing_user)
+```
+  </TabItem>
+
+  <TabItem label="Go" icon="seti:go">
+```go
+orderLoader := coalesce.NewMultiTierLoader(coalesce.MultiTierConfig[string, *Order]{
+    BatchFn: db.FindOrdersByIDs,
+    PrefetchHooks: []func(ctx context.Context, orders []*Order){
+        func(ctx context.Context, orders []*Order) {
+            var userIDs []string
+            for _, o := range orders {
+                userIDs = append(userIDs, o.UserID)
+            }
+            userLoader.Prefetch(ctx, userIDs)
+        },
+    },
+})
+
+// Or manually prime:
+userLoader.Prime("user-1", existingUser)
+```
+  </TabItem>
+</Tabs>
+
