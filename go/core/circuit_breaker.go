@@ -58,10 +58,10 @@ type CircuitBreaker struct {
 	recoveryTimeout          time.Duration
 	halfOpenSuccessThreshold int
 
-	state                    CircuitState
-	consecutiveFailures      int
-	consecutiveSuccesses     int
-	lastStateChange          time.Time
+	state                CircuitState
+	consecutiveFailures  int
+	consecutiveSuccesses int
+	lastStateChange      time.Time
 }
 
 // NewCircuitBreaker constructs a new breaker with the given options.

@@ -1,4 +1,5 @@
 import time
+
 import pytest
 
 from server_decorator import (
@@ -69,8 +70,8 @@ def test_rate_limit_class():
         def invoke(self):
             return "invoked"
 
-    Wrapped = rate_limit_class(capacity=1, refill_rate=1.0)(Svc)
-    s = Wrapped()
+    wrapped_svc_cls = rate_limit_class(capacity=1, refill_rate=1.0)(Svc)
+    s = wrapped_svc_cls()
     assert s.invoke() == "invoked"
     with pytest.raises(RateLimitExceededError):
         s.invoke()

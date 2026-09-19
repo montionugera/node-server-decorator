@@ -51,10 +51,8 @@ class CircuitBreaker:
     @property
     def state(self) -> CircuitState:
         with self._lock:
-            if (
-                self._state == CircuitState.OPEN
-                and (time.monotonic() - self._last_state_change) * 1000.0 >= self.recovery_timeout_ms
-            ):
+            elapsed_ms = (time.monotonic() - self._last_state_change) * 1000.0
+            if self._state == CircuitState.OPEN and elapsed_ms >= self.recovery_timeout_ms:
                 self._state = CircuitState.HALF_OPEN
                 self._consecutive_failures = 0
                 self._consecutive_successes = 0

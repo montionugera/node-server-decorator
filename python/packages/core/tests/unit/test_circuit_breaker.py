@@ -1,4 +1,5 @@
 import time
+
 import pytest
 
 from server_decorator import (
@@ -108,8 +109,8 @@ def test_circuit_breaker_class():
         def get_data(self):
             raise RuntimeError("down")
 
-    Wrapped = circuit_breaker_class(name="api-breaker", failure_threshold=1)(Api)
-    api = Wrapped()
+    wrapped_api_cls = circuit_breaker_class(name="api-breaker", failure_threshold=1)(Api)
+    api = wrapped_api_cls()
 
     with pytest.raises(RuntimeError):
         api.get_data()

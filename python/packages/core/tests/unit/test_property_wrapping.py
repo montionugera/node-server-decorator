@@ -1,7 +1,4 @@
-import pytest
-
 from server_decorator import tracking_class
-from server_decorator.tracker import global_tracker
 
 
 def test_property_wrapping_default_ignores_properties():
@@ -17,8 +14,8 @@ def test_property_wrapping_default_ignores_properties():
             return 42
 
     # Default wrap_properties=False
-    Wrapped = tracking_class()(Item)
-    item = Wrapped(10)
+    wrapped_item_cls = tracking_class()(Item)
+    item = wrapped_item_cls(10)
     assert item.val == 10
     assert item.regular_method() == 42
 
@@ -36,8 +33,8 @@ def test_property_wrapping_enabled_wraps_getter():
         def val(self, new_val: int) -> None:
             self._val = new_val
 
-    Wrapped = tracking_class(wrap_properties=True)(Item)
-    item = Wrapped(99)
+    wrapped_prop_cls = tracking_class(wrap_properties=True)(Item)
+    item = wrapped_prop_cls(99)
 
     # Reading property works
     assert item.val == 99

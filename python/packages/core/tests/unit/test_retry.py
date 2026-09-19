@@ -90,7 +90,7 @@ def test_retry_class():
                 raise RuntimeError("try again")
             return "done"
 
-    WrappedService = retry_class(max_attempts=3, backoff_ms=5, jitter=False)(Service)
-    s = WrappedService()
+    wrapped_service_cls = retry_class(max_attempts=3, backoff_ms=5, jitter=False)(Service)
+    s = wrapped_service_cls()
     assert s.run() == "done"
     assert s.calls == 2
