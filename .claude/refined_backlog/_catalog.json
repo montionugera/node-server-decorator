@@ -154,5 +154,16 @@
     "claimed_at": "2026-09-19T13:50:36.263123+00:00",
     "shipped_at": "2026-09-19T14:04:27.154841+00:00",
     "promoted_at": "2026-09-19T16:19:07.047815+00:00"
+  },
+  {
+    "id": "F-014",
+    "title": "Reactive call coalescing & batch loading: transparent DataLoader + SingleFlight for microservices",
+    "from_idea": "I-017",
+    "created_at": "2026-09-19T16:19:38.962991+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "2.3",
+    "claimed_at": "2026-09-19T16:19:42.149727+00:00",
+    "shipped_at": "2026-09-19T16:29:53.225654+00:00"
   }
 ]
