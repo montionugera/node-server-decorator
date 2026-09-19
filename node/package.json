@@ -10,6 +10,14 @@
     "test:e2e:rabbitmq": "pnpm -r run test:e2e:rabbitmq",
     "test:e2e:kafka": "pnpm -r run test:e2e:kafka"
   },
-  "engines": { "node": ">=18.0.0" },
-  "packageManager": "pnpm@9.14.2"
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@9.14.2",
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/supertest": "^7.2.1",
+    "express": "^5.2.1",
+    "supertest": "^7.2.2"
+  }
 }

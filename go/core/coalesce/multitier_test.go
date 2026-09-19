@@ -281,3 +281,116 @@ func TestMultiTier_Clear(t *testing.T) {
 		t.Fatalf("expected u4 to be removed from L2")
 	}
 }
+
+func TestMultiTier_PrimeAndLoadMany(t *testing.T) {
+	var l3Calls int32
+	loader := NewMultiTierLoader(MultiTierConfig[string, *User]{
+		L1Capacity: 100,
+		L1TTL:      5 * time.Second,
+		BatchFn: func(ctx context.Context, keys []string) (map[string]*User, error) {
+			atomic.AddInt32(&l3Calls, 1)
+			res := make(map[string]*User)
+			for _, k := range keys {
+				res[k] = &User{ID: k, Name: "DB " + k}
+			}
+			return res, nil
+		},
+	})
+	defer loader.Close()
+
+	ctx := context.Background()
+
+	// Prime u1
+	loader.Prime("u1", &User{ID: "u1", Name: "Primed User 1"})
+
+	// LoadMany u1 and u2
+	res, err := loader.LoadMany(ctx, []string{"u1", "u2"})
+	if err != nil {
+		t.Fatalf("LoadMany failed: %v", err)
+	}
+	if len(res) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(res))
+	}
+	if res["u1"].Name != "Primed User 1" {
+		t.Errorf("expected primed name, got %s", res["u1"].Name)
+	}
+	if res["u2"].Name != "DB u2" {
+		t.Errorf("expected DB name, got %s", res["u2"].Name)
+	}
+}
+
+func TestMultiTier_PrefetchAndHooks(t *testing.T) {
+	type Order struct {
+		ID     string
+		UserID string
+	}
+
+	var userL3Calls int32
+	userLoader := NewMultiTierLoader(MultiTierConfig[string, *User]{
+		L1Capacity: 100,
+		L1TTL:      5 * time.Second,
+		BatchFn: func(ctx context.Context, keys []string) (map[string]*User, error) {
+			atomic.AddInt32(&userL3Calls, 1)
+			res := make(map[string]*User)
+			for _, k := range keys {
+				res[k] = &User{ID: k, Name: "User " + k}
+			}
+			return res, nil
+		},
+	})
+	defer userLoader.Close()
+
+	orderLoader := NewMultiTierLoader(MultiTierConfig[string, *Order]{
+		L1Capacity:   100,
+		L1TTL:        5 * time.Second,
+		BatchTimeout: 1 * time.Millisecond,
+		BatchFn: func(ctx context.Context, keys []string) (map[string]*Order, error) {
+			res := make(map[string]*Order)
+			for _, k := range keys {
+				res[k] = &Order{ID: k, UserID: "user-" + k}
+			}
+			return res, nil
+		},
+		PrefetchHooks: []PrefetchHook[*Order]{
+			func(ctx context.Context, orders []*Order) {
+				var userIDs []string
+				for _, o := range orders {
+					userIDs = append(userIDs, o.UserID)
+				}
+				userLoader.Prefetch(ctx, userIDs)
+			},
+		},
+	})
+	defer orderLoader.Close()
+
+	ctx := context.Background()
+
+	// Load order; this should asynchronously prefetch user-order-1
+	order, err := orderLoader.Load(ctx, "order-1")
+	if err != nil {
+		t.Fatalf("order load failed: %v", err)
+	}
+	if order.UserID != "user-order-1" {
+		t.Fatalf("unexpected order user ID: %s", order.UserID)
+	}
+
+	// Wait briefly for background prefetch to settle
+	time.Sleep(30 * time.Millisecond)
+
+	initialCalls := atomic.LoadInt32(&userL3Calls)
+	if initialCalls != 1 {
+		t.Fatalf("expected 1 prefetch user call, got %d", initialCalls)
+	}
+
+	// Downstream read for user should resolve from cache without additional L3 calls
+	user, err := userLoader.Load(ctx, "user-order-1")
+	if err != nil {
+		t.Fatalf("user load failed: %v", err)
+	}
+	if user.Name != "User user-order-1" {
+		t.Errorf("unexpected user name: %s", user.Name)
+	}
+	if atomic.LoadInt32(&userL3Calls) != initialCalls {
+		t.Errorf("downstream read triggered extra L3 calls: got %d, expected %d", userL3Calls, initialCalls)
+	}
+}

@@ -24,7 +24,8 @@ redis    = ["redis>=5.0"]
 rabbitmq = ["aio-pika>=9.4"]
 kafka    = ["aiokafka>=0.11"]
 bullmq   = ["bullmq>=2.0"]
-all      = ["redis>=5.0", "aio-pika>=9.4", "aiokafka>=0.11", "bullmq>=2.0"]
+fastapi  = ["fastapi>=0.100.0", "httpx>=0.25.0"]
+all      = ["redis>=5.0", "aio-pika>=9.4", "aiokafka>=0.11", "bullmq>=2.0", "fastapi>=0.100.0", "httpx>=0.25.0"]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
@@ -37,6 +38,8 @@ dev = [
     "aio-pika>=9.4",
     "aiokafka>=0.11",
     "bullmq>=2.0",
+    "fastapi>=0.100.0",
+    "httpx>=0.25.0",
     "testcontainers[redis,rabbitmq,kafka]>=4.7",
 ]
 
@@ -74,7 +77,7 @@ files = ["src/server_decorator"]
 # strict-mode still passes; the adapter wrappers keep the public-facing types
 # precise on the server-decorator side.
 [[tool.mypy.overrides]]
-module = ["aiokafka.*", "aio_pika.*", "redis.*", "redis.asyncio", "bullmq.*"]
+module = ["aiokafka.*", "aio_pika.*", "redis.*", "redis.asyncio", "bullmq.*", "fastapi.*", "httpx.*", "starlette.*"]
 # Make the optional adapter deps appear as Any. They don't ship `py.typed`,
 # and we don't want to vendor stubs for one thin wrapper layer.
 ignore_missing_imports = true

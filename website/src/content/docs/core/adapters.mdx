@@ -19,10 +19,144 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 | **`InMemoryQueueAdapter`** | In-process queue for unit tests and local development | Included |
 | **`BullMQAdapter`** | BullMQ Redis queues (Node only) | Production |
 | **`GinAdapter`** | Native route mounting & scope auth for Go Gin framework (`go/adapter/gin`) | Production |
+| **`ExpressAdapter`** | Native route mounting & scope auth for Node Express (`@montionugera/server-decorator/express`) | Production |
+| **`FastAPIAdapter`** | Native route mounting & scope auth for Python FastAPI (`server_decorator.adapters.fastapi`) | Production |
 
 ---
 
-## Configuring Global Adapters
+## HTTP Web Framework Router Adapters
+
+`server-decorator` supports native route mounting directly from `EntitySpec` definitions for Express (Node), FastAPI (Python), and Gin (Go). All three adapters enforce:
+- **Declarative Scope Authorization**: Enforces `spec.security.ops` and `spec.security.actions`, returning standard 401 Unauthorized / 403 Forbidden.
+- **RFC 9457 Problem Details**: Responses use `application/problem+json` with consistent error schemas for validation errors (400), not found errors (404), auth failures (401/403), and internal errors (500).
+- **Standardized Pagination**: List endpoints return `{ items, total, limit, offset }`.
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Express" icon="seti:typescript">
+```typescript
+import express from 'express';
+import { mountExpressRoutes, NotFoundError } from '@montionugera/server-decorator/express';
+import { UserSpec } from './user.spec';
+
+const app = express();
+app.use(express.json());
+
+const router = express.Router();
+
+// Mount CRUD and Action routes from EntitySpec IR onto Express router
+mountExpressRoutes(router, UserSpec, {
+  async list({ limit, offset, filters }) {
+    return { items: await db.users.findMany({ skip: offset, take: limit }), total: 100 };
+  },
+  async get(id) {
+    const user = await db.users.findById(id);
+    if (!user) throw new NotFoundError(`User ${id} not found`);
+    return user;
+  },
+  async create(data) {
+    return await db.users.create(data);
+  },
+  async update(id, data) {
+    return await db.users.update(id, data);
+  },
+  async delete(id) {
+    await db.users.delete(id);
+  },
+  async action(id, actionName, data) {
+    if (actionName === 'deactivate') {
+      return await db.users.deactivate(id, data.reason);
+    }
+    throw new NotFoundError(`Action ${actionName} not supported`);
+  },
+}, {
+  authExtractor: async (req) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return { authenticated: false, scopes: [] };
+    return { authenticated: true, scopes: ['users:read', 'users:write'] };
+  }
+});
+
+app.use(router);
+app.listen(3000);
+```
+  </TabItem>
+  <TabItem label="Python / FastAPI" icon="seti:python">
+```python
+from fastapi import FastAPI, APIRouter
+from server_decorator.adapters.fastapi import mount_fastapi_routes, NotFoundError
+from user_spec import user_spec
+
+app = FastAPI()
+router = APIRouter()
+
+class UserHandler:
+    async def list(self, limit: int, offset: int, filters: dict[str, str]):
+        users = await db.users.find(skip=offset, limit=limit)
+        return users, 100
+
+    async def get(self, id: str):
+        user = await db.users.find_one(id)
+        if not user:
+            raise NotFoundError(f"User {id} not found")
+        return user
+
+    async def create(self, data: dict):
+        return await db.users.insert(data)
+
+    async def update(self, id: str, data: dict):
+        return await db.users.update(id, data)
+
+    async def delete(self, id: str):
+        await db.users.delete(id)
+
+    async def action(self, id: str, action: str, data: dict):
+        if action == "deactivate":
+            return await db.users.deactivate(id, data.get("reason"))
+        raise NotFoundError(f"Action {action} not supported")
+
+# Mount CRUD and Action routes from EntitySpec IR onto FastAPI APIRouter
+mount_fastapi_routes(
+    router,
+    user_spec,
+    UserHandler(),
+    auth_extractor=lambda req: (True, ["users:read", "users:write"])
+)
+
+app.include_router(router)
+```
+  </TabItem>
+  <TabItem label="Go / Gin" icon="seti:go">
+```go
+package main
+
+import (
+	"github.com/gin-gonic/gin"
+	ginadapter "github.com/montionugera/node-server-decorator/v2/go/adapter/gin"
+)
+
+func main() {
+	r := gin.Default()
+
+	extractor := func(c *gin.Context) (bool, []string, error) {
+		token := c.GetHeader("Authorization")
+		if token == "Bearer admin-token" {
+			return true, []string{"users:read", "users:write", "users:admin"}, nil
+		}
+		return true, []string{"users:read"}, nil
+	}
+
+	// Mounts CRUD and Action routes onto Gin with RFC 9457 errors & scope auth
+	ginadapter.MountRoutes(r, UserSpec, &UserHandler{}, ginadapter.WithAuth(extractor))
+
+	r.Run(":8080")
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Configuring Global Queue & Cache Adapters
 
 <Tabs syncKey="lang">
   <TabItem label="TypeScript / Node" icon="seti:typescript">
@@ -57,34 +191,6 @@ global_queue_registry.register("default", redis_queue)
 
 # Register Cache Adapter
 set_global_cache_adapter(RedisCacheAdapter(url="redis://localhost:6379"))
-```
-  </TabItem>
-  <TabItem label="Go (Gin)" icon="seti:go">
-```go
-package main
-
-import (
-	"github.com/gin-gonic/gin"
-	ginadapter "github.com/montionugera/node-server-decorator/v2/go/adapter/gin"
-)
-
-func main() {
-	r := gin.Default()
-
-	// Extract caller authentication and scopes from Gin context
-	extractor := func(c *gin.Context) (bool, []string, error) {
-		token := c.GetHeader("Authorization")
-		if token == "Bearer admin-token" {
-			return true, []string{"user:write", "user:admin"}, nil
-		}
-		return true, []string{"user:read"}, nil
-	}
-
-	// Mounts CRUD and Action routes onto Gin with RFC 9457 errors & scope auth
-	ginadapter.MountRoutes(r, UserSpec, &UserHandler{}, ginadapter.WithAuth(extractor))
-
-	r.Run(":8080")
-}
 ```
   </TabItem>
 </Tabs>

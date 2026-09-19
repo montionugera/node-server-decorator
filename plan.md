@@ -1,152 +1,102 @@
-# Implementation Plan: Multi-Tier Call Coalescing (F-015)
+# Implementation Plan: Native Web Framework Router Adapters (FastAPI & Express) (F-017)
 
 ## Summary
-Extend the reactive call coalescing subsystem to support a 3-tier read hierarchy (L1 in-memory LRU, L2 distributed Redis MGET, L3 DB batch loader) with SingleFlight deduplication and explicit cache eviction across Go, Node/TypeScript, and Python.
+Implement first-class native HTTP framework router adapters for **FastAPI (Python)** and **Express (Node/TypeScript)** that mount type-safe CRUD and Action routes directly from `EntitySpec` IR definitions with RFC 9457 Problem Details and declarative scope authorization.
 
 ---
 
 ## Tasks
 
-### Task 1: Go Core Multi-Tier Coalescing Loader
+### Task 1: Express Router Adapter (`node/packages/core`)
 **Files:**
-- Create: `go/core/coalesce/multitier.go`
-- Create: `go/core/coalesce/lru.go`
-- Create: `go/core/coalesce/multitier_test.go`
+- Create: `node/packages/core/src/adapters/express.ts`
+- Create: `node/packages/core/src/adapters/express.spec.ts`
+- Modify: `node/packages/core/package.json`
 
 **Interfaces:**
-- Produces: `MGetCache` interface:
-  ```go
-  type MGetCache interface {
-      MGet(ctx context.Context, keys []string) (map[string][]byte, error)
-      SetMany(ctx context.Context, items map[string][]byte, ttl time.Duration) error
-      Delete(ctx context.Context, keys ...string) error
+- Produces: `EntityHandler` interface in TypeScript:
+  ```typescript
+  export interface EntityHandler {
+    list(params: { limit: number; offset: number; filters: Record<string, string> }): Promise<{ items: any[]; total: number }>;
+    get(id: string): Promise<any>;
+    create(data: Record<string, any>): Promise<any>;
+    update(id: string, data: Record<string, any>): Promise<any>;
+    delete(id: string): Promise<void>;
+    action?(id: string, actionName: string, data: Record<string, any>): Promise<any>;
   }
   ```
-- Produces: `MultiTierLoader[K comparable, V any]` with `Load(ctx, key)`, `LoadMany(ctx, keys)`, `Clear(ctx, key)`, `Close()`.
-- Produces: pure Go stdlib bounded thread-safe LRU cache in `go/core/coalesce/lru.go` (doubly-linked list + map with `sync.RWMutex`).
+- Produces: `NotFoundError` (`class NotFoundError extends Error { status = 404; }`)
+- Produces: `mountExpressRoutes(router, specOrClass, handler, options)`
+- Produces: RFC 9457 problem writers: `writeProblem(res, status, title, detail, instance)` and `writeValidationProblem(res, fields, instance)`.
 
-**Deliverables & Steps:**
-- [ ] Implement pure stdlib thread-safe LRU cache with TTL in `lru.go`.
-- [ ] Implement `MultiTierLoader` in `multitier.go`:
-  - Route incoming calls through the micro-window buffer (`batchTimeout`) to collect all concurrent keys.
-  - Check L1 (return hits immediately).
-  - For L1 misses: if `L2Cache` is configured, call `L2Cache.MGet(ctx, stringKeys)` for all window misses in one bulk operation.
-  - Found L2 keys are deserialized and backfilled to L1.
-  - For remaining L2 misses: execute `BatchFn(missKeys)` under `SingleFlight`.
-  - Found entities are serialized and written to L2 via `SetMany` (pipelined SET with TTL) and stored in L1.
-  - Missing entities are stored in L1/L2 with `NegativeTTL` sentinel to defend against cache penetration.
-  - `Clear(ctx, key)` purges the key from L1 and calls `L2Cache.Delete(ctx, key)`.
-- [ ] Write unit tests in `multitier_test.go`:
-  - Test L1 hit returns without querying L2 or L3.
-  - Test L2 hit backfills L1 and returns without querying L3.
-  - Test true miss invokes L3 and backfills both L2 and L1.
-  - Test SingleFlight coalesces duplicate miss requests.
-  - Test negative caching prevents repeated L3 calls for non-existent keys.
-  - Test `Clear(ctx, key)` purges from both tiers.
-- [ ] Run `(cd go && CGO_ENABLED=0 go test -v ./core/coalesce/...)`.
-- [ ] Commit task: `feat(go/core): implement pure-stdlib multi-tier coalesce loader and lru`.
+**Steps:**
+- [ ] Add `express` as optional peerDependency and add subpath export `"./express"` in `node/packages/core/package.json`.
+- [ ] Implement `node/packages/core/src/adapters/express.ts`:
+  - Path normalization from `spec.path` to `/${path}` and `/:<idField>` (resolving `f.role === 'id'`, defaulting to `id`).
+  - List response envelope parity: `{ items, total, limit, offset }`.
+  - Filterable query param parsing, limit/offset bounds (default limit 20, max 100).
+  - Standalone entity validation according to spec rules emitting RFC 9457 `application/problem+json` (`validation-error`).
+  - NotFoundError detection (`err instanceof NotFoundError || err.status === 404`) returning 404 RFC 9457 Problem Details.
+  - Declarative scope authorization with `ScopeExtractor` (returning 401 if unauthenticated, 403 with `missing required scope: <scope>` if missing).
+  - Discrete action routes for `/:<idField>/actions/:actionName`.
+- [ ] Write unit & integration tests in `express.spec.ts` using `supertest` covering:
+  - CRUD operations (GET list with query params and envelope, GET by id, POST create, PATCH update, DELETE).
+  - Action execution (POST action with input).
+  - 400 ValidationProblem on bad payload.
+  - 401 & 403 Scope authorization.
+  - 404 NotFound problem.
+- [ ] Run `pnpm --filter @montionugera/server-decorator test:unit`.
+- [ ] Commit task: `feat(node/core): implement native Express router adapter for EntitySpec IR`.
 
 ---
 
-### Task 2: Node / TypeScript `@batchLoad` Multi-Tier Integration
+### Task 2: FastAPI Router Adapter (`python/packages/core`)
 **Files:**
-- Modify: `node/packages/core/src/decorators/batch-load.ts`
-- Modify: `node/packages/core/src/decorators/batch-load.spec.ts`
+- Create: `python/packages/core/src/server_decorator/adapters/__init__.py`
+- Create: `python/packages/core/src/server_decorator/adapters/fastapi.py`
+- Create: `python/packages/core/tests/unit/test_fastapi_adapter.py`
+- Modify: `python/packages/core/pyproject.toml`
 
 **Interfaces:**
-- Produces: `MGetCacheAdapter` interface in TypeScript:
-  ```typescript
-  export interface MGetCacheAdapter {
-    mget(keys: string[]): Promise<Map<string, any> | Record<string, any>>;
-    setMany(items: Map<string, any> | Record<string, any>, ttlSeconds?: number): Promise<void>;
-    del?(keys: string[]): Promise<void>;
-  }
-  ```
-- Extends: `BatchLoadOptions`:
-  ```typescript
-  export interface BatchLoadOptions<K, V> {
-    // ... existing options ...
-    cache?: {
-      l1?: { maxEntries?: number; ttlMs?: number };
-      l2?: { adapter: MGetCacheAdapter; ttlSeconds?: number };
-      negativeTtlSeconds?: number;
-    };
-  }
-  ```
-
-**Deliverables & Steps:**
-- [ ] Implement in-memory bounded LRU / TTL map in `batch-load.ts`.
-- [ ] Update `BatchQueue.dispatch()`:
-  - Query L1; immediately resolve hits.
-  - For misses: if L2 adapter exists, call `l2.adapter.mget(missKeys)` in a single bulk call; backfill L1 with found items.
-  - For remaining misses: execute batch `loaderFn(remainingKeys)`; backfill L2 via `setMany` and L1.
-  - Store negative sentinel in L1/L2 for missing keys.
-- [ ] Attach `.clear(key: K): Promise<void>` directly to the decorated method function for explicit cache eviction.
-- [ ] Write Jest unit tests in `batch-load.spec.ts`:
-  - Multi-tier cascading (L1 hit -> L2 hit -> L3 batch query).
-  - L1 backfill verification.
-  - Negative caching defense.
-  - Invalidation test with `service.findUserById.clear(key)`.
-- [ ] Run `(cd node && pnpm --filter @montionugera/server-decorator test:unit)`.
-- [ ] Commit task: `feat(node/core): add multi-tier L1/L2 caching to @batchLoad`.
-
----
-
-### Task 3: Python Async `@batch_load` Multi-Tier Integration
-**Files:**
-- Modify: `python/packages/core/src/server_decorator/decorators/coalesce.py`
-- Modify: `python/packages/core/tests/unit/test_coalesce.py`
-
-**Interfaces:**
-- Extends: `@batch_load`:
+- Produces: `EntityHandler` protocol/class in Python:
   ```python
-  def batch_load(
-      batch_fn=None,
-      *,
-      batch_method=None,
-      max_batch_size=100,
-      window_seconds=0.001,
-      deduplicate=True,
-      key_of=None,
-      context_var=None,
-      l1_max_size: int = 0,
-      l1_ttl_seconds: float = 0,
-      l2_cache: Any = None,
-      l2_ttl_seconds: float = 0,
-      negative_ttl_seconds: float = 10,
-      serializer: Callable[[Any], str] | None = None,
-      deserializer: Callable[[str], Any] | None = None,
-  )
+  class EntityHandler(Protocol):
+      async def list(self, limit: int, offset: int, filters: dict[str, str]) -> tuple[list[Any], int]: ...
+      async def get(self, id: str) -> Any: ...
+      async def create(self, data: dict[str, Any]) -> Any: ...
+      async def update(self, id: str, data: dict[str, Any]) -> Any: ...
+      async def delete(self, id: str) -> None: ...
+      async def action(self, id: str, action: str, data: dict[str, Any]) -> Any: ...
   ```
+- Produces: `NotFoundError` (`class NotFoundError(Exception): status_code = 404`)
+- Produces: `mount_fastapi_routes(router: APIRouter, spec_or_class: Any, handler: EntityHandler, options: FastAPIAdapterOptions | None = None) -> APIRouter`
 
-**Deliverables & Steps:**
-- [ ] Implement simple bounded LRU memory cache with TTL in `coalesce.py`.
-- [ ] Update `BatchQueue` to check L1 -> L2 `mget` -> L3 `loader_fn` -> backfill L2 via `set_many` / pipelining and L1.
-- [ ] Support negative caching for missing items.
-- [ ] Attach `clear(key)` method to the decorated function.
-- [ ] Write pytest unit tests in `test_coalesce.py`:
-  - L1 hit skips L2 and L3.
-  - L2 hit backfills L1.
-  - L3 miss resolution and multi-tier backfill.
-  - Negative caching.
-  - Eviction via `svc.find_user_by_id.clear(key)`.
-- [ ] Run `(cd python && uv run --package server-decorator --extra dev pytest packages/core/tests/unit)`.
-- [ ] Commit task: `feat(python/core): add multi-tier L1/L2 caching to @batch_load`.
+**Steps:**
+- [ ] Add `fastapi>=0.100.0` and `httpx>=0.25.0` to `pyproject.toml` optional dependencies under `[project.optional-dependencies]` `fastapi = [...]` and `dev = [...]`.
+- [ ] Implement `python/packages/core/src/server_decorator/adapters/fastapi.py`:
+  - Path translation to `/{<id_field>}` (resolving `f.role == 'id'`, defaulting to `id`).
+  - List response envelope parity: `{"items": items, "total": total, "limit": limit, "offset": offset}`.
+  - Route handlers for `list`, `get`, `create`, `update`, `delete`, and `action`.
+  - Standalone entity validation according to spec rules emitting RFC 9457 `application/problem+json` (`validation-error`).
+  - Scope authorization using `enforce_scope_auth`.
+  - RFC 9457 `application/problem+json` responses for 400, 401, 403, 404 (NotFoundError), and 500.
+- [ ] Write unit tests in `python/packages/core/tests/unit/test_fastapi_adapter.py` using `httpx.ASGITransport` / `AsyncClient` covering:
+  - CRUD operations.
+  - Action execution.
+  - 400 Validation problem.
+  - 401 & 403 Scope authorization.
+  - 404 NotFound problem.
+- [ ] Run `(cd python && uv run --package server-decorator --extra dev pytest packages/core/tests/unit/test_fastapi_adapter.py)`.
+- [ ] Commit task: `feat(python/core): implement native FastAPI router adapter for EntitySpec IR`.
 
 ---
 
-### Task 4: Documentation & Contributor Verification
+### Task 3: Documentation & Contributor Quality Gates
 **Files:**
-- Modify: `website/src/content/docs/core/coalescing.mdx`
+- Modify: `website/src/content/docs/core/adapters.mdx`
 - Run: `bash scripts/contributor-check.sh`
 
-**Deliverables & Steps:**
-- [ ] Update `website/src/content/docs/core/coalescing.mdx` with:
-  - Multi-tier caching architecture diagram.
-  - Consistency models & staleness prevention guide (Request-Scoped vs Micro-TTL vs Invalidation).
-  - Polyglot code examples for Go, TypeScript, and Python with `setMany` / pipelined caching.
-- [ ] Install dependencies: `(cd website && pnpm install)`.
-- [ ] Run `bash scripts/contributor-check.sh` and verify all 7 gates pass cleanly.
-- [ ] Commit task: `docs(core): update coalescing guide with multi-tier caching and staleness prevention`.
-- [ ] Ship feature via `psrw ship`.
-- [ ] Promote release via `psrw promote`.
+**Steps:**
+- [ ] Update `website/src/content/docs/core/adapters.mdx` with complete documentation and code tabs for Express, FastAPI, and Gin router mounting.
+- [ ] Run full contributor verification (`bash scripts/contributor-check.sh`) ensuring all 7 gates pass cleanly.
+- [ ] Commit task: `docs(website): document Express and FastAPI router adapters`.

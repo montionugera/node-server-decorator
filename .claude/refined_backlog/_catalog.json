@@ -178,5 +178,27 @@
     "claimed_at": "2026-09-19T16:41:22.366179+00:00",
     "shipped_at": "2026-09-19T16:51:43.720055+00:00",
     "promoted_at": "2026-09-19T16:52:36.352264+00:00"
+  },
+  {
+    "id": "F-016",
+    "title": "Cascading graph pre-fetching: relational loader priming and waterfall cascade elimination",
+    "from_idea": "I-019",
+    "created_at": "2026-09-19T17:12:37.847068+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "2.5",
+    "claimed_at": "2026-09-19T17:12:49.560554+00:00",
+    "shipped_at": "2026-09-19T17:36:46.615672+00:00"
+  },
+  {
+    "id": "F-017",
+    "title": "Native web framework router adapters: FastAPI and Express route mounting over EntitySpec IR",
+    "from_idea": "I-020",
+    "created_at": "2026-09-19T17:12:41.495196+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "2.5",
+    "claimed_at": "2026-09-19T17:36:52.804149+00:00",
+    "shipped_at": "2026-09-19T17:56:21.501918+00:00"
   }
 ]

@@ -6,6 +6,11 @@ export interface MGetCacheAdapter {
   del?(keys: string[]): Promise<void>;
 }
 
+export interface PrefetchRule<P = any, C = any> {
+  extract: (parent: P) => C | C[] | null | undefined;
+  loader: () => ((key: C) => Promise<any>) | { load?: (key: C) => Promise<any>; prefetch?: (keys: C[]) => Promise<any> | void };
+}
+
 export interface BatchLoadOptions<K, V> {
   /**
    * The name of the method on `this` that accepts `K[]` and returns `Promise<Map<K, V> | V[] | Record<string, V>>`.
@@ -39,10 +44,14 @@ export interface BatchLoadOptions<K, V> {
    * Optional multi-tier caching configuration (L1 memory LRU + L2 distributed Redis MGET).
    */
   cache?: {
-    l1?: { maxEntries?: number; ttlMs?: number };
+    l1?: { maxEntries?: number; ttlMs?: number } | false;
     l2?: { adapter: MGetCacheAdapter; ttlSeconds?: number };
     negativeTtlSeconds?: number;
   };
+  /**
+   * Optional cascading graph pre-fetch rules triggered when parent entities resolve.
+   */
+  prefetch?: PrefetchRule<V, any>[];
 }
 
 interface QueuedItem<K, V> {
@@ -112,12 +121,13 @@ class BatchQueue<K, V> {
     private windowMs: number,
     private deduplicate: boolean,
     private keyOf?: (item: V) => K,
-    cacheOptions?: BatchLoadOptions<K, V>['cache']
+    cacheOptions?: BatchLoadOptions<K, V>['cache'],
+    private prefetchRules?: PrefetchRule<V, any>[]
   ) {
-    if (cacheOptions?.l1) {
+    if (cacheOptions?.l1 !== false && (cacheOptions?.l1 !== null)) {
       this.l1Cache = new LruCache<K, any>(
-        cacheOptions.l1.maxEntries ?? 10000,
-        cacheOptions.l1.ttlMs ?? 10000
+        cacheOptions?.l1?.maxEntries ?? 10000,
+        cacheOptions?.l1?.ttlMs ?? 10000
       );
     }
     if (cacheOptions?.l2) {
@@ -126,6 +136,24 @@ class BatchQueue<K, V> {
     }
     if (cacheOptions?.negativeTtlSeconds !== undefined) {
       this.negativeTtlMs = cacheOptions.negativeTtlSeconds * 1000;
+    }
+  }
+
+  public prime(key: K, value: V): void {
+    if (!this.l1Cache) {
+      this.l1Cache = new LruCache<K, any>(10000, 10000);
+    }
+    this.l1Cache.set(key, value);
+    if (this.l2Adapter) {
+      const items = new Map<string, any>([[String(key), value]]);
+      this.l2Adapter.setMany(items, this.l2TtlSeconds).catch(() => {});
+    }
+  }
+
+  public prefetch(keys: K[]): void {
+    if (!keys || keys.length === 0) return;
+    for (const key of keys) {
+      this.load(key).catch(() => {});
     }
   }
 
@@ -192,6 +220,54 @@ class BatchQueue<K, V> {
     }
   }
 
+  private triggerPrefetch(items: V[]) {
+    if (!this.prefetchRules || this.prefetchRules.length === 0 || items.length === 0) return;
+
+    for (const rule of this.prefetchRules) {
+      try {
+        const rawLoader = rule.loader();
+        if (!rawLoader) continue;
+
+        const childKeys: any[] = [];
+        const seen = new Set<any>();
+
+        for (const item of items) {
+          if (item == null) continue;
+          const extracted = rule.extract(item);
+          if (extracted == null) continue;
+
+          if (Array.isArray(extracted)) {
+            for (const k of extracted) {
+              if (k != null && !seen.has(k)) {
+                seen.add(k);
+                childKeys.push(k);
+              }
+            }
+          } else if (!seen.has(extracted)) {
+            seen.add(extracted);
+            childKeys.push(extracted);
+          }
+        }
+
+        if (childKeys.length === 0) continue;
+
+        if (typeof (rawLoader as any).prefetch === 'function') {
+          (rawLoader as any).prefetch(childKeys);
+        } else if (typeof (rawLoader as any).load === 'function') {
+          for (const ck of childKeys) {
+            (rawLoader as any).load(ck).catch(() => {});
+          }
+        } else if (typeof rawLoader === 'function') {
+          for (const ck of childKeys) {
+            rawLoader(ck).catch(() => {});
+          }
+        }
+      } catch {
+        // Suppress prefetch errors so parent never fails
+      }
+    }
+  }
+
   private async dispatch() {
     if (this.queue.length === 0) return;
 
@@ -220,6 +296,7 @@ class BatchQueue<K, V> {
 
     // Phase B: L2 Distributed Cache Check (MGET)
     const l2Misses: QueuedItem<K, V>[] = [];
+    const l2ResolvedItems: V[] = [];
     if (this.l2Adapter) {
       try {
         const strKeys = Array.from(new Set(l1Misses.map((it) => String(it.key))));
@@ -233,6 +310,7 @@ class BatchQueue<K, V> {
             if (this.l1Cache) {
               this.l1Cache.set(item.key, val);
             }
+            l2ResolvedItems.push(val);
             item.resolve(val);
           } else {
             l2Misses.push(item);
@@ -244,6 +322,10 @@ class BatchQueue<K, V> {
       }
     } else {
       l2Misses.push(...l1Misses);
+    }
+
+    if (l2ResolvedItems.length > 0) {
+      this.triggerPrefetch(l2ResolvedItems);
     }
 
     if (l2Misses.length === 0) return;
@@ -262,10 +344,12 @@ class BatchQueue<K, V> {
       const result = await this.loaderFn(uniqueKeys);
       const resultMap = this.normalizeResult(result);
       const l2SetItems = new Map<string, any>();
+      const l3ResolvedItems: V[] = [];
 
       for (const item of l2Misses) {
         if (resultMap.has(item.key)) {
           const val = resultMap.get(item.key)!;
+          l3ResolvedItems.push(val);
           if (this.l1Cache) {
             this.l1Cache.set(item.key, val);
           }
@@ -284,6 +368,10 @@ class BatchQueue<K, V> {
 
       if (this.l2Adapter && l2SetItems.size > 0) {
         this.l2Adapter.setMany(l2SetItems, this.l2TtlSeconds).catch(() => {});
+      }
+
+      if (l3ResolvedItems.length > 0) {
+        this.triggerPrefetch(l3ResolvedItems);
       }
     } catch (err) {
       for (const item of l2Misses) {
@@ -317,7 +405,7 @@ class BatchQueue<K, V> {
 
 /**
  * Method decorator that transparently coalesces concurrent individual lookups into a single batch execution,
- * with optional multi-tier L1 memory LRU and L2 distributed Redis MGET caching.
+ * with optional multi-tier L1 memory LRU and L2 distributed Redis MGET caching, plus cascading graph pre-fetching.
  */
 export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}) {
   const maxBatchSize = options.maxBatchSize ?? 100;
@@ -333,25 +421,23 @@ export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}
     const queues = new WeakMap<any, BatchQueue<K, V>>();
     const allQueues = new Set<BatchQueue<K, V>>();
 
-    const wrappedMethod: any = async function (this: any, ...args: any[]) {
-      const key = args[0] as K;
-
+    function getOrCreateQueue(instance: any): BatchQueue<K, V> | null {
       // Determine the loader batch function
       let batchFn = options.batchFn;
-      if (!batchFn && options.batchMethod) {
-        const method = (this as any)[options.batchMethod];
+      if (!batchFn && options.batchMethod && instance) {
+        const method = (instance as any)[options.batchMethod];
         if (typeof method === 'function') {
-          batchFn = method.bind(this);
+          batchFn = method.bind(instance);
         }
       }
 
       if (!batchFn) {
-        // Fallback to original method if no batch implementation exists
-        return originalMethod?.apply(this, args);
+        return null;
       }
 
-      // If request-scoped AsyncLocalStorage is provided, scope queue to store context
-      const scopeTarget = options.contextStorage ? (options.contextStorage.getStore() ?? this) : this;
+      const scopeTarget = options.contextStorage
+        ? (options.contextStorage.getStore() ?? instance ?? target)
+        : (instance ?? target);
 
       let queue = queues.get(scopeTarget);
       if (!queue) {
@@ -361,13 +447,39 @@ export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}
           windowMs,
           deduplicate,
           options.keyOf,
-          options.cache
+          options.cache,
+          options.prefetch
         );
         queues.set(scopeTarget, queue);
         allQueues.add(queue);
       }
+      return queue;
+    }
+
+    const wrappedMethod: any = async function (this: any, ...args: any[]) {
+      const key = args[0] as K;
+      const queue = getOrCreateQueue(this);
+
+      if (!queue) {
+        // Fallback to original method if no batch implementation exists
+        return originalMethod?.apply(this, args);
+      }
 
       return queue.load(key);
+    };
+
+    wrappedMethod.prime = function (key: K, value: V, instance?: any) {
+      const queue = getOrCreateQueue(instance);
+      if (queue) {
+        queue.prime(key, value);
+      }
+    };
+
+    wrappedMethod.prefetch = function (keys: K[], instance?: any) {
+      const queue = getOrCreateQueue(instance);
+      if (queue) {
+        queue.prefetch(keys);
+      }
     };
 
     wrappedMethod.clear = async function (key: K, instance?: any) {

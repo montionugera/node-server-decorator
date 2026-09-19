@@ -90,5 +90,5 @@ export {
 } from './decorators/rate-limit';
 
 // Reactive Call Coalescing
-export { batchLoad, type BatchLoadOptions } from './decorators/batch-load';
+export { batchLoad, type BatchLoadOptions, type PrefetchRule } from './decorators/batch-load';
 
