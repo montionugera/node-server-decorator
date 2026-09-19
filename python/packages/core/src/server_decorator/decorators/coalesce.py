@@ -66,6 +66,18 @@ class LruCache:
         self._items.clear()
 
 
+class PrefetchRule:
+    """Rule defining how to extract child keys and which child loader to invoke."""
+
+    def __init__(
+        self,
+        extract: Callable[[Any], Any],
+        loader: Callable[[], Any],
+    ) -> None:
+        self.extract = extract
+        self.loader = loader
+
+
 class BatchQueue(Generic[K, V]):
     def __init__(
         self,
@@ -74,13 +86,14 @@ class BatchQueue(Generic[K, V]):
         window_seconds: float = 0.001,
         deduplicate: bool = True,
         key_of: Callable[[Any], K] | None = None,
-        l1_max_size: int = 0,
-        l1_ttl_seconds: float = 0,
+        l1_max_size: int = 10000,
+        l1_ttl_seconds: float = 10.0,
         l2_cache: Any = None,
         l2_ttl_seconds: float = 0,
         negative_ttl_seconds: float = 5,
         serializer: Callable[[Any], str] | None = None,
         deserializer: Callable[[str], Any] | None = None,
+        prefetch_rules: list[PrefetchRule] | None = None,
     ) -> None:
         self.loader_fn = loader_fn
         self.max_batch_size = max_batch_size
@@ -97,6 +110,7 @@ class BatchQueue(Generic[K, V]):
         self.negative_ttl_seconds = negative_ttl_seconds
         self.serializer = serializer or (lambda v: json.dumps(v))
         self.deserializer = deserializer or (lambda s: json.loads(s) if isinstance(s, str) else s)
+        self.prefetch_rules = prefetch_rules or []
 
         self.queue: list[QueuedItem[K, V]] = []
         self.scheduled_handle: asyncio.TimerHandle | asyncio.Handle | None = None
@@ -148,6 +162,76 @@ class BatchQueue(Generic[K, V]):
 
         return fut
 
+    def prime(self, key: K, val: V) -> None:
+        if self.l1_cache is None:
+            self.l1_cache = LruCache(capacity=10000, ttl_seconds=10.0)
+        self.l1_cache.set(key, val)
+        if self.l2_cache is not None:
+            set_fn = getattr(self.l2_cache, "set_many", None)
+            if callable(set_fn):
+                res = set_fn({str(key): self.serializer(val)}, self.l2_ttl_seconds)
+                if inspect.isawaitable(res):
+                    self._spawn_task(res)
+
+    def prefetch(self, keys: list[K]) -> None:
+        if not keys:
+            return
+        for k in keys:
+            self.load(k)
+
+    def _trigger_prefetch(self, items: list[V]) -> None:
+        if not self.prefetch_rules or not items:
+            return
+
+        for rule in self.prefetch_rules:
+            try:
+                raw_loader = rule.loader()
+                if raw_loader is None:
+                    continue
+
+                child_keys: list[Any] = []
+                seen: set[Any] = set()
+
+                for item in items:
+                    if item is None:
+                        continue
+                    extracted = rule.extract(item)
+                    if extracted is None:
+                        continue
+
+                    if isinstance(extracted, (list, tuple, set)):
+                        for k in extracted:
+                            if k is not None and k not in seen:
+                                seen.add(k)
+                                child_keys.append(k)
+                    elif extracted not in seen:
+                        seen.add(extracted)
+                        child_keys.append(extracted)
+
+                if not child_keys:
+                    continue
+
+                prefetch_fn = getattr(raw_loader, "prefetch", None)
+                if callable(prefetch_fn):
+                    inst = getattr(raw_loader, "__self__", None)
+                    if inst is not None:
+                        prefetch_fn(child_keys, instance=inst)
+                    else:
+                        prefetch_fn(child_keys)
+                else:
+                    load_fn = getattr(raw_loader, "load", None)
+                    if callable(load_fn):
+                        for ck in child_keys:
+                            load_fn(ck)
+                    elif callable(raw_loader):
+                        for ck in child_keys:
+                            res = raw_loader(ck)
+                            if inspect.isawaitable(res):
+                                self._spawn_task(res)
+            except Exception:
+                # Suppress prefetch errors so parent never fails
+                pass
+
     async def clear(self, key: K) -> None:
         if self.l1_cache is not None:
             self.l1_cache.delete(key)
@@ -198,6 +282,7 @@ class BatchQueue(Generic[K, V]):
 
         # Phase B: L2 Distributed Cache (MGET)
         l2_misses: list[QueuedItem[K, V]] = []
+        l2_resolved_items: list[V] = []
         if self.l2_cache is not None:
             try:
                 mget_fn = getattr(self.l2_cache, "mget", None)
@@ -217,6 +302,7 @@ class BatchQueue(Generic[K, V]):
                                 self.l1_cache.set(item.key, val)
                             if not item.future.done():
                                 item.future.set_result(val)
+                            l2_resolved_items.append(val)
                         else:
                             l2_misses.append(item)
                 else:
@@ -225,6 +311,9 @@ class BatchQueue(Generic[K, V]):
                 l2_misses = l1_misses
         else:
             l2_misses = l1_misses
+
+        if l2_resolved_items:
+            self._trigger_prefetch(l2_resolved_items)
 
         if not l2_misses:
             return
@@ -241,6 +330,7 @@ class BatchQueue(Generic[K, V]):
             raw_result = await self.loader_fn(unique_keys)
             result_map = self._normalize_result(raw_result)
             l2_set_items: dict[str, Any] = {}
+            l3_resolved_items: list[V] = []
 
             for item in l2_misses:
                 if not item.future.done():
@@ -251,6 +341,7 @@ class BatchQueue(Generic[K, V]):
                         if self.l2_cache is not None:
                             l2_set_items[str(item.key)] = self.serializer(val)
                         item.future.set_result(val)
+                        l3_resolved_items.append(val)
                     else:
                         # Negative cache
                         if self.l1_cache is not None:
@@ -265,6 +356,9 @@ class BatchQueue(Generic[K, V]):
                     set_res = set_fn(l2_set_items, self.l2_ttl_seconds)
                     if inspect.isawaitable(set_res):
                         await set_res
+
+            if l3_resolved_items:
+                self._trigger_prefetch(l3_resolved_items)
         except Exception as exc:
             for item in l2_misses:
                 if not item.future.done():
@@ -303,15 +397,24 @@ def batch_load(
     deduplicate: bool = True,
     key_of: Callable[[Any], Any] | None = None,
     context_var: contextvars.ContextVar[Any] | None = None,
-    l1_max_size: int = 0,
-    l1_ttl_seconds: float = 0,
+    l1_max_size: int = 10000,
+    l1_ttl_seconds: float = 10.0,
     l2_cache: Any = None,
     l2_ttl_seconds: float = 0,
     negative_ttl_seconds: float = 5,
     serializer: Callable[[Any], str] | None = None,
     deserializer: Callable[[str], Any] | None = None,
+    prefetch: list[PrefetchRule | dict[str, Any]] | None = None,
 ) -> Callable[[F], F]:
     """Decorator that coalesces individual async calls into a single multi-tier batch call."""
+
+    normalized_prefetch_rules: list[PrefetchRule] = []
+    if prefetch:
+        for p in prefetch:
+            if isinstance(p, PrefetchRule):
+                normalized_prefetch_rules.append(p)
+            elif isinstance(p, dict) and "extract" in p and "loader" in p:
+                normalized_prefetch_rules.append(PrefetchRule(p["extract"], p["loader"]))
 
     def decorator(fn: F) -> F:
         if not inspect.iscoroutinefunction(fn):
@@ -320,20 +423,7 @@ def batch_load(
         queues_by_scope: dict[Any, BatchQueue[Any, Any]] = {}
         all_queues: set[BatchQueue[Any, Any]] = set()
 
-        @functools.wraps(fn)
-        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Determine scope and key
-            prims = (str, int, float, bool, list, tuple, dict)
-            is_prim = isinstance(args[0], prims) if args else True
-            has_self = bool(args) and not is_prim
-            instance = args[0] if has_self else None
-
-            if has_self:
-                key = args[1] if len(args) > 1 else kwargs.get("id", kwargs.get("key"))
-            else:
-                key = args[0] if args else kwargs.get("id", kwargs.get("key"))
-
-            # Determine loader function
+        def _get_or_create_queue(instance: Any) -> BatchQueue[Any, Any] | None:
             resolved_batch_fn = batch_fn
             if resolved_batch_fn is None and batch_method and instance is not None:
                 method = getattr(instance, batch_method, None)
@@ -341,9 +431,8 @@ def batch_load(
                     resolved_batch_fn = method
 
             if resolved_batch_fn is None:
-                return await fn(*args, **kwargs)
+                return None
 
-            # Determine scope key
             scope_target: Any = None
             if context_var is not None:
                 try:
@@ -368,17 +457,49 @@ def batch_load(
                     negative_ttl_seconds=negative_ttl_seconds,
                     serializer=serializer,
                     deserializer=deserializer,
+                    prefetch_rules=normalized_prefetch_rules,
                 )
                 queues_by_scope[scope_target] = queue
                 all_queues.add(queue)
 
+            return queue
+
+        @functools.wraps(fn)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            # Determine scope and key
+            prims = (str, int, float, bool, list, tuple, dict)
+            is_prim = isinstance(args[0], prims) if args else True
+            has_self = bool(args) and not is_prim
+            instance = args[0] if has_self else None
+
+            if has_self:
+                key = args[1] if len(args) > 1 else kwargs.get("id", kwargs.get("key"))
+            else:
+                key = args[0] if args else kwargs.get("id", kwargs.get("key"))
+
+            queue = _get_or_create_queue(instance)
+            if queue is None:
+                return await fn(*args, **kwargs)
+
             return await queue.load(key)
+
+        def _prime(key: Any, val: Any, instance: Any = None) -> None:
+            queue = _get_or_create_queue(instance)
+            if queue is not None:
+                queue.prime(key, val)
+
+        def _prefetch(keys: list[Any], instance: Any = None) -> None:
+            queue = _get_or_create_queue(instance)
+            if queue is not None:
+                queue.prefetch(keys)
 
         async def _clear(key: Any) -> None:
             for q in list(all_queues):
                 await q.clear(key)
 
         async_wrapper.clear = _clear  # type: ignore[attr-defined]
+        async_wrapper.prime = _prime  # type: ignore[attr-defined]
+        async_wrapper.prefetch = _prefetch  # type: ignore[attr-defined]
         _mark_wrapped(async_wrapper, "batch_load")
         return cast(F, async_wrapper)
 
