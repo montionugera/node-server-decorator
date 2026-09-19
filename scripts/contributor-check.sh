@@ -31,6 +31,9 @@ echo "  ✓ OpenAPI parity verified"
 echo ""
 echo "▶ [4/7] Running Go tests..."
 CGO_ENABLED=0 go test ./go/...
+if [ -d "$ROOT_DIR/go/adapter/gin" ]; then
+  (cd "$ROOT_DIR/go/adapter/gin" && CGO_ENABLED=0 go test ./...)
+fi
 echo "  ✓ Go tests passed"
 
 echo ""
