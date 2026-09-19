@@ -172,8 +172,9 @@
     "title": "Multi-tier call coalescing: L1 in-memory LRU + L2 Redis MGET + L3 batch DB query with SingleFlight",
     "from_idea": "I-018",
     "created_at": "2026-09-19T16:41:17.639972+00:00",
-    "claimed_by": null,
-    "status": "open",
-    "release_version": null
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
+    "release_version": null,
+    "claimed_at": "2026-09-19T16:41:22.366179+00:00"
   }
 ]
