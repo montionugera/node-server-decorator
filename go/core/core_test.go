@@ -13,11 +13,11 @@ import (
 
 // mockCacheAdapter is an in-memory cache adapter for testing.
 type mockCacheAdapter struct {
-	mu           sync.Mutex
-	store        map[string]any
-	useSentinel  bool
-	getCalled    int
-	setCalled    int
+	mu          sync.Mutex
+	store       map[string]any
+	useSentinel bool
+	getCalled   int
+	setCalled   int
 }
 
 func newMockCacheAdapter(useSentinel bool) *mockCacheAdapter {

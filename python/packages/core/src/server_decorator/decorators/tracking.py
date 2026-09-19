@@ -62,6 +62,7 @@ def tracking_class(
     include: tuple[str, ...] = (),
     exclude: tuple[str, ...] = (),
     include_private: bool = False,
+    wrap_properties: bool = False,
 ) -> Callable[[type], type]:
     """Class form: auto-apply @tracking to every public method. Decision #4."""
 
@@ -73,6 +74,7 @@ def tracking_class(
             include=include,
             exclude=exclude,
             include_private=include_private,
+            wrap_properties=wrap_properties,
         )
 
     return wrap

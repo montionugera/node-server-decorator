@@ -143,7 +143,7 @@ class AsyncSSEBroadcaster(Generic[T]):
                         if msg is None:
                             break
                         yield msg
-                    except TimeoutError:
+                    except (TimeoutError, asyncio.TimeoutError):
                         yield ": ping\n\n"
             finally:
                 self._subscribers.discard(queue)
