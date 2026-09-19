@@ -187,5 +187,14 @@
     "claimed_by": null,
     "status": "open",
     "release_version": null
+  },
+  {
+    "id": "F-017",
+    "title": "Native web framework router adapters: FastAPI and Express route mounting over EntitySpec IR",
+    "from_idea": "I-020",
+    "created_at": "2026-09-19T17:12:41.495196+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
