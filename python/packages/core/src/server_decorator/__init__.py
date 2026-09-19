@@ -24,6 +24,7 @@ from server_decorator.decorators.circuit_breaker import (
     clear_circuit_breakers,
     get_circuit_breaker,
 )
+from server_decorator.decorators.coalesce import batch_load
 from server_decorator.decorators.emit_on_success import emit_on_success, emit_on_success_class
 from server_decorator.decorators.on_event import on_event
 from server_decorator.decorators.rate_limit import (
@@ -61,6 +62,7 @@ __all__ = [
     "__version__",
     "CONTRACT_VERSION",
     # method-form decorators (mirror Node)
+    "batch_load",
     "cache",
     "tracking",
     "emit_on_success",
