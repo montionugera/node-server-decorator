@@ -1,0 +1,159 @@
+---
+title: Quickstart
+description: Get up and running with server-decorator across languages in minutes.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Quickstart
+
+This guide shows how to set up caching, queue emission, and REST entity definitions in your language of choice.
+
+## 1. Caching a Function or Method
+
+The `@cache` decorator transparently caches method return values using a multi-replica canonical hashing algorithm:
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { cache, InMemoryCacheAdapter, setGlobalCacheAdapter } from '@montionugera/server-decorator';
+
+// Set cache backend (e.g. RedisCacheAdapter or InMemoryCacheAdapter)
+setGlobalCacheAdapter(new InMemoryCacheAdapter());
+
+class ProductCatalog {
+  @cache({ ttl: 300 })
+  async getProduct(productId: string) {
+    console.log('Fetching from database...');
+    return { id: productId, name: 'Sample Item', price: 99.99 };
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import cache, InMemoryCacheAdapter, set_global_cache_adapter
+
+# Set cache backend
+set_global_cache_adapter(InMemoryCacheAdapter())
+
+class ProductCatalog:
+    @cache(ttl=300)
+    async def get_product(self, product_id: str):
+        print("Fetching from database...")
+        return {"id": product_id, "name": "Sample Item", "price": 99.99}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## 2. Emitting Events to a Message Queue
+
+Decorate methods with `@EmitOnSuccess` / `@emit_on_success`. If the method completes without error, its result is automatically wrapped in a standardized wire message envelope and dispatched:
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { EmitOnSuccess } from '@montionugera/server-decorator';
+
+class OrderService {
+  @EmitOnSuccess({ topic: 'orders.placed' })
+  async placeOrder(orderData: CreateOrderDTO) {
+    const order = await db.orders.create(orderData);
+    return { orderId: order.id, status: 'confirmed' };
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import emit_on_success
+
+class OrderService:
+    @emit_on_success(topic="orders.placed")
+    async def place_order(self, order_data: dict):
+        order = await db.orders.create(order_data)
+        return {"orderId": order["id"], "status": "confirmed"}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## 3. Declaring a REST Entity (EntitySpec IR)
+
+Declare your domain model once with decorators/markers, emitting a canonical EntitySpec IR that cross-compiles to validation DTOs and OpenAPI specs:
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { Restful, id, str, entitySpec } from '@montionugera/entity-spec';
+import { createSchema } from '@montionugera/entity-spec-gen-zod';
+import { openapiDocument } from '@montionugera/entity-spec-gen-openapi';
+
+@Restful({ name: 'User', plural: 'users' })
+export class User {
+  @id() id!: number;
+  @str({ format: 'email' }) email!: string;
+  @str({ min: 1, max: 100 }) name!: string;
+}
+
+const spec = entitySpec(User);
+const CreateUserSchema = createSchema(spec);
+const openapi = openapiDocument([spec], { title: 'User API', version: '1.0.0' });
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator_entity import restful, Id, str_field, entity_spec
+from server_decorator_gen_pydantic import create_model_for
+from server_decorator_gen_openapi import openapi_document
+
+@restful(name="User", plural="users")
+class User:
+    id: Id[int]
+    email: str = str_field(format="email")
+    name: str = str_field(min_len=1, max_len=100)
+
+spec = entity_spec(User)
+CreateUserModel = create_model_for(spec, "create")
+openapi = openapi_document([spec], title="User API", version="1.0.0")
+```
+  </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/montionugera/node-server-decorator/v2/entity"
+)
+
+func main() {
+    spec := entity.Build("User",
+        entity.Plural("users"),
+        entity.Field("id", entity.TypeInt, entity.Id()),
+        entity.Field("email", entity.TypeString, entity.Format("email")),
+        entity.Field("name", entity.TypeString, entity.Min(1), entity.Max(100)),
+    )
+    jsonBytes, _ := entity.MarshalCanonical(spec)
+    fmt.Println(string(jsonBytes))
+}
+```
+  </TabItem>
+  <TabItem label="Nim" icon="seti:nim">
+```nim
+import server_decorator, server_decorator/gen_openapi
+
+restful User:
+  id: Id[int]
+  email: str {.format: "email".}
+  name: str {.min: 1, max: 100.}
+
+let spec = entitySpec(User)
+let openapi = openapiDocument(@[spec], "User API", "1.0.0")
+echo $openapi
+```
+  </TabItem>
+</Tabs>

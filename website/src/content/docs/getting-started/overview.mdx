@@ -1,0 +1,69 @@
+---
+title: Overview & Architecture
+description: Learn about the architecture and design of server-decorator.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Overview of server-decorator
+
+**server-decorator** is a high-rigor **polyglot microservices foundation** that solves a critical problem in modern distributed systems: **ensuring runtime behavioral symmetry across multiple programming languages**.
+
+Many modern engineering teams run heterogeneous stacks — for instance, a TypeScript web gateway communicating with Python machine learning or background workers, or Go and Nim high-performance services. When individual language teams implement decorators for caching, event tracking, or queue emission independently, slight behavioral divergences inevitably emerge:
+- Incompatible cache keys causing cache misses or collisions.
+- Divergent message envelope structures breaking queue consumers.
+- Subtle JSON schema drift between validation layers (e.g. Zod vs Pydantic).
+
+`server-decorator` solves this by treating the **contract** as the primary deliverable, backed by reference implementations kept in strict lockstep.
+
+---
+
+## Language Ecosystem Matrix
+
+The repository maintains implementations across four languages:
+
+| Language | Directory | Package / Module | Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Node / TypeScript** | `node/` | `@montionugera/server-decorator`<br/>`@montionugera/entity-spec`<br/>`@montionugera/entity-spec-gen-zod`<br/>`@montionugera/entity-spec-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Zod DTO generator, OpenAPI 3.1 generator |
+| **Python** | `python/` | `server-decorator`<br/>`server-decorator-entity`<br/>`server-decorator-gen-pydantic`<br/>`server-decorator-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Pydantic v2 DTO generator, OpenAPI 3.1 generator |
+| **Go** | `go/` | `github.com/montionugera/node-server-decorator/v2` | EntitySpec IR producer (`go/entity`), byte-identical to Node/Python |
+| **Nim** | `nim/` | `server_decorator` (Nimble) | EntitySpec IR producer (macro DSL), OpenAPI 3.1 generator (`gen_openapi`) |
+
+---
+
+## Architectural Layers
+
+```
+Layer 1: Wire Contracts (`contracts/`)
+  ├── JSON Schemas (Wire envelope, EntitySpec IR)
+  ├── Canonical Algorithm Rules (Cache key hashing, Topic naming, Problem Details)
+  └── Golden Fixtures (`entity-spec.cases.json`, `openapi.valid-user.json`)
+          │
+          ▼
+Layer 2: Core Decorator Implementations (`node/packages/core`, `python/packages/core`)
+  ├── @cache / @cache_class with CACHE_MISS Sentinel
+  ├── @tracking / @tracking_class with context tracing
+  ├── @EmitOnSuccess / @emit_on_success with Queue Registry
+  └── Multi-Queue Adapters (Redis Streams, RabbitMQ, Kafka, InMemory, BullMQ)
+          │
+          ▼
+Layer 3: Entity-Spec & Compiler Layer
+  ├── Producers (Node @Restful, Python @restful, Go entity.Build, Nim restful)
+  ├── DTO Compilers (Node gen-zod, Python gen-pydantic)
+  └── OpenAPI 3.1 Compilers (Node gen-openapi, Python gen_openapi, Nim gen_openapi)
+          │
+          ▼
+Layer 4: Verification & Interop Gates
+  ├── Parity Check Scripts (`check-entity-parity.sh`, `check-openapi-parity.sh`)
+  ├── Cross-Language E2E Tests (`interop/scenarios/*/run.sh`)
+  └── Version Alignment Gate (`check-versions.sh`)
+```
+
+---
+
+## The Parity Guarantee
+
+In this repository, "parity" is not an aspiration; it is an automated CI gate:
+1. **EntitySpec Parity**: Emitting the IR for a given entity in TypeScript, Python, Go, or Nim produces **100% byte-identical JSON**.
+2. **OpenAPI Parity**: Emitting an OpenAPI 3.1 specification for a given entity in TypeScript, Python, or Nim produces **100% byte-identical JSON**.
+3. **DTO Parity**: All DTO generators validate against the identical fixture cases in `contracts/fixtures/entity-spec.cases.json`.

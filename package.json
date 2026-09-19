@@ -7,6 +7,9 @@
     "test:unit": "cd node && pnpm -r test:unit",
     "test:e2e": "cd node && pnpm -r test:e2e",
     "build": "cd node && pnpm -r run build",
+    "docs:dev": "cd website && pnpm dev",
+    "docs:build": "cd website && pnpm build",
+    "check:contributor": "bash scripts/contributor-check.sh",
     "py:check": "cd python && bash scripts/check.sh",
     "contracts:validate": "bash contracts/scripts/validate.sh"
   }

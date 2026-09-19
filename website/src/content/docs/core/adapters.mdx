@@ -1,0 +1,61 @@
+---
+title: Adapters & Transports
+description: Pluggable queue and cache backends for Redis, RabbitMQ, Kafka, InMemory, and BullMQ.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Adapters & Transports
+
+`server-decorator` separates business logic decorators from the underlying messaging and storage infrastructure via an adapter architecture.
+
+## Supported Adapters
+
+| Adapter | Description | Status |
+| :--- | :--- | :--- |
+| **`RedisStreamAdapter`** | Redis Streams with consumer groups for durable messaging | Production |
+| **`RabbitMQAdapter`** | AMQP 0-9-1 exchange and topic routing | Production |
+| **`KafkaAdapter`** | Apache Kafka topics via kafkajs (Node) / aiokafka (Python) | Production |
+| **`InMemoryQueueAdapter`** | In-process queue for unit tests and local development | Included |
+| **`BullMQAdapter`** | BullMQ Redis queues (Node only) | Production |
+
+---
+
+## Configuring Global Adapters
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import {
+  globalQueueRegistry,
+  RedisQueueAdapter,
+  RedisCacheAdapter,
+  setGlobalCacheAdapter
+} from '@montionugera/server-decorator';
+
+// Register Queue Adapter
+const redisQueue = new RedisQueueAdapter({ url: 'redis://localhost:6379' });
+globalQueueRegistry.register('default', redisQueue);
+
+// Register Cache Adapter
+setGlobalCacheAdapter(new RedisCacheAdapter({ url: 'redis://localhost:6379' }));
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import (
+    global_queue_registry,
+    RedisQueueAdapter,
+    RedisCacheAdapter,
+    set_global_cache_adapter
+)
+
+# Register Queue Adapter
+redis_queue = RedisQueueAdapter(url="redis://localhost:6379")
+global_queue_registry.register("default", redis_queue)
+
+# Register Cache Adapter
+set_global_cache_adapter(RedisCacheAdapter(url="redis://localhost:6379"))
+```
+  </TabItem>
+</Tabs>

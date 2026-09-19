@@ -1,0 +1,40 @@
+---
+title: Wire Contracts & Protocols
+description: Contract-first design and specifications in contracts/.
+---
+
+# Wire Contracts & Protocols
+
+The `contracts/` directory is the single source of truth for the entire repository. No implementation is allowed to invent its own wire format, cache hashing algorithm, or validation behavior.
+
+## Directory Layout
+
+- **`contracts/schemas/`**: Formal JSON Schemas:
+  - `queue-message.schema.json` — Standard message envelope published by `@EmitOnSuccess`.
+  - `entity-spec.schema.json` — Schema for the EntitySpec Intermediate Representation.
+- **`contracts/rules/`**: Algorithmic specifications:
+  - `cache-key.md` — Canonical cache-key hashing algorithm.
+  - `cache-adapter.md` — Adapter requirements and the `CACHE_MISS` sentinel contract.
+  - `topic-naming.md` — Topic generation heuristics (`ClassName.methodName`).
+  - `tracking-key.md` — Correlation ID and metadata format.
+  - `rest-conventions.md` — Path formatting, query params, and RFC 9457 problem detail error shapes.
+- **`contracts/fixtures/`**: Golden fixtures used across test suites:
+  - `entity-spec.cases.json` — Comprehensive suite of edge cases testing DTO inclusion/exclusion rules.
+  - `entity-spec.valid-user.json` — Fixture asserting byte-for-byte EntitySpec IR parity.
+  - `openapi.valid-user.json` — Fixture asserting byte-for-byte OpenAPI document parity.
+- **`contracts/VERSION`**: Pinned semver version string that must match across all language packages.
+
+## Parity Verification
+
+CI runs automated parity validation scripts on every pull request:
+
+```bash
+# Verify EntitySpec IR parity across Node, Python, Go, and Nim
+bash scripts/check-entity-parity.sh
+
+# Verify OpenAPI 3.1 parity across Node, Python, and Nim
+bash scripts/check-openapi-parity.sh
+
+# Verify version alignment across all packages
+bash scripts/check-versions.sh
+```

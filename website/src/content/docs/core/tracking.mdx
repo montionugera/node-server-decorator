@@ -1,0 +1,38 @@
+---
+title: Tracking (@tracking)
+description: Execution tracing, context injection, and tracking keys.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Tracking (@tracking)
+
+The `@tracking` decorator injects execution metadata, timing information, and correlation IDs across service calls to enable end-to-end tracing.
+
+## Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { tracking } from '@montionugera/server-decorator';
+
+export class PaymentProcessor {
+  @tracking({ key: 'payment.charge' })
+  async processPayment(amount: number, currency: string) {
+    // Execution is automatically wrapped in a tracking context
+    return stripe.charges.create({ amount, currency });
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import tracking
+
+class PaymentProcessor:
+    @tracking(key="payment.charge")
+    async def process_payment(self, amount: int, currency: str):
+        return await stripe.charges.create(amount=amount, currency=currency)
+```
+  </TabItem>
+</Tabs>

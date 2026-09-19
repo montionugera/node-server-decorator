@@ -1,6 +1,8 @@
 .npmrc
 dist
 node_modules
+.astro
+
 
 # GitHub Actions
 .env

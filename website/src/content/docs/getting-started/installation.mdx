@@ -1,0 +1,57 @@
+---
+title: Installation
+description: How to install server-decorator packages across languages.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Installation
+
+All packages are released in lockstep under a single semver tag. Choose your platform below:
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```bash
+# Core decorators and adapters
+pnpm add @montionugera/server-decorator
+
+# Optional: Kafka adapter support
+pnpm add kafkajs
+
+# EntitySpec IR and generators
+pnpm add @montionugera/entity-spec
+pnpm add @montionugera/entity-spec-gen-zod zod
+pnpm add @montionugera/entity-spec-gen-openapi
+```
+
+:::note
+Node packages are published to **GitHub Packages**. Ensure your `.npmrc` is configured with `@montionugera:registry=https://npm.pkg.github.com`.
+:::
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```bash
+# Core decorators
+pip install server-decorator
+# Or with uv:
+uv add server-decorator
+
+# Optional extras (e.g. Kafka):
+pip install "server-decorator[kafka]"
+
+# EntitySpec IR and generators
+pip install server-decorator-entity
+pip install server-decorator-gen-pydantic
+pip install server-decorator-gen-openapi
+```
+  </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```bash
+go get github.com/montionugera/node-server-decorator/v2
+```
+  </TabItem>
+  <TabItem label="Nim" icon="seti:nim">
+```bash
+nimble install server_decorator
+```
+  </TabItem>
+</Tabs>

@@ -1,0 +1,103 @@
+---
+title: server-decorator (ภาษาไทย)
+description: ไลบรารี Polyglot Microservices Decorator สำหรับ Node/TypeScript, Python, Go และ Nim
+template: splash
+hero:
+  tagline: เครื่องมือ Decorator ระดับ Production สำหรับ Caching, Tracking, Queue Emission และ Entity-Spec REST Generation รองรับ Node, Python, Go และ Nim ใน repository เดียว
+  image:
+    file: ../../../assets/houston.webp
+  actions:
+    - text: เริ่มต้นใช้งาน
+      link: /th/getting-started/overview/
+      icon: right-arrow
+      variant: primary
+    - text: ดูบน GitHub
+      link: https://github.com/montionugera/node-server-decorator
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## ตัวอย่างโค้ดหลายภาษา (Polyglot)
+
+เลือกภาษาที่คุณต้องการเพียงครั้งเดียว โค้ดตัวอย่างในทุกหน้าของเอกสารจะเปลี่ยนเป็นภาษานั้นโดยอัตโนมัติ:
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { cache, EmitOnSuccess, tracking } from '@montionugera/server-decorator';
+
+export class UserService {
+  @cache({ ttl: 60 })
+  @tracking()
+  async getUser(id: string) {
+    return db.users.findById(id);
+  }
+
+  @EmitOnSuccess({ topic: 'user.created' })
+  async createUser(payload: CreateUserDTO) {
+    return db.users.create(payload);
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import cache, emit_on_success, tracking
+
+class UserService:
+    @cache(ttl=60)
+    @tracking()
+    async def get_user(self, id: str):
+        return await db.users.find_by_id(id)
+
+    @emit_on_success(topic="user.created")
+    async def create_user(self, payload: CreateUserDTO):
+        return await db.users.create(payload)
+```
+  </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+package main
+
+import "github.com/montionugera/node-server-decorator/v2/entity"
+
+func main() {
+    spec := entity.Build("User",
+        entity.Field("id", entity.TypeInt, entity.Id()),
+        entity.Field("email", entity.TypeString, entity.Format("email")),
+    )
+}
+```
+  </TabItem>
+  <TabItem label="Nim" icon="seti:nim">
+```nim
+import server_decorator
+
+restful User:
+  id: Id[int]
+  email: str {.format: "email".}
+  name: str
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## จุดเด่นสำคัญ
+
+<CardGrid stagger>
+  <Card title="ขับเคลื่อนด้วย Contract" icon="seti:json">
+    กำหนดโครงสร้างและข้อตกลงที่แน่นอนผ่าน JSON Schema ใน `contracts/` ทำให้ทุกภาษามีพฤติกรรมสอดคล้องกัน 100%
+  </Card>
+  <Card title="ความถูกต้องระดับ Byte-Identical" icon="approve-check-circle">
+    EntitySpec IR และเอกสาร OpenAPI 3.1 ที่สร้างจาก Node, Python, Go และ Nim จะเหมือนกันทุกไบต์
+  </Card>
+  <Card title="ปลอดภัยสำหรับ Multi-Replica" icon="random">
+    อัลกอริทึมการแฮช Cache Key แบบ Canonical ป้องกันปัญหาข้อมูลแคชคลาดเคลื่อนข้ามระบบ
+  </Card>
+  <Card title="อัปเดตเวอร์ชันพร้อมกัน (Lockstep)" icon="rocket">
+    ทุกแพ็กเกจในทุกภาษาจะปล่อยเวอร์ชันเดียวกันพร้อมกันเสมอ ลดปัญหาความไม่เข้ากันของเวอร์ชัน
+  </Card>
+</CardGrid>

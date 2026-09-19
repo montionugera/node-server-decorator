@@ -1,0 +1,67 @@
+---
+title: Caching (@cache)
+description: Canonical caching semantics, TTL, cache miss sentinels, and key hashing.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Caching (@cache)
+
+The caching system provides declarative caching with multi-replica consistency, deterministic key generation, and proper handling of falsy or `null` values.
+
+## Key Features
+
+- **Deterministic Hash Generation**: Canonical hashing rule specified in `contracts/rules/cache-key.md`. Node and Python generate identical cache keys for the same function and arguments.
+- **`CACHE_MISS` Sentinel**: Solves the classic bug where caching `null`, `false`, `0`, or `""` results in repeated database queries. Only the special `CACHE_MISS` sentinel indicates an absent key.
+- **Configurable TTL**: Millisecond / second-based expiration.
+- **Class-Form Variants in Python**: `@cache_class` automatically decorates all public methods of a class without walking the MRO.
+
+---
+
+## Basic Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { cache } from '@montionugera/server-decorator';
+
+export class OrderService {
+  @cache({ ttl: 120 })
+  async getOrderById(orderId: string) {
+    return db.orders.find(orderId);
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import cache
+
+class OrderService:
+    @cache(ttl=120)
+    async def get_order_by_id(self, order_id: str):
+        return await db.orders.find(order_id)
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## The `CACHE_MISS` Sentinel
+
+In standard caching libraries, `get(key)` returning `undefined` or `None` is ambiguous: is the key missing from the cache, or was `null` stored?
+
+In `server-decorator`, cache adapters return a language-specific sentinel:
+- **Node**: `Symbol.for('server-decorator.cache.miss')` (exported as `CACHE_MISS`).
+- **Python**: A module-level singleton instance (exported as `CACHE_MISS`).
+
+```typescript
+import { CACHE_MISS } from '@montionugera/server-decorator';
+
+const value = await cacheAdapter.get('user:123');
+if (value === CACHE_MISS) {
+  // Key does not exist in cache; recompute
+} else {
+  // Key exists; value may legitimately be null, false, 0, etc.
+}
+```

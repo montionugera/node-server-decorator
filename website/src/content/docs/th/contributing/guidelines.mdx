@@ -1,0 +1,32 @@
+---
+title: แนวทางสำหรับผู้ร่วมพัฒนา (Contributor Guidelines)
+description: กฎระเบียบและมาตรฐานการพัฒนาสำหรับการร่วมพัฒนา server-decorator
+---
+
+# แนวทางการร่วมพัฒนา (Contributor Guidelines)
+
+เพื่อรักษามาตรฐานความถูกต้องของระบบ Polyglot ผู้ร่วมพัฒนาทุกคนต้องปฏิบัติตามกฎต่อไปนี้:
+
+## กฎสำคัญ 4 ประการ
+
+### 1. Contract มาก่อนเสมอ (Contract-First)
+หากมีการเปลี่ยนแปลงโครงสร้างข้อความ, Cache Key หรือ EntitySpec IR **จะต้องเริ่มแก้ที่โฟลเดอร์ `contracts/` ก่อนเสมอ**:
+- อัปเดต JSON Schema หรือกฎใน `contracts/rules/`
+- ปรับเวอร์ชันใน `contracts/VERSION` และบันทึกใน `contracts/CHANGELOG.md`
+- อัปเดต Golden Fixtures ใน `contracts/fixtures/`
+
+### 2. รักษาความเท่าเทียมระดับไบต์ (Lockstep Parity)
+โค้ดที่สร้าง EntitySpec IR หรือ OpenAPI ในแต่ละภาษาต้องผ่านการตรวจสอบ Parity 100%:
+- `bash scripts/check-entity-parity.sh` (Node == Python == Go == Nim)
+- `bash scripts/check-openapi-parity.sh` (Node == Python == Nim)
+
+### 3. ต้องมีเอกสารประกอบเสมอ (Documentation Mandate)
+- ฟีเจอร์ใหม่ต้องมีคำอธิบายทั้งใน `README.md` ของแพ็กเกจ และในเว็บไซต์เอกสารนี้
+- ตัวอย่างโค้ดต้องมีครบทุกภาษาที่รองรับ โดยใช้ Tab สลับภาษาที่ซิงค์กัน
+
+### 4. ตรวจสอบก่อนส่ง Pull Request
+ก่อนเปิด PR ให้รันคำสั่งตรวจสอบ:
+```bash
+bash scripts/contributor-check.sh
+```
+คำสั่งนี้จะรันการตรวจสอบเวอร์ชัน, Parity, Unit Tests และทดสอบการ Build เอกสาร

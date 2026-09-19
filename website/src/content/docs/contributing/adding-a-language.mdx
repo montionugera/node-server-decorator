@@ -1,0 +1,36 @@
+---
+title: Adding a New Language Lane
+description: Step-by-step instructions for porting server-decorator to a new programming language.
+---
+
+# Adding a New Language Lane
+
+We welcome expanding `server-decorator` into additional ecosystems (e.g. Rust, C#, Java, Swift, Kotlin).
+
+## The Porting Checklist
+
+When adding a new language lane, follow these steps:
+
+1. **Workspace Placement**:
+   - Create a top-level directory for your language runtime (e.g., `rust/`, `csharp/`).
+   - Use the language's idiomatic package manager (Cargo, NuGet, etc.).
+
+2. **Phase 1: EntitySpec IR Producer**:
+   - Implement declarative annotations, decorators, or builder structs matching `contracts/schemas/entity-spec.schema.json`.
+   - Write tests asserting that the emitted JSON is 100% byte-identical to `contracts/fixtures/entity-spec.valid-user.json`.
+   - Add your language runner to `scripts/check-entity-parity.sh`.
+
+3. **Phase 2: OpenAPI Generator**:
+   - Implement compilation from the IR to an OpenAPI 3.1 document following `contracts/rules/rest-conventions.md`.
+   - Ensure byte-identical match with `contracts/fixtures/openapi.valid-user.json`.
+   - Add your language runner to `scripts/check-openapi-parity.sh`.
+
+4. **Phase 3: Core Decorators & Adapters**:
+   - Implement `@cache` with the canonical hash algorithm in `contracts/rules/cache-key.md` and sentinel `CACHE_MISS`.
+   - Implement `@EmitOnSuccess` with envelope format matching `contracts/schemas/queue-message.schema.json`.
+   - Implement at least one queue adapter (e.g. Redis Streams) and write an `interop/` test scenario.
+
+5. **Phase 4: CI & Documentation**:
+   - Add a GitHub Actions workflow `.github/workflows/ci-<language>.yml`.
+   - Update `scripts/check-versions.sh` and `scripts/bump-version.sh`.
+   - Add code samples in the documentation website tabs for your new language.

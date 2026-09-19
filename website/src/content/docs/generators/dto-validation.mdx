@@ -1,0 +1,61 @@
+---
+title: DTO Validation (Zod & Pydantic)
+description: Deriving type-safe DTO validators from EntitySpec IR in TypeScript and Python.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# DTO Validation (Zod & Pydantic)
+
+The `@montionugera/entity-spec-gen-zod` (Node) and `server-decorator-gen-pydantic` (Python) packages compile an EntitySpec IR into runtime validation models for `create`, `update`, `read`, and action-input DTOs.
+
+## Strict Parity Across Runtimes
+
+Both packages enforce the exact same field exposure rules, validated in CI against `contracts/fixtures/entity-spec.cases.json`:
+
+- **`createSchema` / `create_model_for`**:
+  - Excludes `readonly` fields (e.g. autoincrement ID, created_at).
+  - Enforces strict parsing (rejects unknown keys).
+- **`updateSchema` / `update_model_for`**:
+  - Excludes `readonly` fields.
+  - All fields made optional for partial updates.
+  - Retains nullability constraints: fields that are not `nullable` reject `null` values even if absent keys are allowed.
+- **`readSchema` / `read_model_for`**:
+  - Excludes `writeonly` fields (e.g. password hashes, secret tokens).
+- **Nested Objects and Lists**:
+  - Recursively threads include/exclude rules through nested models.
+
+---
+
+## Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { createSchema, updateSchema, readSchema } from '@montionugera/entity-spec-gen-zod';
+import { userSpec } from './user.entity';
+
+// Generate Zod Schemas
+export const CreateUserDTO = createSchema(userSpec);
+export const UpdateUserDTO = updateSchema(userSpec);
+export const ReadUserDTO = readSchema(userSpec);
+
+// Usage in request handler
+const parsed = CreateUserDTO.parse(req.body);
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator_gen_pydantic import create_model_for, update_model_for, read_model_for
+from .user_entity import user_spec
+
+# Generate Pydantic v2 Models
+CreateUserDTO = create_model_for(user_spec, "create")
+UpdateUserDTO = update_model_for(user_spec, "update")
+ReadUserDTO = read_model_for(user_spec, "read")
+
+# Usage in FastAPI or request handler
+user = CreateUserDTO.model_validate(request_data)
+```
+  </TabItem>
+</Tabs>

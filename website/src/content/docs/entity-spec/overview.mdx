@@ -1,0 +1,40 @@
+---
+title: EntitySpec Overview
+description: Language-neutral Intermediate Representation (IR) for REST entities.
+---
+
+# EntitySpec IR Overview
+
+The **EntitySpec IR** is a language-neutral, canonical Intermediate Representation of a REST entity, specified by `contracts/schemas/entity-spec.schema.json`.
+
+## Why an Intermediate Representation?
+
+In polyglot architectures, defining models in one language (like TypeScript DTOs) and manually synchronizing them to another (like Python Pydantic or Go structs) leads to drift:
+- Field types diverge (e.g. naive string vs RFC 3339 datetime).
+- Validation constraints (min, max, pattern) disagree.
+- Hidden fields (`readonly`, `writeonly`) leak unexpectedly into API responses or create payloads.
+
+The EntitySpec IR layer decouples **declaration** from **code generation**:
+
+```
+Declaration (TS / Python / Go / Nim)
+                  │
+                  ▼
+         EntitySpec IR (JSON)
+          (100% Byte Identical)
+                  │
+       ┌──────────┴──────────┐
+       ▼                     ▼
+DTO Validators        OpenAPI 3.1 Specs
+(Zod / Pydantic)      (Routes, Schemas, Errors)
+```
+
+## The Four EntitySpec Producers
+
+All four language packages produce the exact same JSON IR:
+- **Node/TypeScript**: `@montionugera/entity-spec` (`@Restful`, `@action`, field markers)
+- **Python**: `server-decorator-entity` (`@restful`, `@action`, field markers)
+- **Go**: `go/entity` (`entity.Build(...)`)
+- **Nim**: `server_decorator` (`restful` block macro)
+
+Parity is enforced across all 4 implementations by `scripts/check-entity-parity.sh`.

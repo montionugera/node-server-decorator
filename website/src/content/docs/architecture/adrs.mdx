@@ -1,0 +1,19 @@
+---
+title: Architecture Decision Records (ADRs)
+description: Summary of formal Architecture Decision Records in docs/adr/.
+---
+
+# Architecture Decision Records (ADRs)
+
+Formal design changes and historical technical decisions are documented as lightweight ADRs in `docs/adr/`.
+
+| ADR | Title | Summary |
+| :--- | :--- | :--- |
+| **0001** | [Polyglot Architecture](file:///docs/adr/0001-polyglot-architecture.md) | Standardize decorator wire format and cross-language interoperability across Node and Python. |
+| **0002** | [Lockstep Versioning](file:///docs/adr/0002-lockstep-versioning.md) | Release all language implementations under unified semver tags to avoid microservice version mismatch. |
+| **0003** | [Cache Key Format](file:///docs/adr/0003-cache-key-format.md) | Canonical MD5 hashing over sorted JSON keys with strict type encoding rules. |
+| **0004** | [Cache Miss Sentinel](file:///docs/adr/0004-cache-miss-sentinel.md) | Use unique sentinel objects (`Symbol.for` in TS, module singleton in Python) instead of null/undefined. |
+| **0005** | [EventEmitter3 Swap](file:///docs/adr/0005-eventemitter3-swap.md) | Drop `@nestjs/event-emitter` in favor of high-performance zero-dependency `eventemitter3`. |
+| **0006** | [Cross-Language Consumption](file:///docs/adr/0006-cross-language-consumption.md) | Establish Redis Streams as the reference transport for cross-language e2e tests. |
+| **0007** | [Monorepo Restructure](file:///docs/adr/0007-monorepo-restructure.md) | Organize language stacks into top-level `node/`, `python/`, `go/`, and `nim/` workspaces. |
+| **0008** | [Authorization Metadata in Contract](file:///docs/adr/0008-authorization-metadata-in-contract.md) | Pin role-based and scope-based authorization metadata in the EntitySpec IR. |

@@ -1,0 +1,72 @@
+---
+title: OpenAPI 3.1 Generation
+description: Generating byte-identical OpenAPI 3.1 documents in TypeScript, Python, and Nim.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# OpenAPI 3.1 Generation
+
+The OpenAPI generators compile an EntitySpec IR into a complete OpenAPI 3.1 specification, following the REST conventions documented in `contracts/rules/rest-conventions.md`.
+
+## Features
+
+- **Byte-Identical Output**: Node (`@montionugera/entity-spec-gen-openapi`), Python (`server-decorator-gen-openapi`), and Nim (`server_decorator/gen_openapi`) produce 100% byte-identical documents.
+- **REST Endpoints**:
+  - `GET /{plural}` (List collection)
+  - `POST /{plural}` (Create entity)
+  - `GET /{plural}/{id}` (Retrieve by ID)
+  - `PATCH /{plural}/{id}` (Partial update)
+  - `DELETE /{plural}/{id}` (Delete by ID)
+  - `POST /{plural}/{id}/{action}` (Custom entity action)
+- **RFC 9457 Problem Details**: Predefined standard schemas for 400 Bad Request, 404 Not Found, 422 Unprocessable Entity, and 500 Internal Server Error.
+
+---
+
+## Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { openapiDocument } from '@montionugera/entity-spec-gen-openapi';
+import { userSpec } from './user.entity';
+
+const doc = openapiDocument([userSpec], {
+  title: 'User Microservice API',
+  version: '2.0.0',
+});
+
+// Outputs standard OpenAPI 3.1 JSON
+console.log(JSON.stringify(doc, null, 2));
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+import json
+from server_decorator_gen_openapi import openapi_document
+from .user_entity import user_spec
+
+doc = openapi_document(
+    [user_spec],
+    title="User Microservice API",
+    version="2.0.0"
+)
+
+print(json.dumps(doc, indent=2))
+```
+  </TabItem>
+  <TabItem label="Nim" icon="seti:nim">
+```nim
+import std/json
+import server_decorator, server_decorator/gen_openapi
+
+let doc = openapiDocument(
+  @[userSpec],
+  "User Microservice API",
+  "2.0.0"
+)
+
+echo doc.pretty()
+```
+  </TabItem>
+</Tabs>

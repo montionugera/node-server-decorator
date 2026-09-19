@@ -1,0 +1,18 @@
+---
+title: Locked Decisions
+description: Architectural invariants and locked design choices.
+---
+
+# Locked Design Decisions
+
+To avoid churn, regressions, and bike-shedding, the architecture of `server-decorator` is bound by explicit locked decisions recorded in `DECISIONS.md`.
+
+## Core Invariants
+
+1. **Polyglot parity over runtime-idiomatic shortcuts**: Behavior must remain identical between Node, Python, Go, and Nim even when one runtime provides a tempting shortcut that cannot be matched in another.
+2. **Lockstep semver versioning**: All published packages share the same semver version and tag.
+3. **Canonical Cache Key Algorithm**: Specified in `contracts/rules/cache-key.md`. Changing the key algorithm requires a major version bump because it invalidates distributed caches across existing microservices.
+4. **Class-Form Decorators inspect `vars(cls)` only**: In Python, class-level decorators never walk the MRO (`vars(cls)` only), preventing unintended decoration of base class methods.
+5. **Sentinel-based Cache Miss (`CACHE_MISS`)**: Cache adapters return a unique sentinel object, not `undefined` or `None`, so `null` and `false` can be cached safely.
+6. **Asyncio-only in Python**: Standard library `asyncio` is the sole supported async runtime in Python (no trio/anyio shims).
+7. **Cross-Language Interop Scenarios**: Real redis streams integration tests in `interop/` ensure Node producers can communicate with Python consumers and vice versa.

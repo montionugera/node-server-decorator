@@ -1,0 +1,17 @@
+---
+title: v1 to v2 Migration Guide
+description: Upgrading from server-decorator v1.x to v2.0.0.
+---
+
+# Upgrading from v1.x to v2.0.0
+
+Version 2.0.0 introduced significant performance improvements, dropped legacy NestJS dependencies, and standardized polyglot contracts.
+
+## Key Breaking Changes
+
+1. **`@nestjs/event-emitter` removed**: Replaced with `eventemitter3`. You no longer need to import NestJS module dependencies to use server-decorator in Node.
+2. **`CACHE_MISS` Sentinel**: Custom cache adapters must now return the `CACHE_MISS` sentinel instead of `undefined` when a key does not exist.
+3. **Canonical Cache Keys**: The cache-key hashing algorithm was normalized between Node and Python. Upgrading to v2 will cause existing v1 cache entries to miss; plan for a controlled cache flush.
+4. **Scattered Packages unified in Workspaces**: Packages are structured under `node/packages/*` and `python/packages/*`.
+
+Refer to [`MIGRATION.md`](file:///MIGRATION.md) in the repository root for the comprehensive field-by-field checklist.

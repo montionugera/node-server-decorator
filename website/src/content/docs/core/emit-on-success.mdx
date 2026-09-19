@@ -1,0 +1,67 @@
+---
+title: Queue Emission (@EmitOnSuccess)
+description: Declarative message queue publishing with transactional reliability.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Queue Emission (@EmitOnSuccess)
+
+The `@EmitOnSuccess` (Node) / `@emit_on_success` (Python) decorator ensures that messages are published to message brokers only when the decorated function returns successfully. If an exception is thrown, nothing is published.
+
+## Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import { EmitOnSuccess } from '@montionugera/server-decorator';
+
+export class OrderService {
+  @EmitOnSuccess({
+    topic: 'orders.completed',
+    queue: 'orders',
+  })
+  async completeOrder(orderId: string) {
+    const order = await db.orders.markComplete(orderId);
+    // Return value becomes the payload of the published message envelope
+    return { orderId: order.id, customerId: order.customerId };
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import emit_on_success
+
+class OrderService:
+    @emit_on_success(
+        topic="orders.completed",
+        queue="orders",
+    )
+    async def complete_order(self, order_id: str):
+        order = await db.orders.mark_complete(order_id)
+        return {"orderId": order["id"], "customerId": order["customerId"]}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Wire Message Envelope
+
+Published messages adhere to the strict JSON Schema defined in `contracts/schemas/queue-message.schema.json`:
+
+```json
+{
+  "id": "uuid-v4",
+  "topic": "orders.completed",
+  "timestamp": "2026-09-19T14:00:00.000Z",
+  "payload": {
+    "orderId": "ord_123",
+    "customerId": "cust_456"
+  },
+  "metadata": {
+    "source": "OrderService.completeOrder"
+  }
+}
+```

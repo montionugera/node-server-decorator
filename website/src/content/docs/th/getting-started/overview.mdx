@@ -1,0 +1,26 @@
+---
+title: ภาพรวมสถาปัตยกรรม (Overview)
+description: เรียนรู้สถาปัตยกรรมและการออกแบบของ server-decorator ในรูปแบบ Polyglot
+---
+
+# ภาพรวมของ server-decorator
+
+**server-decorator** ถูกสร้างขึ้นเพื่อแก้ไขปัญหาสำคัญในสถาปัตยกรรม Microservices ที่ใช้หลายภาษาโปรแกรม (Polyglot): **การทำให้พฤติกรรมระหว่างภาษาทำงานตรงกันอย่างสมบูรณ์แบบ**
+
+ในระบบที่ประกอบด้วยหลายภาษา เช่น API Gateway เขียนด้วย TypeScript สื่อสารกับ Worker ที่เขียนด้วย Python หรือ Go บ่อยครั้งที่การเขียน Decorator หรือโครงสร้างข้อมูลแยกกันจะทำให้เกิดความผิดพลาดเล็กๆ น้อยๆ เช่น:
+- โครงสร้าง Cache Key ไม่ตรงกัน ทำให้เกิด Cache Miss หรือข้อมูลทับซ้อน
+- ซองข้อความในคิว (Message Envelope) มีฟิลด์ไม่ตรงกัน ทำให้ Consumer อ่านข้อมูลล้มเหลว
+- กฎการตรวจสอบข้อมูล (Validation DTO) มีพฤติกรรมต่างกันระหว่าง Zod และ Pydantic
+
+`server-decorator` แก้ปัญหานี้โดยใช้ **Contract เป็นหัวใจหลัก** และมีโค้ดของแต่ละภาษาที่ผ่านการทดสอบ Parity ในระดับไบต์ร่วมกันใน repository เดียว
+
+---
+
+## ตารางการรองรับภาษา
+
+| ภาษา | โฟลเดอร์ | แพ็กเกจ / โมดูล | ความสามารถ |
+| :--- | :--- | :--- | :--- |
+| **Node / TypeScript** | `node/` | `@montionugera/server-decorator`<br/>`@montionugera/entity-spec`<br/>`@montionugera/entity-spec-gen-zod`<br/>`@montionugera/entity-spec-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR, Zod DTO, OpenAPI 3.1 |
+| **Python** | `python/` | `server-decorator`<br/>`server-decorator-entity`<br/>`server-decorator-gen-pydantic`<br/>`server-decorator-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR, Pydantic v2 DTO, OpenAPI 3.1 |
+| **Go** | `go/` | `github.com/montionugera/node-server-decorator/v2` | ตัวสร้าง EntitySpec IR (`go/entity`) ที่เหมือนกับ Node/Python ทุกไบต์ |
+| **Nim** | `nim/` | `server_decorator` | ตัวสร้าง EntitySpec IR (Macro DSL) และตัวสร้าง OpenAPI 3.1 |
