@@ -55,6 +55,22 @@ doc = openapi_document(
 print(json.dumps(doc, indent=2))
 ```
   </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+import (
+    "fmt"
+    "github.com/montionugera/node-server-decorator/v2/go/entity"
+    "github.com/montionugera/node-server-decorator/v2/go/openapi"
+)
+
+docBytes, err := openapi.Generate([]entity.Spec{userSpec}, "1.2.0")
+if err != nil {
+    panic(err)
+}
+
+fmt.Println(string(docBytes))
+```
+  </TabItem>
   <TabItem label="Nim" icon="seti:nim">
 ```nim
 import std/json

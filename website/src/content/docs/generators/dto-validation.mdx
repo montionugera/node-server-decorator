@@ -58,4 +58,18 @@ ReadUserDTO = read_model_for(user_spec, "read")
 user = CreateUserDTO.model_validate(request_data)
 ```
   </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+import (
+    "fmt"
+    "github.com/montionugera/node-server-decorator/v2/go/dto"
+)
+
+// Validate incoming JSON payload against DTO projection ("create", "update", "read", "action:<name>")
+errorFields, ok := dto.Validate(userSpec, "create", requestData)
+if !ok {
+    fmt.Printf("Validation error fields: %v\n", errorFields)
+}
+```
+  </TabItem>
 </Tabs>

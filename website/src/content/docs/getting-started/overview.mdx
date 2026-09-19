@@ -26,7 +26,7 @@ The repository maintains implementations across four languages:
 | :--- | :--- | :--- | :--- |
 | **Node / TypeScript** | `node/` | `@montionugera/server-decorator`<br/>`@montionugera/entity-spec`<br/>`@montionugera/entity-spec-gen-zod`<br/>`@montionugera/entity-spec-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Zod DTO generator, OpenAPI 3.1 generator |
 | **Python** | `python/` | `server-decorator`<br/>`server-decorator-entity`<br/>`server-decorator-gen-pydantic`<br/>`server-decorator-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Pydantic v2 DTO generator, OpenAPI 3.1 generator |
-| **Go** | `go/` | `github.com/montionugera/node-server-decorator/v2` | EntitySpec IR producer (`go/entity`), byte-identical to Node/Python |
+| **Go** | `go/` | `github.com/montionugera/node-server-decorator/v2` | EntitySpec IR producer (`go/entity`), OpenAPI 3.1 generator (`go/openapi`), DTO validation engine (`go/dto`), Core Cache/Emit wrappers (`go/core`), HTTP REST router & Problem Details (`go/http`) |
 | **Nim** | `nim/` | `server_decorator` (Nimble) | EntitySpec IR producer (macro DSL), OpenAPI 3.1 generator (`gen_openapi`) |
 
 ---

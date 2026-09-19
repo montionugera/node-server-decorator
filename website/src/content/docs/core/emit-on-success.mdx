@@ -43,6 +43,26 @@ class OrderService:
         return {"orderId": order["id"], "customerId": order["customerId"]}
 ```
   </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+import (
+    "context"
+    "github.com/montionugera/node-server-decorator/v2/go/core"
+)
+
+completeOrder := core.EmitOnSuccess[string, *OrderResult](
+    queueAdapter,
+    "orders.completed",
+    func(ctx context.Context, orderID string) (*OrderResult, error) {
+        order, err := db.MarkComplete(ctx, orderID)
+        if err != nil {
+            return nil, err
+        }
+        return &OrderResult{OrderID: order.ID, CustomerID: order.CustomerID}, nil
+    },
+)
+```
+  </TabItem>
 </Tabs>
 
 ---

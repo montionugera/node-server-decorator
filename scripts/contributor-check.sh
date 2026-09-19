@@ -24,13 +24,13 @@ bash scripts/check-entity-parity.sh
 echo "  ✓ EntitySpec parity verified"
 
 echo ""
-echo "▶ [3/5] Checking OpenAPI 3.1 parity (TS == PY == NIM)..."
+echo "▶ [3/5] Checking OpenAPI 3.1 parity (TS == PY == GO == NIM)..."
 bash scripts/check-openapi-parity.sh
 echo "  ✓ OpenAPI parity verified"
 
 echo ""
 echo "▶ [4/5] Running Go tests..."
-go test ./go/...
+CGO_ENABLED=0 go test ./go/...
 echo "  ✓ Go tests passed"
 
 echo ""

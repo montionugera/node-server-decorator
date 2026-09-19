@@ -127,17 +127,19 @@ package main
 
 import (
     "fmt"
-    "github.com/montionugera/node-server-decorator/v2/entity"
+    e "github.com/montionugera/node-server-decorator/v2/go/entity"
 )
 
 func main() {
-    spec := entity.Build("User",
-        entity.Plural("users"),
-        entity.Field("id", entity.TypeInt, entity.Id()),
-        entity.Field("email", entity.TypeString, entity.Format("email")),
-        entity.Field("name", entity.TypeString, entity.Min(1), entity.Max(100)),
-    )
-    jsonBytes, _ := entity.MarshalCanonical(spec)
+    spec := e.New("User", "users").
+        Fields(
+            e.Str("id", e.ID, e.Readonly),
+            e.Str("email", e.Format("email")),
+            e.Str("name", e.Min(1), e.Max(100)),
+        ).
+        Build()
+
+    jsonBytes, _ := e.MarshalCanonical(spec)
     fmt.Println(string(jsonBytes))
 }
 ```

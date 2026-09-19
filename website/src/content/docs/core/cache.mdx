@@ -43,6 +43,24 @@ class OrderService:
         return await db.orders.find(order_id)
 ```
   </TabItem>
+  <TabItem label="Go" icon="seti:go">
+```go
+import (
+    "context"
+    "time"
+    "github.com/montionugera/node-server-decorator/v2/go/core"
+)
+
+getOrder := core.Cache[string, *Order](
+    cacheAdapter,
+    "OrderService.GetOrderById",
+    120*time.Second,
+    func(ctx context.Context, orderID string) (*Order, error) {
+        return db.FindOrder(ctx, orderID)
+    },
+)
+```
+  </TabItem>
 </Tabs>
 
 ---

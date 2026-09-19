@@ -15,9 +15,12 @@ py_out=$(cd python && uv run --package server-decorator-gen-openapi \
   python packages/gen_openapi/scripts/emit_openapi.py)
 command -v nim >/dev/null || { echo "nim not on PATH (export PATH=\$HOME/.nimble/bin:\$PATH)" >&2; exit 1; }
 nim_out=$(nim r --hints:off nim/examples/emit_openapi.nim)
+go_out=$(go run ./go/internal/example/emitopenapi)
 expected=$(cat "$fixture")
 
 [ "$ts_out" = "$expected" ] || { echo "FAIL: TS OpenAPI != $fixture" >&2; diff <(echo "$ts_out") <(echo "$expected") >&2 || true; exit 1; }
 [ "$py_out" = "$expected" ] || { echo "FAIL: PY OpenAPI != $fixture" >&2; diff <(echo "$py_out") <(echo "$expected") >&2 || true; exit 1; }
+[ "$go_out" = "$expected" ] || { echo "FAIL: GO OpenAPI != $fixture" >&2; diff <(echo "$go_out") <(echo "$expected") >&2 || true; exit 1; }
 [ "$nim_out" = "$expected" ] || { echo "FAIL: NIM OpenAPI != $fixture" >&2; diff <(echo "$nim_out") <(echo "$expected") >&2 || true; exit 1; }
-echo "OK: openapi parity (TS == PY == NIM == contract fixture)"
+echo "OK: openapi parity (TS == PY == GO == NIM == contract fixture)"
+

@@ -70,5 +70,11 @@
     "title": "Set up multilingual docs system and contributor guidelines",
     "created_at": "2026-09-19T07:00:01.923707+00:00",
     "promoted_to": "F-008"
+  },
+  {
+    "id": "I-013",
+    "title": "Implement complete Go feature suite (OpenAPI, DTOs, Core wrappers, AST tags, REST handlers)",
+    "created_at": "2026-09-19T07:28:15.353152+00:00",
+    "promoted_to": "F-009"
   }
 ]
