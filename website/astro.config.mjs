@@ -44,6 +44,7 @@ export default defineConfig({
 						{ label: 'Real-Time SSE Streaming', slug: 'core/sse' },
 						{ label: 'Scoped Authorization', slug: 'core/auth' },
 						{ label: 'Resilience Suite (@retry, @circuit_breaker, @rate_limit)', slug: 'core/resilience' },
+						{ label: 'Reactive Call Coalescing (@batchLoad)', slug: 'core/coalescing' },
 						{ label: 'Adapters & Transports', slug: 'core/adapters' },
 					],
 				},
