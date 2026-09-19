@@ -111,7 +111,7 @@
     "id": "I-019",
     "title": "Cascading graph pre-fetching: relational loader priming and waterfall cascade elimination",
     "created_at": "2026-09-19T17:12:28.371147+00:00",
-    "promoted_to": null
+    "promoted_to": "F-016"
   },
   {
     "id": "I-020",
