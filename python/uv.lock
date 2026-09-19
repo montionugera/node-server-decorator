@@ -1637,7 +1637,7 @@ wheels = [
 
 [[package]]
 name = "server-decorator"
-version = "2.0.7"
+version = "2.0.8"
 source = { editable = "packages/core" }
 
 [package.optional-dependencies]
@@ -1704,7 +1704,7 @@ provides-extras = ["redis", "rabbitmq", "kafka", "bullmq", "all", "dev"]
 
 [[package]]
 name = "server-decorator-entity"
-version = "2.0.7"
+version = "2.0.8"
 source = { editable = "packages/entity" }
 
 [package.optional-dependencies]
@@ -1726,7 +1726,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "server-decorator-gen-openapi"
-version = "2.0.7"
+version = "2.0.8"
 source = { editable = "packages/gen_openapi" }
 dependencies = [
     { name = "server-decorator-entity" },
@@ -1750,7 +1750,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "server-decorator-gen-pydantic"
-version = "2.0.7"
+version = "2.0.8"
 source = { editable = "packages/gen_pydantic" }
 dependencies = [
     { name = "pydantic" },
