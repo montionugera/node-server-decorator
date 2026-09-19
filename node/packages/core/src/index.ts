@@ -70,3 +70,22 @@ export {
   type ScopeAuthOptions,
 } from './middleware/scope-auth';
 
+// Resilience Suite
+export { retry, type RetryOptions } from './decorators/retry';
+export {
+  circuitBreaker,
+  CircuitBreaker,
+  CircuitBreakerOpenError,
+  CircuitState,
+  getCircuitBreaker,
+  clearCircuitBreakerRegistry,
+  type CircuitBreakerOptions,
+} from './decorators/circuit-breaker';
+export {
+  rateLimit,
+  TokenBucket,
+  RateLimitExceededError,
+  clearRateLimitRegistry,
+  type RateLimitOptions,
+} from './decorators/rate-limit';
+
