@@ -136,8 +136,9 @@
     "title": "Decorator surface growth: @property wrapping (N1), retry decorator, circuit-breaker decorator",
     "from_idea": "I-002",
     "created_at": "2026-09-19T09:12:26.239692+00:00",
-    "claimed_by": null,
-    "status": "open",
-    "release_version": null
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
+    "release_version": null,
+    "claimed_at": "2026-09-19T09:16:02.439255+00:00"
   }
 ]
