@@ -20,6 +20,12 @@ from server_decorator.decorators.on_event import on_event
 from server_decorator.decorators.tracking import tracking, tracking_class
 from server_decorator.emitter import global_emitter
 from server_decorator.logger import Logger, global_logger, set_global_logger
+from server_decorator.middleware.auth import (
+    ProblemDetails,
+    ScopeAuthMiddleware,
+    check_scopes,
+    enforce_scope_auth,
+)
 from server_decorator.queue.adapter import (
     QueueAdapter,
     global_queue,
@@ -30,6 +36,7 @@ from server_decorator.queue.adapters.inmemory import InMemoryQueueAdapter
 from server_decorator.queue.adapters.noop import NoOpQueueAdapter
 from server_decorator.queue.message import QueueMessage
 from server_decorator.queue.registry import QueueConfig, QueueRegistry, global_queue_registry
+from server_decorator.sse import AsyncSSEBroadcaster, SSEEvent
 from server_decorator.tracker import Tracker, global_tracker, set_global_tracker
 
 __all__ = [
@@ -79,4 +86,12 @@ __all__ = [
     "BullMQConsumer",
     # consumer decorator
     "on_event",
+    # SSE transport
+    "SSEEvent",
+    "AsyncSSEBroadcaster",
+    # scope auth middleware
+    "ProblemDetails",
+    "check_scopes",
+    "ScopeAuthMiddleware",
+    "enforce_scope_auth",
 ]

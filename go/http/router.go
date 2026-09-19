@@ -27,8 +27,34 @@ type EntityHandler interface {
 	Action(ctx context.Context, id string, action string, payload map[string]any) (any, error)
 }
 
+type routerConfig struct {
+	authExtractor ScopeExtractor
+}
+
+// RouterOption configures route mounting options.
+type RouterOption func(*routerConfig)
+
+// WithAuth configures a ScopeExtractor for declarative scope authorization.
+func WithAuth(extractor ScopeExtractor) RouterOption {
+	return func(cfg *routerConfig) {
+		cfg.authExtractor = extractor
+	}
+}
+
+// MountRoutesWithAuth is a convenience wrapper calling MountRoutes with WithAuth.
+func MountRoutesWithAuth(mux *http.ServeMux, spec entity.Spec, handler EntityHandler, auth ScopeExtractor) {
+	MountRoutes(mux, spec, handler, WithAuth(auth))
+}
+
 // MountRoutes mounts routes on an http.ServeMux for the given EntitySpec and EntityHandler.
-func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
+func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler, opts ...RouterOption) {
+	var cfg routerConfig
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+
 	idField := "id"
 	for _, f := range spec.Fields {
 		if f.Role == "id" {
@@ -50,9 +76,13 @@ func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
 	}
 
 	for _, op := range spec.Ops {
+		var h http.HandlerFunc
+		var routePattern string
+
 		switch op {
 		case "list":
-			mux.HandleFunc("GET "+basePath, func(w http.ResponseWriter, r *http.Request) {
+			routePattern = "GET " + basePath
+			h = func(w http.ResponseWriter, r *http.Request) {
 				q := r.URL.Query()
 
 				limit := 20
@@ -97,10 +127,11 @@ func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
 					"limit":  limit,
 					"offset": offset,
 				})
-			})
+			}
 
 		case "get":
-			mux.HandleFunc("GET "+itemPath, func(w http.ResponseWriter, r *http.Request) {
+			routePattern = "GET " + itemPath
+			h = func(w http.ResponseWriter, r *http.Request) {
 				id := r.PathValue(idField)
 				res, err := handler.Get(r.Context(), id)
 				if err != nil {
@@ -119,10 +150,11 @@ func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(res)
-			})
+			}
 
 		case "create":
-			mux.HandleFunc("POST "+basePath, func(w http.ResponseWriter, r *http.Request) {
+			routePattern = "POST " + basePath
+			h = func(w http.ResponseWriter, r *http.Request) {
 				var body map[string]any
 				dec := json.NewDecoder(r.Body)
 				if err := dec.Decode(&body); err != nil {
@@ -144,10 +176,11 @@ func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusCreated)
 				_ = json.NewEncoder(w).Encode(res)
-			})
+			}
 
 		case "update":
-			mux.HandleFunc("PATCH "+itemPath, func(w http.ResponseWriter, r *http.Request) {
+			routePattern = "PATCH " + itemPath
+			h = func(w http.ResponseWriter, r *http.Request) {
 				id := r.PathValue(idField)
 
 				var body map[string]any
@@ -175,10 +208,11 @@ func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				_ = json.NewEncoder(w).Encode(res)
-			})
+			}
 
 		case "delete":
-			mux.HandleFunc("DELETE "+itemPath, func(w http.ResponseWriter, r *http.Request) {
+			routePattern = "DELETE " + itemPath
+			h = func(w http.ResponseWriter, r *http.Request) {
 				id := r.PathValue(idField)
 				if err := handler.Delete(r.Context(), id); err != nil {
 					if errors.Is(err, ErrNotFound) {
@@ -189,14 +223,23 @@ func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
 					return
 				}
 				w.WriteHeader(http.StatusNoContent)
-			})
+			}
+		}
+
+		if h != nil {
+			if spec.Security != nil && spec.Security.Ops != nil {
+				if requiredScopes, ok := spec.Security.Ops[op]; ok && requiredScopes != nil {
+					h = EnforceScopeAuth(requiredScopes, cfg.authExtractor, h)
+				}
+			}
+			mux.HandleFunc(routePattern, h)
 		}
 	}
 
 	for _, act := range spec.Actions {
 		action := act
 		actionRoute := "POST " + itemPath + "/actions/" + action.Name
-		mux.HandleFunc(actionRoute, func(w http.ResponseWriter, r *http.Request) {
+		var h http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 			id := r.PathValue(idField)
 
 			var body map[string]any
@@ -237,6 +280,14 @@ func MountRoutes(mux *http.ServeMux, spec entity.Spec, handler EntityHandler) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(res)
-		})
+		}
+
+		if spec.Security != nil && spec.Security.Actions != nil {
+			if requiredScopes, ok := spec.Security.Actions[action.Name]; ok && requiredScopes != nil {
+				h = EnforceScopeAuth(requiredScopes, cfg.authExtractor, h)
+			}
+		}
+
+		mux.HandleFunc(actionRoute, h)
 	}
 }

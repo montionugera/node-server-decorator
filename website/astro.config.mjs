@@ -41,6 +41,8 @@ export default defineConfig({
 						{ label: 'Caching (@cache)', slug: 'core/cache' },
 						{ label: 'Tracking (@tracking)', slug: 'core/tracking' },
 						{ label: 'Queue Emission (@EmitOnSuccess)', slug: 'core/emit-on-success' },
+						{ label: 'Real-Time SSE Streaming', slug: 'core/sse' },
+						{ label: 'Scoped Authorization', slug: 'core/auth' },
 						{ label: 'Adapters & Transports', slug: 'core/adapters' },
 					],
 				},

@@ -1,0 +1,109 @@
+---
+title: Scoped Authorization Middleware
+description: Declarative scope-based authorization middleware enforcing EntitySpec security requirements with RFC 9457 Problem Details.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Scoped Authorization Middleware
+
+`server-decorator` automates authorization enforcement based on declared `entity.Spec.Security` rules across Go, Node/TypeScript, and Python.
+
+## Security Conventions
+
+Per `contracts/rules/rest-conventions.md`:
+- **Public Endpoints**: Operations without an entry in `spec.Security.Ops` or `spec.Security.Actions` require no authentication and are open to the public.
+- **Authentication Required (`[]`)**: Requires valid credentials, but no specific scope.
+- **Scope Enforcement (`["user:read", "user:write"]`)**: Requires valid credentials and all specified scopes.
+- **RFC 9457 Problem Details**:
+  - `401 Unauthorized` with `application/problem+json` returned when credentials are missing or invalid.
+  - `403 Forbidden` with `application/problem+json` returned when authenticated caller lacks required scopes.
+
+---
+
+## Usage
+
+<Tabs syncKey="lang">
+  <TabItem label="Go" icon="seti:go">
+```go
+package main
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/montionugera/node-server-decorator/v2/go/entity"
+	httpserver "github.com/montionugera/node-server-decorator/v2/go/http"
+)
+
+func main() {
+	mux := http.NewServeMux()
+
+	// Extract caller authentication and scopes from incoming HTTP request
+	extractor := func(r *http.Request) (bool, []string, error) {
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") {
+			return false, nil, nil
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if token == "admin-token" {
+			return true, []string{"user:read", "user:write", "user:admin"}, nil
+		}
+		return true, []string{"user:read"}, nil
+	}
+
+	// Automatically protects routes according to spec.Security
+	httpserver.MountRoutesWithAuth(mux, UserSpec, &UserHandler{}, extractor)
+
+	http.ListenAndServe(":8080", mux)
+}
+```
+  </TabItem>
+  <TabItem label="TypeScript / Node" icon="seti:typescript">
+```typescript
+import express from 'express';
+import { scopeAuthMiddleware } from '@montionugera/server-decorator';
+
+const app = express();
+
+const authMiddleware = scopeAuthMiddleware({
+  spec: userSpec,
+  operation: 'create', // reads userSpec.security.ops.create
+  extractor: async (req) => {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) {
+      return { authenticated: false, scopes: [] };
+    }
+    // Verify JWT or session
+    return { authenticated: true, scopes: ['user:write'] };
+  },
+});
+
+app.post('/users', authMiddleware, (req, res) => {
+  res.status(201).json({ status: 'created' });
+});
+```
+  </TabItem>
+  <TabItem label="Python" icon="seti:python">
+```python
+from server_decorator import ScopeAuthMiddleware
+from starlette.applications import Starlette
+
+async def extract_scopes(scope):
+    headers = dict(scope.get("headers", []))
+    auth = headers.get(b"authorization", b"").decode()
+    if not auth.startswith("Bearer "):
+        return False, []
+    # Verify token
+    return True, ["user:read", "user:write"]
+
+app = Starlette(...)
+# Wrap ASGI application with declarative scope auth
+app.add_middleware(
+    ScopeAuthMiddleware,
+    spec=user_spec,
+    extractor=extract_scopes,
+)
+```
+  </TabItem>
+</Tabs>

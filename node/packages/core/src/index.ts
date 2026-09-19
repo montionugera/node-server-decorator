@@ -51,3 +51,22 @@ export {
 } from './decorators/consumer-registry';
 export { RedisStreamConsumer, KafkaConsumer, RabbitMQConsumer, BullMQConsumer } from './decorators/consumer-adapters';
 export { OnEvent, registerHandlers } from './decorators/on-event';
+
+// SSE Transport
+export {
+  SSEBroadcaster,
+  formatSSEMessage,
+  type SSEEvent,
+  type SSEBroadcasterOptions,
+  type SSEClientResponse,
+} from './sse/broadcaster';
+
+// Scoped Auth Middleware
+export {
+  scopeAuthMiddleware,
+  checkScopes,
+  type ProblemDetails,
+  type ScopeExtractor,
+  type ScopeAuthOptions,
+} from './middleware/scope-auth';
+
