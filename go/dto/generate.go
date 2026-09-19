@@ -85,7 +85,18 @@ func writeStruct(buf *bytes.Buffer, structName string, fields []entity.Field, in
 			jsonTag += ",omitempty"
 		}
 
-		buf.WriteString(fmt.Sprintf("\t%s %s `json:\"%s\"`\n", goFieldName, goType, jsonTag))
+		var bindingRules []string
+		if isOptional {
+			bindingRules = append(bindingRules, "omitempty")
+		} else {
+			bindingRules = append(bindingRules, "required")
+			if f.Format != "" {
+				bindingRules = append(bindingRules, f.Format)
+			}
+		}
+		bindingTag := strings.Join(bindingRules, ",")
+
+		buf.WriteString(fmt.Sprintf("\t%s %s `json:\"%s\" binding:\"%s\"`\n", goFieldName, goType, jsonTag, bindingTag))
 	}
 
 	buf.WriteString("}\n\n")
