@@ -238,4 +238,116 @@ describe('@batchLoad Decorator', () => {
     expect(u1Refetched).toEqual({ id: '1', name: 'User 1' });
     expect(dbCallCount).toBe(3);
   });
+
+  it('should prime cache directly and bypass database execution', async () => {
+    let dbCallCount = 0;
+    class PrimeService {
+      async batchUsers(ids: string[]) {
+        dbCallCount++;
+        return ids.map((id) => ({ id, name: `DB User ${id}` }));
+      }
+
+      @batchLoad({
+        batchMethod: 'batchUsers',
+      })
+      async findUser(id: string): Promise<any> {
+        return undefined;
+      }
+    }
+
+    const service = new PrimeService();
+
+    // Prime cache before lookup
+    (service.findUser as any).prime('user-1', { id: 'user-1', name: 'Primed User' }, service);
+
+    const user = await service.findUser('user-1');
+    expect(user).toEqual({ id: 'user-1', name: 'Primed User' });
+    expect(dbCallCount).toBe(0);
+  });
+
+  it('should cascadingly prefetch 1-to-1 and 1-to-many child relations', async () => {
+    let userDbCalls = 0;
+    let itemDbCalls = 0;
+
+    class UserService {
+      async batchUsers(ids: string[]) {
+        userDbCalls++;
+        return ids.map((id) => ({ id, name: `User ${id}` }));
+      }
+
+      @batchLoad({ batchMethod: 'batchUsers' })
+      async findUser(id: string): Promise<any> {
+        return undefined;
+      }
+    }
+
+    class ItemService {
+      async batchItems(ids: string[]) {
+        itemDbCalls++;
+        return ids.map((id) => ({ id, title: `Item ${id}` }));
+      }
+
+      @batchLoad({ batchMethod: 'batchItems' })
+      async findItem(id: string): Promise<any> {
+        return undefined;
+      }
+    }
+
+    const userService = new UserService();
+    const itemService = new ItemService();
+
+    class OrderService {
+      async batchOrders(ids: string[]) {
+        return ids.map((id) => ({
+          id,
+          userId: `u-${id}`,
+          itemIds: [`it-1-${id}`, `it-2-${id}`],
+        }));
+      }
+
+      @batchLoad({
+        batchMethod: 'batchOrders',
+        prefetch: [
+          {
+            extract: (order: any) => order.userId,
+            loader: () => userService.findUser.bind(userService),
+          },
+          {
+            extract: (order: any) => order.itemIds,
+            loader: () => itemService.findItem.bind(itemService),
+          },
+        ],
+      })
+      async findOrder(id: string): Promise<any> {
+        return undefined;
+      }
+    }
+
+    const orderService = new OrderService();
+
+    // 1. Fetch order -> triggers background prefetch for userId 'u-1' and itemIds ['it-1-1', 'it-2-1']
+    const order = await orderService.findOrder('1');
+    expect(order).toEqual({
+      id: '1',
+      userId: 'u-1',
+      itemIds: ['it-1-1', 'it-2-1'],
+    });
+
+    // Wait a tick for microtask prefetching to complete
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(userDbCalls).toBe(1);
+    expect(itemDbCalls).toBe(1);
+
+    // 2. Downstream calls to userService and itemService should hit primed cache with 0 extra DB calls
+    const user = await userService.findUser('u-1');
+    expect(user).toEqual({ id: 'u-1', name: 'User u-1' });
+    expect(userDbCalls).toBe(1); // No new DB call!
+
+    const item1 = await itemService.findItem('it-1-1');
+    const item2 = await itemService.findItem('it-2-1');
+    expect(item1).toEqual({ id: 'it-1-1', title: 'Item it-1-1' });
+    expect(item2).toEqual({ id: 'it-2-1', title: 'Item it-2-1' });
+    expect(itemDbCalls).toBe(1); // No new DB call!
+  });
 });
