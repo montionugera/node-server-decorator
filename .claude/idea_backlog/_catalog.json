@@ -76,5 +76,11 @@
     "title": "Implement complete Go feature suite (OpenAPI, DTOs, Core wrappers, AST tags, REST handlers)",
     "created_at": "2026-09-19T07:28:15.353152+00:00",
     "promoted_to": "F-009"
+  },
+  {
+    "id": "I-014",
+    "title": "F-010-go-interop-e2e-scenarios",
+    "created_at": "2026-09-19T08:20:29.263622+00:00",
+    "promoted_to": "F-010"
   }
 ]
