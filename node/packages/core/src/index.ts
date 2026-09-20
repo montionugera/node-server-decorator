@@ -104,3 +104,20 @@ export {
   type DistributedLockOptions,
   type RedisLockAdapter,
 } from './decorators/distributed-lock';
+
+// OpenTelemetry Tracing & W3C Context Propagation
+export {
+  trace,
+  getActiveTraceContext,
+  runWithTraceContext,
+  parseTraceparent,
+  formatTraceparent,
+  generateTraceId,
+  generateSpanId,
+  setSpanExporter,
+  type TraceContext,
+  type TraceSpan,
+  type TraceOptions,
+  type SpanExporterCallback,
+} from './decorators/trace';
+

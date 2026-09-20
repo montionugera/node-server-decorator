@@ -22,6 +22,18 @@ from server_decorator.decorators.rate_limit import (
     rate_limit_class,
 )
 from server_decorator.decorators.retry import retry, retry_class
+from server_decorator.decorators.trace import (
+    TraceContext,
+    TraceSpan,
+    format_traceparent,
+    get_active_trace_context,
+    parse_traceparent,
+    set_active_trace_context,
+    set_span_exporter,
+    trace,
+    traced,
+    traced_class,
+)
 from server_decorator.decorators.tracking import tracking, tracking_class
 
 from server_decorator.decorators.distributed_lock import (
@@ -66,4 +78,14 @@ __all__ = [
     "configure_distributed_lock",
     "get_global_distributed_lock_adapter",
     "clear_global_distributed_lock_adapter",
+    "trace",
+    "traced",
+    "traced_class",
+    "TraceContext",
+    "TraceSpan",
+    "get_active_trace_context",
+    "set_active_trace_context",
+    "set_span_exporter",
+    "parse_traceparent",
+    "format_traceparent",
 ]

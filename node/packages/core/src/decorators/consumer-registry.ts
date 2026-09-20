@@ -1,4 +1,5 @@
 import { globalLogger } from '../logger'
+import { parseTraceparent, generateSpanId, runWithTraceContext, TraceContext } from './trace'
 
 // dispatch(rawJsonValue) -> Promise; rejecting means "do not ack".
 export type Dispatch = (raw: unknown) => Promise<void>
@@ -131,7 +132,22 @@ export class ConsumerRegistry {
         else globalLogger.debug(`no handler for event ${parsed.eventName}; acked + skipped`)
         return // acked + skipped
       }
-      await handler(parsed.payload, parsed.metadata) // throw → caller does not ack
+      
+      const traceHeader = parsed.metadata?.traceparent
+      const parsedTrace = traceHeader ? parseTraceparent(traceHeader) : null
+      if (parsedTrace) {
+        const spanId = generateSpanId()
+        const context: TraceContext = {
+          traceId: parsedTrace.traceId,
+          spanId,
+          parentSpanId: parsedTrace.spanId,
+          sampled: parsedTrace.sampled,
+          tracestate: parsed.metadata?.tracestate,
+        }
+        await runWithTraceContext(context, () => handler(parsed.payload, parsed.metadata))
+      } else {
+        await handler(parsed.payload, parsed.metadata) // throw → caller does not ack
+      }
     }
   }
 }
