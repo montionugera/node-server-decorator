@@ -135,7 +135,7 @@
     "id": "I-023",
     "title": "OpenTelemetry unified tracing decorator: W3C baggage propagation across HTTP, queues, and SSE",
     "created_at": "2026-09-20T17:56:11.912460+00:00",
-    "promoted_to": null
+    "promoted_to": "F-020"
   },
   {
     "id": "I-024",
