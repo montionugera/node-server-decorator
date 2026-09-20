@@ -37,6 +37,11 @@ export interface BatchLoadOptions<K, V> {
    */
   keyOf?: (item: V) => K;
   /**
+   * Relationship cardinality: 'one' (1-to-1 scalar lookup, default) or 'many' (1-to-many list aggregation).
+   * When 'many', maps key to an array of matching items.
+   */
+  relation?: 'one' | 'many';
+  /**
    * Optional AsyncLocalStorage for request-scoped context isolation.
    */
   contextStorage?: AsyncLocalStorage<any>;
@@ -122,7 +127,8 @@ class BatchQueue<K, V> {
     private deduplicate: boolean,
     private keyOf?: (item: V) => K,
     cacheOptions?: BatchLoadOptions<K, V>['cache'],
-    private prefetchRules?: PrefetchRule<V, any>[]
+    private prefetchRules?: PrefetchRule<V, any>[],
+    private relation: 'one' | 'many' = 'one'
   ) {
     if (cacheOptions?.l1 !== false && (cacheOptions?.l1 !== null)) {
       this.l1Cache = new LruCache<K, any>(
@@ -384,13 +390,19 @@ class BatchQueue<K, V> {
     if (result instanceof Map) {
       return result;
     }
-    const map = new Map<K, V>();
+    const map = new Map<K, any>();
     if (Array.isArray(result)) {
       for (const item of result) {
         if (item != null) {
           const k = this.keyOf ? this.keyOf(item) : ((item as any).id ?? (item as any).key);
           if (k !== undefined) {
-            map.set(k, item);
+            if (this.relation === 'many') {
+              const existing = map.get(k) || [];
+              existing.push(item);
+              map.set(k, existing);
+            } else {
+              map.set(k, item);
+            }
           }
         }
       }
@@ -448,7 +460,8 @@ export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}
           deduplicate,
           options.keyOf,
           options.cache,
-          options.prefetch
+          options.prefetch,
+          options.relation ?? 'one'
         );
         queues.set(scopeTarget, queue);
         allQueues.add(queue);

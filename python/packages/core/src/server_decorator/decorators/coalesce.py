@@ -94,12 +94,14 @@ class BatchQueue(Generic[K, V]):
         serializer: Callable[[Any], str] | None = None,
         deserializer: Callable[[str], Any] | None = None,
         prefetch_rules: list[PrefetchRule] | None = None,
+        relation: str = "one",
     ) -> None:
         self.loader_fn = loader_fn
         self.max_batch_size = max_batch_size
         self.window_seconds = window_seconds
         self.deduplicate = deduplicate
         self.key_of = key_of
+        self.relation = relation
         self.l1_cache = (
             LruCache(capacity=l1_max_size, ttl_seconds=l1_ttl_seconds)
             if l1_max_size > 0 or l1_ttl_seconds > 0
@@ -386,7 +388,10 @@ class BatchQueue(Generic[K, V]):
                         k = elem["key"]
                     else:
                         continue
-                    res[k] = elem
+                    if self.relation == "many":
+                        res.setdefault(k, []).append(elem)
+                    else:
+                        res[k] = elem
             return res
         return {}
 
@@ -408,6 +413,7 @@ def batch_load(
     serializer: Callable[[Any], str] | None = None,
     deserializer: Callable[[str], Any] | None = None,
     prefetch: list[PrefetchRule | dict[str, Any]] | None = None,
+    relation: str = "one",
 ) -> Callable[[F], F]:
     """Decorator that coalesces individual async calls into a single multi-tier batch call."""
 
@@ -461,6 +467,7 @@ def batch_load(
                     serializer=serializer,
                     deserializer=deserializer,
                     prefetch_rules=normalized_prefetch_rules,
+                    relation=relation,
                 )
                 queues_by_scope[scope_target] = queue
                 all_queues.add(queue)

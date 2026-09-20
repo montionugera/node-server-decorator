@@ -8,6 +8,11 @@ auto-wrap every qualifying method.
 from server_decorator._contract import CONTRACT_VERSION
 from server_decorator._version import __version__
 from server_decorator.config import configure, get_service
+from server_decorator.adapters.graphql import (
+    GraphQLLoaderRegistry,
+    create_graphql_loader_context,
+    graphql_loader,
+)
 from server_decorator.consumer.adapters.bullmq_consumer import BullMQConsumer
 from server_decorator.consumer.adapters.kafka_consumer import KafkaConsumer
 from server_decorator.consumer.adapters.rabbitmq_consumer import RabbitMQConsumer
@@ -171,4 +176,8 @@ __all__ = [
     "set_span_exporter",
     "parse_traceparent",
     "format_traceparent",
+    # graphql dataloader adapter
+    "graphql_loader",
+    "create_graphql_loader_context",
+    "GraphQLLoaderRegistry",
 ]

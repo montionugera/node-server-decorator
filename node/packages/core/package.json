@@ -12,6 +12,10 @@
     "./express": {
       "types": "./dist/adapters/express.d.ts",
       "default": "./dist/adapters/express.js"
+    },
+    "./graphql": {
+      "types": "./dist/adapters/graphql.d.ts",
+      "default": "./dist/adapters/graphql.js"
     }
   },
   "files": [
