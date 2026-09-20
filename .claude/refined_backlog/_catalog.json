@@ -231,5 +231,14 @@
     "claimed_by": null,
     "status": "open",
     "release_version": null
+  },
+  {
+    "id": "F-021",
+    "title": "GraphQL DataLoader adapter: seamless batchLoad bridge for Apollo Server, Strawberry, and GraphQL-Go",
+    "from_idea": "I-024",
+    "created_at": "2026-09-20T17:56:36.655080+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
