@@ -123,9 +123,34 @@ class ConsumerRegistry:
                 else:
                     _log.debug("no handler for event %s; acked + skipped", event_name)
                 return  # acked + skipped
-            result = handler(payload, metadata)
-            if inspect.isawaitable(result):
-                await result  # a raise here propagates → adapter does not ack
+            traceparent = metadata.get("traceparent") if isinstance(metadata, dict) else None
+            from server_decorator.decorators.trace import (
+                TraceContext,
+                parse_traceparent,
+                set_active_trace_context,
+            )
+
+            token = None
+            if traceparent:
+                parsed_ctx = parse_traceparent(traceparent)
+                if parsed_ctx:
+                    tracestate = metadata.get("tracestate") if isinstance(metadata, dict) else None
+                    consumer_ctx = TraceContext(
+                        trace_id=parsed_ctx.trace_id,
+                        span_id=parsed_ctx.span_id,
+                        parent_span_id=parsed_ctx.span_id,
+                        sampled=parsed_ctx.sampled,
+                        tracestate=tracestate,
+                    )
+                    token = set_active_trace_context(consumer_ctx)
+
+            try:
+                result = handler(payload, metadata)
+                if inspect.isawaitable(result):
+                    await result  # a raise here propagates → adapter does not ack
+            finally:
+                if token is not None:
+                    set_active_trace_context(None)
 
         return dispatch
 

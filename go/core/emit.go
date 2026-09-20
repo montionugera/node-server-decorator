@@ -3,15 +3,19 @@ package core
 import (
 	"context"
 	"time"
+
+	"github.com/montionugera/node-server-decorator/v2/go/core/tracing"
 )
 
 // QueueMessageMetadata matches the metadata structure specified in
 // contracts/schemas/queue-message.schema.json.
 type QueueMessageMetadata struct {
-	ClassName  string  `json:"className,omitempty"`
-	MethodName string  `json:"methodName,omitempty"`
-	Topic      *string `json:"topic,omitempty"`
-	Service    string  `json:"service,omitempty"`
+	ClassName   string  `json:"className,omitempty"`
+	MethodName  string  `json:"methodName,omitempty"`
+	Topic       *string `json:"topic,omitempty"`
+	Service     string  `json:"service,omitempty"`
+	Traceparent string  `json:"traceparent,omitempty"`
+	Tracestate  string  `json:"tracestate,omitempty"`
 }
 
 // QueueMessage matches the wire format defined in
@@ -75,11 +79,26 @@ func EmitOnSuccess[In, Out any](
 			payload = cfg.transform(out)
 		}
 
+		meta := cfg.metadata
+		if tc, ok := tracing.FromContext(ctx); ok && tc.TraceID != "" {
+			var m QueueMessageMetadata
+			if meta != nil {
+				m = *meta
+			}
+			if m.Traceparent == "" {
+				m.Traceparent = tracing.FormatTraceparent(tc.TraceID, tc.SpanID, tc.Sampled)
+			}
+			if m.Tracestate == "" && tc.Tracestate != "" {
+				m.Tracestate = tc.Tracestate
+			}
+			meta = &m
+		}
+
 		msg := QueueMessage{
 			EventName: eventName,
 			Payload:   payload,
 			Timestamp: time.Now().UnixMilli(),
-			Metadata:  cfg.metadata,
+			Metadata:  meta,
 		}
 
 		if adapter != nil {

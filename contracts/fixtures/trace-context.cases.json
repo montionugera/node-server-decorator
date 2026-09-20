@@ -1,0 +1,40 @@
+[
+  {
+    "description": "valid sampled traceparent",
+    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": true,
+    "version": "00",
+    "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "spanId": "00f067aa0ba902b7",
+    "sampled": true
+  },
+  {
+    "description": "valid unsampled traceparent",
+    "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
+    "valid": true,
+    "version": "00",
+    "traceId": "0af7651916cd43dd8448eb211c80319c",
+    "spanId": "b7ad6b7169203331",
+    "sampled": false
+  },
+  {
+    "description": "invalid version ff",
+    "traceparent": "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": false
+  },
+  {
+    "description": "invalid all-zero traceId",
+    "traceparent": "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+    "valid": false
+  },
+  {
+    "description": "invalid all-zero spanId",
+    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+    "valid": false
+  },
+  {
+    "description": "invalid length too short",
+    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7",
+    "valid": false
+  }
+]
