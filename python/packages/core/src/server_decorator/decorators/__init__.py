@@ -24,6 +24,16 @@ from server_decorator.decorators.rate_limit import (
 from server_decorator.decorators.retry import retry, retry_class
 from server_decorator.decorators.tracking import tracking, tracking_class
 
+from server_decorator.decorators.distributed_lock import (
+    LockAcquisitionError,
+    RedisLockAdapter,
+    clear_global_distributed_lock_adapter,
+    configure_distributed_lock,
+    distributed_lock,
+    distributed_lock_class,
+    get_global_distributed_lock_adapter,
+)
+
 __all__ = [
     "batch_load",
     "cache",
@@ -49,4 +59,11 @@ __all__ = [
     "TokenBucket",
     "get_token_bucket",
     "clear_rate_limiters",
+    "distributed_lock",
+    "distributed_lock_class",
+    "LockAcquisitionError",
+    "RedisLockAdapter",
+    "configure_distributed_lock",
+    "get_global_distributed_lock_adapter",
+    "clear_global_distributed_lock_adapter",
 ]

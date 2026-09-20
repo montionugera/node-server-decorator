@@ -92,3 +92,15 @@ export {
 // Reactive Call Coalescing
 export { batchLoad, type BatchLoadOptions, type PrefetchRule } from './decorators/batch-load';
 
+// Distributed Mutual Exclusion
+export {
+  distributedLock,
+  configureDistributedLock,
+  getGlobalDistributedLockAdapter,
+  clearGlobalDistributedLockAdapter,
+  LockAcquisitionError,
+  RELEASE_LOCK_LUA,
+  RENEW_LOCK_LUA,
+  type DistributedLockOptions,
+  type RedisLockAdapter,
+} from './decorators/distributed-lock';
