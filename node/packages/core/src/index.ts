@@ -72,6 +72,17 @@ export {
 
 // Resilience Suite
 export { retry, type RetryOptions } from './decorators/retry';
+
+
+// GraphQL DataLoader Adapter
+export {
+  graphqlLoader,
+  createGraphQLLoaderContext,
+  GraphQLLoaderRegistry,
+  graphQLLoaderStorage,
+  type GraphQLLoaderOptions,
+} from './adapters/graphql';
+
 export {
   circuitBreaker,
   CircuitBreaker,
