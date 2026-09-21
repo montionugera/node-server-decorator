@@ -2,6 +2,7 @@ name: CI - Node
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths: ['node/**', 'contracts/**', '.github/workflows/ci-node.yml']
   push:
     branches: [main]
