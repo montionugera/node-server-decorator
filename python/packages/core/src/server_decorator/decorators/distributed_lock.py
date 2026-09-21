@@ -91,7 +91,8 @@ def distributed_lock(
             if active_adapter is None:
                 raise RuntimeError(
                     f"DistributedLock: No RedisLockAdapter provided for method '{fn.__name__}'. "
-                    f"Pass an adapter in @distributed_lock(adapter=...) or call configure_distributed_lock(adapter)."
+                    "Pass an adapter in @distributed_lock(adapter=...) or call "
+                    "configure_distributed_lock(adapter)."
                 )
 
             # Resolve lock key
@@ -116,7 +117,9 @@ def distributed_lock(
 
                 # Randomized jitter (±20%)
                 jitter = (random.random() * 0.4 - 0.2) * retry_interval_seconds
-                sleep_time = max(0.01, min(retry_interval_seconds + jitter, wait_timeout_seconds - elapsed))
+                sleep_time = max(
+                    0.01, min(retry_interval_seconds + jitter, wait_timeout_seconds - elapsed)
+                )
                 await asyncio.sleep(sleep_time)
 
             if not acquired:
@@ -126,7 +129,7 @@ def distributed_lock(
                         return await res
                     return res
                 raise LockAcquisitionError(
-                    f"Failed to acquire distributed lock for key '{lock_key}' within {wait_timeout_seconds}s"
+                    f"Failed to acquire lock for '{lock_key}' within {wait_timeout_seconds}s"
                 )
 
             # Heartbeat watchdog renewal task
@@ -139,7 +142,9 @@ def distributed_lock(
                 try:
                     while True:
                         await asyncio.sleep(renew_period)
-                        res = await active_adapter.eval_lua(RENEW_LOCK_LUA, [lock_key], [token, ttl_ms])
+                        res = await active_adapter.eval_lua(
+                            RENEW_LOCK_LUA, [lock_key], [token, ttl_ms]
+                        )
                         if not res or res == 0:
                             lock_lost = True
                             break

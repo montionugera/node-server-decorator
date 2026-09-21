@@ -1,24 +1,20 @@
 import json
-import os
 from pathlib import Path
+
 import pytest
 
 from server_decorator import (
-    TraceContext,
-    TraceSpan,
-    format_traceparent,
-    get_active_trace_context,
-    parse_traceparent,
-    set_active_trace_context,
-    set_span_exporter,
-    trace,
-    traced,
-    traced_class,
-    emit_on_success,
     ConsumerRegistry,
     InMemoryConsumer,
     InMemoryQueueAdapter,
+    emit_on_success,
+    format_traceparent,
+    get_active_trace_context,
     global_queue_registry,
+    parse_traceparent,
+    set_span_exporter,
+    trace,
+    traced_class,
 )
 
 
@@ -26,7 +22,7 @@ def load_fixtures():
     # Load contracts/fixtures/trace-context.cases.json
     root = Path(__file__).resolve().parents[5]
     fixtures_path = root / "contracts" / "fixtures" / "trace-context.cases.json"
-    with open(fixtures_path, "r", encoding="utf-8") as f:
+    with open(fixtures_path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -215,14 +211,16 @@ class TestQueueTracePropagation:
         incoming_tp = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
         dispatch = registry._dispatch_for("test_consumer")
 
-        await dispatch({
-            "eventName": "order.created",
-            "payload": {"id": "ord-1"},
-            "timestamp": 123456,
-            "metadata": {
-                "traceparent": incoming_tp,
-            },
-        })
+        await dispatch(
+            {
+                "eventName": "order.created",
+                "payload": {"id": "ord-1"},
+                "timestamp": 123456,
+                "metadata": {
+                    "traceparent": incoming_tp,
+                },
+            }
+        )
 
         assert consumed_trace_id == "4bf92f3577b34da6a3ce929d0e0e4736"
         assert consumed_parent_span_id == "00f067aa0ba902b7"

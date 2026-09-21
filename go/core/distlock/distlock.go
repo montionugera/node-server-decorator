@@ -63,13 +63,13 @@ type Lock interface {
 }
 
 type lockImpl struct {
-	locker      *Locker
-	key         string
-	token       string
+	locker       *Locker
+	key          string
+	token        string
 	stopWatchdog func()
-	once        sync.Once
-	released    bool
-	mu          sync.Mutex
+	once         sync.Once
+	released     bool
+	mu           sync.Mutex
 }
 
 func (l *lockImpl) Key() string {

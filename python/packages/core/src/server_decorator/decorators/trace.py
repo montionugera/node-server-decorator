@@ -132,7 +132,8 @@ def trace(
                         if isinstance(custom, dict):
                             resolved.update(custom)
                     except TypeError:
-                        # If args has self/cls as first parameter and callable fails, try with args[1:]
+                        # If args has self/cls as first parameter and callable fails,
+                        # try calling with args[1:]
                         if len(args) > 0:
                             try:
                                 custom = attrs_config(*args[1:], **kwargs)
@@ -141,7 +142,7 @@ def trace(
                             except Exception as e2:
                                 global_logger.warn(f"Failed to evaluate trace attributes: {e2}")
                         else:
-                            global_logger.warn(f"Failed to evaluate trace attributes")
+                            global_logger.warn("Failed to evaluate trace attributes")
                     except Exception as e:
                         global_logger.warn(f"Failed to evaluate trace attributes: {e}")
                 elif isinstance(attrs_config, dict):

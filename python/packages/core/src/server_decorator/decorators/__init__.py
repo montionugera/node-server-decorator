@@ -11,6 +11,15 @@ from server_decorator.decorators.circuit_breaker import (
     get_circuit_breaker,
 )
 from server_decorator.decorators.coalesce import batch_load
+from server_decorator.decorators.distributed_lock import (
+    LockAcquisitionError,
+    RedisLockAdapter,
+    clear_global_distributed_lock_adapter,
+    configure_distributed_lock,
+    distributed_lock,
+    distributed_lock_class,
+    get_global_distributed_lock_adapter,
+)
 from server_decorator.decorators.emit_on_success import emit_on_success, emit_on_success_class
 from server_decorator.decorators.on_event import on_event
 from server_decorator.decorators.rate_limit import (
@@ -35,16 +44,6 @@ from server_decorator.decorators.trace import (
     traced_class,
 )
 from server_decorator.decorators.tracking import tracking, tracking_class
-
-from server_decorator.decorators.distributed_lock import (
-    LockAcquisitionError,
-    RedisLockAdapter,
-    clear_global_distributed_lock_adapter,
-    configure_distributed_lock,
-    distributed_lock,
-    distributed_lock_class,
-    get_global_distributed_lock_adapter,
-)
 
 __all__ = [
     "batch_load",

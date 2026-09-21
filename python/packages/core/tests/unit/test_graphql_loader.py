@@ -1,11 +1,11 @@
 import asyncio
+
 import pytest
 
 from server_decorator import (
     batch_load,
-    graphql_loader,
     create_graphql_loader_context,
-    GraphQLLoaderRegistry,
+    graphql_loader,
 )
 
 
@@ -20,8 +20,7 @@ class TestGraphQLDataLoaderAdapter:
                 return [{"id": a_id, "name": f"Author {a_id}"} for a_id in ids]
 
             @batch_load(batch_method="batch_find_authors")
-            async def get_author_by_id(self, author_id: str) -> dict[str, str]:
-                ...
+            async def get_author_by_id(self, author_id: str) -> dict[str, str]: ...
 
         service = BookService()
 
@@ -54,16 +53,24 @@ class TestGraphQLDataLoaderAdapter:
 
         class BookService:
             async def batch_find_books(self, author_ids: list[str]) -> list[dict[str, str]]:
-                db_queries.append(f"SELECT * FROM books WHERE author_id IN ({','.join(author_ids)})")
+                ids_str = ",".join(author_ids)
+                db_queries.append(f"SELECT * FROM books WHERE author_id IN ({ids_str})")
                 res = []
                 for a_id in author_ids:
-                    res.append({"id": f"b-1-{a_id}", "author_id": a_id, "title": f"Book 1 of {a_id}"})
-                    res.append({"id": f"b-2-{a_id}", "author_id": a_id, "title": f"Book 2 of {a_id}"})
+                    res.append(
+                        {"id": f"b-1-{a_id}", "author_id": a_id, "title": f"Book 1 of {a_id}"}
+                    )
+                    res.append(
+                        {"id": f"b-2-{a_id}", "author_id": a_id, "title": f"Book 2 of {a_id}"}
+                    )
                 return res
 
-            @batch_load(batch_method="batch_find_books", key_of=lambda b: b["author_id"], relation="many")
-            async def get_books_by_author(self, author_id: str) -> list[dict[str, str]]:
-                ...
+            @batch_load(
+                batch_method="batch_find_books",
+                key_of=lambda b: b["author_id"],
+                relation="many",
+            )
+            async def get_books_by_author(self, author_id: str) -> list[dict[str, str]]: ...
 
         service = BookService()
 
@@ -94,8 +101,7 @@ class TestGraphQLDataLoaderAdapter:
                 return [{"id": a_id, "name": f"Author {a_id}"} for a_id in ids]
 
             @batch_load(batch_method="batch_find_authors")
-            async def get_author_by_id(self, author_id: str) -> dict[str, str]:
-                ...
+            async def get_author_by_id(self, author_id: str) -> dict[str, str]: ...
 
         service = BookService()
         author_resolver = graphql_loader(

@@ -12,9 +12,7 @@ from server_decorator.decorators.distributed_lock import (
     RELEASE_LOCK_LUA,
     RENEW_LOCK_LUA,
     LockAcquisitionError,
-    RedisLockAdapter,
     clear_global_distributed_lock_adapter,
-    configure_distributed_lock,
     distributed_lock,
     distributed_lock_class,
 )
@@ -187,7 +185,7 @@ async def test_distributed_lock_watchdog_auto_renewal() -> None:
         async def long_task(self) -> str:
             await asyncio.sleep(0.12)  # Runs 2x longer than initial TTL
             assert "lock:long" in adapter.store
-            held_token, expires_at = adapter.store["lock:long"]
+            _held_token, expires_at = adapter.store["lock:long"]
             assert expires_at > time.monotonic()
             return "completed"
 

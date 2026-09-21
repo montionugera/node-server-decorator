@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import functools
 import inspect
 from collections.abc import Awaitable, Callable
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar, cast
 
 T = TypeVar("T")
 TParent = TypeVar("TParent")
@@ -24,7 +25,7 @@ class GraphQLLoaderRegistry:
     def get_or_create(self, name: str, factory: Callable[[], T]) -> T:
         if name not in self._loaders:
             self._loaders[name] = factory()
-        return self._loaders[name]
+        return cast(T, self._loaders[name])
 
     def on_dispose(self, disposer: Callable[[], Any]) -> None:
         self._disposers.append(disposer)
@@ -41,8 +42,8 @@ class GraphQLLoaderRegistry:
         self._disposers.clear()
 
 
-_GRAPHQL_LOADER_CONTEXT: contextvars.ContextVar[GraphQLLoaderRegistry | None] = contextvars.ContextVar(
-    "graphql_loader_context", default=None
+_GRAPHQL_LOADER_CONTEXT: contextvars.ContextVar[GraphQLLoaderRegistry | None] = (
+    contextvars.ContextVar("graphql_loader_context", default=None)
 )
 
 
@@ -51,7 +52,10 @@ def get_active_graphql_loader_registry() -> GraphQLLoaderRegistry | None:
 
 
 def create_graphql_loader_context() -> dict[str, Any]:
-    """Create request-scoped loader registry context for Strawberry, Ariadne, or custom execution."""
+    """Create request-scoped loader registry context.
+
+    Supports Strawberry, Ariadne, or custom execution engines.
+    """
     registry = GraphQLLoaderRegistry()
     token = _GRAPHQL_LOADER_CONTEXT.set(registry)
 
@@ -78,7 +82,7 @@ def graphql_loader(
     """Decorator or wrapper adapting a GraphQL field resolver to request-scoped batch loader."""
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
-        @functools_wraps(fn)
+        @functools.wraps(fn)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             parent = args[0] if len(args) > 0 else kwargs.get("root") or kwargs.get("parent")
             if parent is None:
@@ -98,15 +102,21 @@ def graphql_loader(
 
             load_fn = loader
             if load_fn is None and service is not None and method:
-                target_service = service() if callable(service) and not hasattr(service, method) else service
+                target_service = (
+                    service() if callable(service) and not hasattr(service, method) else service
+                )
                 cache_key = f"{target_service.__class__.__name__}.{method}"
                 if registry is not None:
-                    load_fn = registry.get_or_create(cache_key, lambda: getattr(target_service, method))
+                    load_fn = registry.get_or_create(
+                        cache_key, lambda: getattr(target_service, method)
+                    )
                 else:
                     load_fn = getattr(target_service, method)
 
             if load_fn is None:
-                raise ValueError("graphql_loader requires either 'loader' or 'service' and 'method'")
+                raise ValueError(
+                    "graphql_loader requires either 'loader' or 'service' and 'method'"
+                )
 
             if isinstance(k, (list, tuple)):
                 if len(k) == 0:
@@ -118,11 +128,6 @@ def graphql_loader(
                 return res if isinstance(res, list) else ([res] if res is not None else [])
             return res
 
-        return wrapper
+        return cast(Callable[..., Any], wrapper)
 
     return decorator
-
-
-def functools_wraps(fn: Any) -> Callable[[Any], Any]:
-    import functools
-    return functools.wraps(fn)
