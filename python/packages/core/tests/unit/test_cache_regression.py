@@ -5,7 +5,12 @@ Spec: contracts/rules/cache-key.md and contracts/rules/cache-adapter.md.
 
 from __future__ import annotations
 
+import collections
+import dataclasses
+import decimal
+import json
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -273,3 +278,114 @@ async def test_async_get_failure_fails_closed() -> None:
     with pytest.raises(RuntimeError, match="redis down"):
         await pay()
     assert calls == 0
+
+
+# --- non-finite hidden in default=str containers -----------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class _Holder:
+    x: float
+
+
+@dataclasses.dataclass
+class _Node:
+    children: list[Any]
+
+
+def _revive(val: Any) -> Any:
+    if isinstance(val, dict):
+        if len(val) == 1 and "$nonfinite" in val:
+            token = val["$nonfinite"]
+            if token == "NaN":
+                return float("nan")
+            if token == "Infinity":
+                return float("inf")
+            if token == "-Infinity":
+                return float("-inf")
+            raise ValueError(f"Unknown nonfinite token: {token}")
+        return {k: _revive(v) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_revive(v) for v in val]
+    return val
+
+
+_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[5]
+    / "contracts"
+    / "fixtures"
+    / "cache-key.errors.examples.json"
+)
+_FIXTURE_DATA = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
+_EXAMPLES: list[dict[str, Any]] = _FIXTURE_DATA["examples"]
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_hidden_in_default_str_containers_raise(value: float) -> None:
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", ({value},), {})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", (frozenset([value]),), {})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", (_Holder(value),), {})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", (collections.deque([value]),), {})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", ({"a": [{value}]},), {})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", (frozenset([_Holder(value)]),), {})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", (), {"k": {value}})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", (complex(value, 1),), {})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        decimal.Decimal("NaN"),
+        decimal.Decimal("sNaN"),
+        decimal.Decimal("Infinity"),
+        decimal.Decimal("-Infinity"),
+    ],
+)
+def test_non_finite_decimal_raises(value: decimal.Decimal) -> None:
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", (value,), {})
+    with pytest.raises(ValueError):
+        build_cache_key("F.b", ([value],), {})
+
+
+def test_finite_values_in_default_str_containers_keep_their_key() -> None:
+    assert build_cache_key("F.b", ({1.5},), {}) == "F.b([1.5])"
+    assert build_cache_key("F.b", (_Holder(1.5),), {}) == 'F.b("_Holder(x=1.5)")'
+    assert build_cache_key("F.b", (decimal.Decimal("1.5"),), {}) == 'F.b("1.5")'
+    assert build_cache_key("F.b", (collections.deque([1]),), {}) == 'F.b("deque([1])")'
+
+
+def test_self_referential_dataclass_does_not_recurse_forever() -> None:
+    n = _Node([])
+    n.children.append(n)
+    res = build_cache_key("F.b", (n,), {})
+    assert isinstance(res, str)
+
+
+@pytest.mark.parametrize("ex", _EXAMPLES, ids=[ex["name"] for ex in _EXAMPLES])
+def test_shared_rejection_fixture(ex: dict[str, Any]) -> None:
+    revived_args = tuple(_revive(ex["args"]))
+    revived_kwargs = _revive(ex["kwargs"])
+    with pytest.raises(ValueError):
+        build_cache_key(ex["qualname"], revived_args, revived_kwargs)
+
+
+def test_shared_rejection_fixture_is_not_empty() -> None:
+    assert len(_EXAMPLES) >= 8
+
+
+def test_set_and_frozenset_deterministic_key() -> None:
+    assert build_cache_key("q", ({"b", "a", "c"},), {}) == 'q(["a","b","c"])'
+    assert build_cache_key("q", (frozenset({"b", "a", "c"}),), {}) == 'q(["a","b","c"])'
+    assert build_cache_key("q", ({3, 1, 2},), {}) == "q([1,2,3])"
+    with pytest.raises(ValueError):
+        build_cache_key("q", ({float("nan")},), {})
+    assert build_cache_key("q", ({frozenset({2, 1})},), {}) == "q([[1,2]])"

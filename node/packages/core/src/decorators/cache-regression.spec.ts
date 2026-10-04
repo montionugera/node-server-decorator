@@ -1,6 +1,8 @@
 // Regression tests for confirmed @cache / cache-key defects.
 // Spec: contracts/rules/cache-key.md and contracts/rules/cache-adapter.md.
 
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { cache, CACHE_MISS, type CacheAdapter } from './cache'
 import { buildCacheKey } from './_cache_key'
 import { globalLogger, setGlobalLogger, type Logger } from '../logger'
@@ -264,5 +266,142 @@ describe('@cache when the adapter fails', () => {
     }
     await expect(new Svc().pay()).rejects.toThrow('redis down')
     expect(calls).toBe(0)
+  })
+})
+
+describe('buildCacheKey: key ordering by code point', () => {
+  it("plain object with keys '😀', '～', 'z' orders by code point", () => {
+    expect(buildCacheKey('F.b', [{ '😀': 2, '～': 1, z: 0 }])).toBe(
+      'F.b({"z":0,"～":1,"😀":2})',
+    )
+  })
+
+  it('kwargs orders by code point', () => {
+    expect(buildCacheKey('F.b', [], { '😀': 2, '～': 1 })).toBe(
+      'F.b(～=1,😀=2)',
+    )
+  })
+
+  it('Map with the same three keys gives exactly the same key as the plain object', () => {
+    const map = new Map<string, number>([
+      ['😀', 2],
+      ['～', 1],
+      ['z', 0],
+    ])
+    expect(buildCacheKey('F.b', [map])).toBe(
+      buildCacheKey('F.b', [{ '😀': 2, '～': 1, z: 0 }]),
+    )
+  })
+
+  it('new Map([[\'a\', 1], [\'a!\', 2]]) -> F.b({"a":1,"a!":2})', () => {
+    expect(
+      buildCacheKey('F.b', [
+        new Map([
+          ['a', 1],
+          ['a!', 2],
+        ]),
+      ]),
+    ).toBe('F.b({"a":1,"a!":2})')
+  })
+
+  it('Set: new Set([\'😀\', \'～\']) -> F.b(["～","😀"])', () => {
+    expect(buildCacheKey('F.b', [new Set(['😀', '～'])])).toBe(
+      'F.b(["～","😀"])',
+    )
+  })
+})
+
+describe('buildCacheKey: non-finite numbers in boxed and Map-key form', () => {
+  it.each([
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+    ['-Infinity', -Infinity],
+  ])('new Number(%s) throws TypeError in various positions', (_name, v) => {
+    expect(() => buildCacheKey('F.b', [new Number(v)])).toThrow(TypeError)
+    expect(() => buildCacheKey('F.b', [{ nested: [new Number(v)] }])).toThrow(
+      TypeError,
+    )
+    expect(() =>
+      buildCacheKey('F.b', [new Map([['k', new Number(v)]])]),
+    ).toThrow(TypeError)
+    expect(() => buildCacheKey('F.b', [new Set([new Number(v)])])).toThrow(
+      TypeError,
+    )
+    expect(() => buildCacheKey('F.b', [], { k: new Number(v) })).toThrow(
+      TypeError,
+    )
+  })
+
+  it.each([
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+    ['-Infinity', -Infinity],
+  ])('Map key with non-finite %s throws TypeError', (_name, v) => {
+    expect(() => buildCacheKey('F.b', [new Map([[v, 1]])])).toThrow(TypeError)
+    expect(() => buildCacheKey('F.b', [new Map([[new Number(v), 1]])])).toThrow(
+      TypeError,
+    )
+  })
+
+  it('finite inputs are unchanged', () => {
+    expect(buildCacheKey('F.b', [new Number(5)])).toBe('F.b("5")')
+    expect(buildCacheKey('F.b', [new Map([[1, 'a']])])).toBe('F.b({"1":"a"})')
+  })
+})
+
+interface ErrorFixtureExample {
+  name: string
+  qualname: string
+  args: unknown[]
+  kwargs: Record<string, unknown>
+}
+
+const errorFixturePath = join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  '..',
+  'contracts',
+  'fixtures',
+  'cache-key.errors.examples.json',
+)
+const errorFixture = JSON.parse(readFileSync(errorFixturePath, 'utf8')) as {
+  examples: ErrorFixtureExample[]
+}
+
+function revive(val: unknown): unknown {
+  if (val === null || typeof val !== 'object') {
+    return val
+  }
+  if (Array.isArray(val)) {
+    return val.map(revive)
+  }
+  const obj = val as Record<string, unknown>
+  if (obj.$nonfinite === 'NaN') return NaN
+  if (obj.$nonfinite === 'Infinity') return Infinity
+  if (obj.$nonfinite === '-Infinity') return -Infinity
+
+  const result: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    result[k] = revive(v)
+  }
+  return result
+}
+
+describe('buildCacheKey: shared rejection fixture (cache-key.errors.examples.json)', () => {
+  it('has at least 8 examples', () => {
+    expect(errorFixture.examples.length).toBeGreaterThanOrEqual(8)
+  })
+
+  it.each(errorFixture.examples)('$name', (ex) => {
+    expect(() =>
+      buildCacheKey(
+        ex.qualname,
+        revive(ex.args) as unknown[],
+        revive(ex.kwargs) as Record<string, unknown>,
+      ),
+    ).toThrow(TypeError)
   })
 })

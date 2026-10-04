@@ -75,6 +75,14 @@
       "expected": "Text.norm(\"a\\nb\\tc\\u0001d e\")"
     },
     {
+      "name": "object-keys-sorted-by-code-point",
+      "$comment": "Object keys sort by Unicode code point (same order as their UTF-8 bytes), not by UTF-16 code unit: U+FF5E sorts before the astral U+1F600, although the emoji's leading surrogate (0xD83D) is the smaller code unit.",
+      "qualname": "Sort.keys",
+      "args": [{"😀": 2, "～": 1, "z": 0}, {"outer": {"😀x": true, "～x": false}}],
+      "kwargs": {},
+      "expected": "Sort.keys({\"z\":0,\"～\":1,\"😀\":2},{\"outer\":{\"～x\":false,\"😀x\":true}})"
+    },
+    {
       "name": "long-key-hashed",
       "$comment": "When the raw key exceeds 250 UTF-8 bytes, the parens content is replaced with sha256:<hex>. Test asserts that the prefix matches and the raw key would have been over 250 bytes; the exact hex is implementation-derived and computed at test time, NOT hard-coded here.",
       "qualname": "Big.method",

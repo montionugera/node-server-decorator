@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 )
 
 type ckCovPrice float64
@@ -211,4 +212,35 @@ func TestBuildCacheKeyERepanicsOnUnrelatedPanic(t *testing.T) {
 	}()
 	_, _ = BuildCacheKeyE("Q", []any{ckCovPanicMarshaler{}}, nil)
 	t.Fatal("BuildCacheKeyE swallowed a panic that is not ErrNonFiniteCacheArg")
+}
+
+// ckCovCycle is self-referential: json.Marshal fails on it with a cycle error, which sends
+// stableStringify down the rejectNonFiniteNumbers walk.
+type ckCovCycle struct {
+	Name string
+	Next *ckCovCycle
+}
+
+func TestStableStringifyPointerCycleStopsAtDepthCap(t *testing.T) {
+	node := &ckCovCycle{Name: "loop"}
+	node.Next = node
+
+	done := make(chan string, 1)
+	go func() { done <- stableStringify(*node) }()
+	select {
+	case got := <-done:
+		if !strings.Contains(got, "loop") {
+			t.Errorf("stableStringify(cycle) = %q, want the fmt.Sprint fallback containing the Name field", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("stableStringify did not terminate on a pointer cycle")
+	}
+}
+
+func TestStableStringifyNilInterfaceMapKey(t *testing.T) {
+	got := stableStringify(map[any]int{nil: 1, "a": 2})
+	want := `{"<nil>":1,"a":2}`
+	if got != want {
+		t.Errorf("stableStringify(map with nil key) = %s, want %s", got, want)
+	}
 }

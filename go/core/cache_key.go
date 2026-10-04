@@ -126,6 +126,51 @@ func finiteFloat(f float64) float64 {
 	return f
 }
 
+// finiteNumber rejects a json.Number holding a non-finite token ("NaN", "Inf", ...). A finite
+// literal that merely overflows float64 (ParseFloat reports a range error) is kept.
+func finiteNumber(n json.Number) json.Number {
+	if f, err := strconv.ParseFloat(string(n), 64); err == nil {
+		finiteFloat(f)
+	}
+	return n
+}
+
+var jsonNumberType = reflect.TypeOf(json.Number(""))
+
+// rejectNonFiniteNumbers walks a value that is about to be stringified with fmt.Sprint and
+// panics (ErrNonFiniteCacheArg) on a non-finite float or json.Number inside it. The depth cap
+// stops on pointer cycles.
+func rejectNonFiniteNumbers(rv reflect.Value, depth int) {
+	if depth > 64 {
+		return
+	}
+	switch rv.Kind() {
+	case reflect.Float32, reflect.Float64:
+		finiteFloat(rv.Float())
+	case reflect.String:
+		if rv.Type() == jsonNumberType {
+			finiteNumber(json.Number(rv.String()))
+		}
+	case reflect.Pointer, reflect.Interface:
+		if !rv.IsNil() {
+			rejectNonFiniteNumbers(rv.Elem(), depth+1)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < rv.Len(); i++ {
+			rejectNonFiniteNumbers(rv.Index(i), depth+1)
+		}
+	case reflect.Map:
+		for it := rv.MapRange(); it.Next(); {
+			rejectNonFiniteNumbers(it.Key(), depth+1)
+			rejectNonFiniteNumbers(it.Value(), depth+1)
+		}
+	case reflect.Struct:
+		for i := 0; i < rv.NumField(); i++ {
+			rejectNonFiniteNumbers(rv.Field(i), depth+1)
+		}
+	}
+}
+
 func stableStringify(v any) string {
 	if v == nil {
 		return "null"
@@ -167,7 +212,7 @@ func stableStringify(v any) string {
 		b, _ := json.Marshal(finiteFloat(val))
 		return string(b)
 	case json.Number:
-		return val.String()
+		return string(finiteNumber(val))
 	case []any:
 		parts := make([]string, len(val))
 		for i, elem := range val {
@@ -212,6 +257,19 @@ func stableStringify(v any) string {
 		}
 		entries := make([]keyEntry, len(keys))
 		for i, k := range keys {
+			elem := k
+			for elem.Kind() == reflect.Interface {
+				if elem.IsNil() {
+					break
+				}
+				elem = elem.Elem()
+			}
+			if elem.Kind() == reflect.Float32 || elem.Kind() == reflect.Float64 {
+				finiteFloat(elem.Float())
+			}
+			if num, ok := elem.Interface().(json.Number); ok {
+				finiteNumber(num)
+			}
 			entries[i] = keyEntry{
 				strKey:  fmt.Sprint(k.Interface()),
 				origKey: k,
@@ -230,6 +288,10 @@ func stableStringify(v any) string {
 		var unsupported *json.UnsupportedValueError
 		if errors.As(err, &unsupported) && unsupported.Value.CanFloat() {
 			finiteFloat(unsupported.Value.Float())
+		}
+		if err != nil {
+			// e.g. a json.Number("NaN") field: Marshal fails, and fmt.Sprint below would hide it.
+			rejectNonFiniteNumbers(rv, 0)
 		}
 		if err == nil {
 			var unmarshaled any
