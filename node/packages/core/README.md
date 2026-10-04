@@ -293,7 +293,7 @@ pnpm run dev
 ```bash
 pnpm test:unit
 ```
-Runs fast unit tests for all decorators and core functionality.
+Runs fast unit tests for all decorators and core functionality, with coverage. The run fails if line coverage of `src/` (excluding specs and `src/integration/`) drops below the `coverageThreshold` in `jest.config.js` (98). `pnpm test` and `pnpm test:e2e` collect no coverage.
 
 #### E2E Tests
 ```bash
@@ -395,6 +395,38 @@ imperatively with `registry.on('Event.name', handler, { consumer: 'orders' })`.
 All backends deliver **at-least-once**, so handlers must be idempotent; failed
 messages stay pending/unacked (Redis/RabbitMQ) or are retried per attempts
 (Kafka offset is not committed / BullMQ job `attempts`).
+
+`KafkaConsumer` rewinds the partition to a failed offset after `retryBackoffMs`
+(default 1000 ms), so the record is redelivered before anything later is
+committed. A record that always fails therefore blocks its partition; route it
+to a dead-letter topic inside the handler if that is not what you want.
+
+`ConsumerRegistry.start()` logs a consumer whose `run()` fails instead of
+raising an unhandled rejection. The other consumers keep running; the failed
+one is not restarted.
+
+A traced message is handled inside its own exported span, named
+`consume <eventName>` (`span.kind = CONSUMER`), whose parent is the producer span.
+
+## Behaviour notes
+
+- **Emit never changes the method's outcome.** If `transform` throws, the error
+  is logged and both the event and the queue publish are skipped; the caller
+  still gets the method's result.
+- **Queue resolution.** `QueueRegistry.publish()` with no queue name uses the
+  default queue, or the first registered queue if no default was set. An unknown
+  *named* queue is not published (fail closed). `publish()` resolves to `true`
+  only when the message was handed to an adapter.
+- **Lost lock lease.** `@distributedLock` throws `LockLostError` after the method
+  settles if the lease was lost while it ran (the method's own error, if any, is
+  on `cause`). A renewal that errors is retried on the next tick; the lease
+  counts as lost on a definite refusal or after a full TTL with no confirmed
+  renewal. The token-guarded release is always attempted.
+- **Tracing.** A `traceparent` must be version `00` with lower-case hex; anything
+  else is ignored and a new trace starts. A throwing `attributes` extractor is
+  logged and never fails the method. Any thrown value marks the span `ERROR`.
+- **Cache.** A failing adapter `set` is logged and the result is still returned;
+  a failing `get` propagates. NaN / Infinity arguments throw a `TypeError`.
 
 ## Contributing
 
