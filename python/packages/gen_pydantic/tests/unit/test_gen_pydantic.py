@@ -19,21 +19,22 @@ CASES = json.loads((CONTRACTS / "fixtures/entity-spec.cases.json").read_text())[
 SPEC = entity_spec(UserFixture)
 
 
-def model_for(dto: str) -> type[pydantic.BaseModel]:
+def model_for(dto: str, spec: dict) -> type[pydantic.BaseModel]:
     if dto == "create":
-        return create_model_for(SPEC)
+        return create_model_for(spec)
     if dto == "update":
-        return update_model_for(SPEC)
+        return update_model_for(spec)
     if dto == "read":
-        return read_model_for(SPEC)
+        return read_model_for(spec)
     if dto.startswith("action:"):
-        return action_input_model_for(SPEC, dto[len("action:") :])
+        return action_input_model_for(spec, dto[len("action:") :])
     raise ValueError(dto)
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
 def test_contract_case(case: dict) -> None:
-    model = model_for(case["dto"])
+    # An optional inline `spec` (IR) replaces the User fixture for that case.
+    model = model_for(case["dto"], case.get("spec", SPEC))
     if case["valid"]:
         model.model_validate(case["payload"])
     else:

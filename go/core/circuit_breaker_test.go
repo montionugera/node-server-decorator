@@ -52,6 +52,9 @@ func TestCircuitBreaker_StateTransitions(t *testing.T) {
 	}
 
 	// Second trial success: recovers to Closed!
+	if !cb.AllowRequest() {
+		t.Fatalf("expected requests allowed when HalfOpen")
+	}
 	cb.RecordSuccess()
 	if cb.State() != StateClosed {
 		t.Fatalf("expected StateClosed after 2 successes, got %v", cb.State())

@@ -17,13 +17,6 @@ from typing import Any, Generic, TypeVar
 T = TypeVar("T")
 
 
-def _is_after(a: str, b: str) -> bool:
-    try:
-        return int(a) > int(b)
-    except ValueError:
-        return a > b
-
-
 @dataclass
 class SSEEvent(Generic[T]):
     """Represents a Server-Sent Event frame."""
@@ -108,33 +101,29 @@ class AsyncSSEBroadcaster(Generic[T]):
         streams live events with periodic keep-alive pings.
         """
         queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=self.buffer_size)
+        # Snapshot the replay in the same synchronous step that registers the queue,
+        # so no event is both replayed and delivered live. Replay is positional:
+        # events after last_event_id's position in the history, or the whole
+        # history when it is not (or no longer) in the buffer.
+        replayed: list[SSEEvent[T]] = []
         if not self._closed:
             self._subscribers.add(queue)
+            if last_event_id is not None:
+                history = list(self._history)
+                start = 0
+                for i, e in enumerate(history):
+                    if e.id == last_event_id:
+                        start = i + 1
+                        break
+                replayed = history[start:]
 
         async def _generator() -> AsyncIterator[str]:
             if self._closed:
                 return
 
             try:
-                # Replay buffered events if Last-Event-ID is provided
-                if last_event_id is not None and self._history:
-                    found_idx = -1
-                    for i, e in enumerate(self._history):
-                        if e.id == last_event_id:
-                            found_idx = i
-                            break
-
-                    if found_idx != -1:
-                        replayed = list(self._history)[found_idx + 1 :]
-                    else:
-                        replayed = [
-                            e
-                            for e in self._history
-                            if e.id is not None and _is_after(e.id, last_event_id)
-                        ]
-
-                    for item in replayed:
-                        yield item.format()
+                for item in replayed:
+                    yield item.format()
 
                 # Main live event streaming loop
                 while not self._closed:

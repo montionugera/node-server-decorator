@@ -14,7 +14,10 @@ import (
 var (
 	// ErrLockNotAcquired is returned when a lock cannot be acquired within wait timeout.
 	ErrLockNotAcquired = errors.New("distlock: failed to acquire lock within timeout")
-	// ErrLockLost is returned when lock renewal fails or is lost.
+	// ErrLockLost reports that the lease was lost while it was held: a renewal or the release
+	// found the key gone or owned by another token, or renewals kept failing for a full TTL.
+	// It is the cancellation cause of the context Do passes to fn, and is returned by Release
+	// and Do.
 	ErrLockLost = errors.New("distlock: lock lease expired or was taken by another instance")
 )
 
@@ -33,10 +36,14 @@ type RedisClient interface {
 
 // Config configures a Locker instance.
 type Config struct {
-	Client        RedisClient
-	DefaultTTL    time.Duration
-	AutoRenew     bool
-	RetryInterval time.Duration
+	Client     RedisClient
+	DefaultTTL time.Duration
+	// Deprecated: the heartbeat watchdog is on by default in every language lane, so this
+	// field is ignored. Use DisableAutoRenew (or WithAutoRenew(false)) to turn it off.
+	AutoRenew bool
+	// DisableAutoRenew turns the heartbeat watchdog off for locks acquired by this Locker.
+	DisableAutoRenew bool
+	RetryInterval    time.Duration
 }
 
 // Locker manages distributed locks backed by a RedisClient.
@@ -59,6 +66,11 @@ func New(cfg Config) *Locker {
 type Lock interface {
 	Key() string
 	Token() string
+	// Lost is closed once the lease is known to be lost (see ErrLockLost).
+	Lost() <-chan struct{}
+	// Release stops the watchdog and deletes the key if this lock still owns it. It returns
+	// ErrLockLost when the lease was lost before the release. If the delete itself fails the
+	// lock is not marked released, so Release can be called again to retry.
 	Release(ctx context.Context) error
 }
 
@@ -66,8 +78,10 @@ type lockImpl struct {
 	locker       *Locker
 	key          string
 	token        string
+	ttl          time.Duration
 	stopWatchdog func()
-	once         sync.Once
+	lost         chan struct{}
+	lostOnce     sync.Once
 	released     bool
 	mu           sync.Mutex
 }
@@ -80,20 +94,47 @@ func (l *lockImpl) Token() string {
 	return l.token
 }
 
+func (l *lockImpl) Lost() <-chan struct{} {
+	return l.lost
+}
+
+func (l *lockImpl) markLost() {
+	l.lostOnce.Do(func() { close(l.lost) })
+}
+
+func (l *lockImpl) isLost() bool {
+	select {
+	case <-l.lost:
+		return true
+	default:
+		return false
+	}
+}
+
 func (l *lockImpl) Release(ctx context.Context) error {
-	var err error
-	l.once.Do(func() {
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		l.released = true
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-		if l.stopWatchdog != nil {
-			l.stopWatchdog()
+	if l.stopWatchdog != nil {
+		l.stopWatchdog()
+	}
+
+	if !l.released {
+		res, err := l.locker.cfg.Client.Eval(ctx, ReleaseLockLua, []string{l.key}, l.token)
+		if err != nil {
+			return fmt.Errorf("distlock: release failed: %w", err)
 		}
+		l.released = true
+		// 0 means the key was already gone or owned by another token.
+		if num, ok := res.(int64); ok && num == 0 {
+			l.markLost()
+		}
+	}
 
-		_, err = l.locker.cfg.Client.Eval(ctx, ReleaseLockLua, []string{l.key}, l.token)
-	})
-	return err
+	if l.isLost() {
+		return ErrLockLost
+	}
+	return nil
 }
 
 type acquireOptions struct {
@@ -150,7 +191,7 @@ func (l *Locker) Acquire(ctx context.Context, key string, opts ...Option) (Lock,
 		ttl:           l.cfg.DefaultTTL,
 		waitTimeout:   0,
 		retryInterval: l.cfg.RetryInterval,
-		autoRenew:     l.cfg.AutoRenew,
+		autoRenew:     !l.cfg.DisableAutoRenew,
 	}
 	for _, o := range opts {
 		o(&opt)
@@ -158,6 +199,8 @@ func (l *Locker) Acquire(ctx context.Context, key string, opts ...Option) (Lock,
 
 	token := generateToken()
 	startTime := time.Now()
+	// Last instant the lease was known to be ours (taken before the confirming call).
+	var lastConfirmed time.Time
 
 	for {
 		select {
@@ -166,6 +209,7 @@ func (l *Locker) Acquire(ctx context.Context, key string, opts ...Option) (Lock,
 		default:
 		}
 
+		lastConfirmed = time.Now()
 		ok, err := l.cfg.Client.SetNX(ctx, key, token, opt.ttl)
 		if err != nil {
 			return nil, fmt.Errorf("distlock: SetNX failed: %w", err)
@@ -200,6 +244,8 @@ func (l *Locker) Acquire(ctx context.Context, key string, opts ...Option) (Lock,
 		locker: l,
 		key:    key,
 		token:  token,
+		ttl:    opt.ttl,
+		lost:   make(chan struct{}),
 	}
 
 	if opt.autoRenew {
@@ -221,14 +267,27 @@ func (l *Locker) Acquire(ctx context.Context, key string, opts ...Option) (Lock,
 				case <-watchdogCtx.Done():
 					return
 				case <-ticker.C:
+					sentAt := time.Now()
 					res, err := l.cfg.Client.Eval(watchdogCtx, RenewLockLua, []string{key}, token, ttlMs)
-					if err != nil {
+					if watchdogCtx.Err() != nil {
 						return
+					}
+					if err != nil {
+						// A failed renewal is "unknown", not "lost": retry on the next tick.
+						// Only once a full TTL has passed without a confirmed renewal has
+						// the lease certainly expired.
+						if time.Since(lastConfirmed) >= opt.ttl {
+							lock.markLost()
+							return
+						}
+						continue
 					}
 					// If renewal returns 0 (lock expired or taken by another instance)
 					if num, ok := res.(int64); ok && num == 0 {
+						lock.markLost()
 						return
 					}
+					lastConfirmed = sentAt
 				}
 			}
 		}()
@@ -238,12 +297,39 @@ func (l *Locker) Acquire(ctx context.Context, key string, opts ...Option) (Lock,
 }
 
 // Do executes fn inside an acquired distributed lock, automatically releasing on return.
+//
+// The context passed to fn is cancelled with cause ErrLockLost if the lease is lost while fn
+// runs. The release is bounded by the lock TTL, and Do returns fn's error joined with the
+// release error (ErrLockLost when the lease was lost).
 func (l *Locker) Do(ctx context.Context, key string, fn func(ctx context.Context) error, opts ...Option) error {
 	lock, err := l.Acquire(ctx, key, opts...)
 	if err != nil {
 		return err
 	}
-	defer lock.Release(context.Background())
 
-	return fn(ctx)
+	fnCtx, cancel := context.WithCancelCause(ctx)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-lock.Lost():
+			cancel(ErrLockLost)
+		case <-done:
+		}
+	}()
+
+	fnErr := fn(fnCtx)
+	close(done)
+	cancel(nil)
+
+	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), lock.(*lockImpl).ttl)
+	defer releaseCancel()
+	releaseErr := lock.Release(releaseCtx)
+
+	if releaseErr == nil {
+		return fnErr
+	}
+	if fnErr == nil {
+		return releaseErr
+	}
+	return errors.Join(fnErr, releaseErr)
 }

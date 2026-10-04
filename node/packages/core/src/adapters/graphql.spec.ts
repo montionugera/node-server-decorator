@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import { batchLoad } from '../decorators/batch-load';
 import {
   graphqlLoader,
@@ -136,5 +137,276 @@ describe('GraphQL DataLoader Adapter (Node/TypeScript)', () => {
     // Clean up both requests independently
     await ctxA.cleanupLoaders();
     await ctxB.cleanupLoaders();
+  });
+});
+
+describe('GraphQL DataLoader Adapter — request isolation regressions', () => {
+  const userStore = new AsyncLocalStorage<string>();
+  let queries: string[] = [];
+
+  class DocService {
+    async batchFind(ids: string[]) {
+      const user = userStore.getStore();
+      queries.push(`${user}:${ids.join(',')}`);
+      return ids.map((id) => ({ id, owner: user }));
+    }
+
+    @batchLoad({ batchMethod: 'batchFind' })
+    async findById(id: string): Promise<any> {
+      return undefined;
+    }
+  }
+
+  beforeEach(() => {
+    queries = [];
+  });
+
+  it('does not serve one request’s cached row to the next request for the SAME key', async () => {
+    const service = new DocService();
+    const resolver = graphqlLoader({ service, method: 'findById', key: (p: any) => p.docId });
+
+    const ctxA = createGraphQLLoaderContext();
+    const a = await userStore.run('alice', () => resolver({ docId: 'doc1' }, {}, ctxA, {}));
+    await ctxA.cleanupLoaders();
+
+    const ctxB = createGraphQLLoaderContext();
+    const b = await userStore.run('bob', () => resolver({ docId: 'doc1' }, {}, ctxB, {}));
+    await ctxB.cleanupLoaders();
+
+    expect(a).toEqual({ id: 'doc1', owner: 'alice' });
+    expect(b).toEqual({ id: 'doc1', owner: 'bob' });
+    expect(queries).toEqual(['alice:doc1', 'bob:doc1']);
+  });
+
+  it('does not merge two concurrent requests into one batch', async () => {
+    const service = new DocService();
+    const resolver = graphqlLoader({ service, method: 'findById', key: (p: any) => p.docId });
+
+    const ctxA = createGraphQLLoaderContext();
+    const ctxB = createGraphQLLoaderContext();
+    const [a, b] = await Promise.all([
+      userStore.run('alice', () => resolver({ docId: 'x' }, {}, ctxA, {})),
+      userStore.run('bob', () => resolver({ docId: 'y' }, {}, ctxB, {})),
+    ]);
+
+    expect(a).toEqual({ id: 'x', owner: 'alice' });
+    expect(b).toEqual({ id: 'y', owner: 'bob' });
+    expect([...queries].sort()).toEqual(['alice:x', 'bob:y']);
+  });
+
+  it('isolates the registry held in graphQLLoaderStorage the same way', async () => {
+    const service = new DocService();
+    const resolver = graphqlLoader({ service, method: 'findById', key: (p: any) => p.docId });
+
+    const run = (user: string) =>
+      graphQLLoaderStorage.run(new GraphQLLoaderRegistry(), () =>
+        userStore.run(user, () => resolver({ docId: 'doc1' }, {}, {}, {}))
+      );
+
+    expect(await run('alice')).toEqual({ id: 'doc1', owner: 'alice' });
+    expect(await run('bob')).toEqual({ id: 'doc1', owner: 'bob' });
+  });
+
+  it('shares nothing between calls when no registry is available (fail closed, no cross-request cache)', async () => {
+    const service = new DocService();
+    const resolver = graphqlLoader({ service, method: 'findById', key: (p: any) => p.docId });
+
+    const a = await userStore.run('alice', () => resolver({ docId: 'doc1' }, {}, {}, {}));
+    const b = await userStore.run('bob', () => resolver({ docId: 'doc1' }, {}, undefined, {}));
+
+    expect(a).toEqual({ id: 'doc1', owner: 'alice' });
+    expect(b).toEqual({ id: 'doc1', owner: 'bob' });
+  });
+
+  it('still coalesces within one request after isolation (loader option form)', async () => {
+    const service = new DocService();
+    const resolver = graphqlLoader({
+      loader: (id: string) => service.findById(id),
+      key: (p: any) => p.docId,
+    });
+
+    const ctx = createGraphQLLoaderContext();
+    await userStore.run('alice', () =>
+      Promise.all(['a', 'b', 'c'].map((docId) => resolver({ docId }, {}, ctx, {})))
+    );
+    await ctx.cleanupLoaders();
+
+    expect(queries).toEqual(['alice:a,b,c']);
+  });
+});
+
+describe('GraphQL DataLoader Adapter — service resolution regressions', () => {
+  it('routes two resolvers bound to two instances of one class to their own instance', async () => {
+    class Repo {
+      constructor(private tenant: string) {}
+      async find(id: string) {
+        return `${this.tenant}:${id}`;
+      }
+    }
+    const resolverA = graphqlLoader({ service: new Repo('tenantA'), method: 'find', key: (p: any) => p.id });
+    const resolverB = graphqlLoader({ service: new Repo('tenantB'), method: 'find', key: (p: any) => p.id });
+
+    const ctx = createGraphQLLoaderContext();
+    expect(await resolverA({ id: '1' }, {}, ctx, {})).toBe('tenantA:1');
+    expect(await resolverB({ id: '1' }, {}, ctx, {})).toBe('tenantB:1');
+    await ctx.cleanupLoaders();
+  });
+
+  it('keeps separate batch queues for two batchLoad instances of one class in one request', async () => {
+    const seen: string[] = [];
+    class Repo {
+      constructor(private tenant: string) {}
+      async batch(ids: string[]) {
+        seen.push(`${this.tenant}:${ids.join(',')}`);
+        return ids.map((id) => ({ id, tenant: this.tenant }));
+      }
+      @batchLoad({ batchMethod: 'batch' })
+      async find(id: string): Promise<any> {
+        return undefined;
+      }
+    }
+    const resolverA = graphqlLoader({ service: new Repo('tenantA'), method: 'find', key: (p: any) => p.id });
+    const resolverB = graphqlLoader({ service: new Repo('tenantB'), method: 'find', key: (p: any) => p.id });
+
+    const ctx = createGraphQLLoaderContext();
+    const [a, b] = await Promise.all([
+      resolverA({ id: '1' }, {}, ctx, {}),
+      resolverB({ id: '1' }, {}, ctx, {}),
+    ]);
+    await ctx.cleanupLoaders();
+
+    expect(a).toEqual({ id: '1', tenant: 'tenantA' });
+    expect(b).toEqual({ id: '1', tenant: 'tenantB' });
+    expect([...seen].sort()).toEqual(['tenantA:1', 'tenantB:1']);
+  });
+
+  it('routes two object-literal services with the same method name to their own service', async () => {
+    const users = { load: async (id: string) => `user:${id}` };
+    const orders = { load: async (id: string) => `order:${id}` };
+    const userResolver = graphqlLoader({ service: users, method: 'load', key: (p: any) => p.id });
+    const orderResolver = graphqlLoader({ service: orders, method: 'load', key: (p: any) => p.id });
+
+    const ctx = createGraphQLLoaderContext();
+    expect(await userResolver({ id: '1' }, {}, ctx, {})).toBe('user:1');
+    expect(await orderResolver({ id: '1' }, {}, ctx, {})).toBe('order:1');
+    await ctx.cleanupLoaders();
+  });
+
+  it('accepts the service class itself and builds one instance per request', async () => {
+    let instances = 0;
+    const calls: string[] = [];
+    class Svc {
+      constructor() {
+        instances++;
+      }
+      async batch(ids: string[]) {
+        calls.push(ids.join(','));
+        return ids.map((id) => ({ id }));
+      }
+      @batchLoad({ batchMethod: 'batch' })
+      async get(id: string): Promise<any> {
+        return undefined;
+      }
+    }
+    const resolver = graphqlLoader({ service: Svc, method: 'get', key: (p: any) => p.id });
+
+    const ctx = createGraphQLLoaderContext();
+    const out = await Promise.all(['1', '2', '3'].map((id) => resolver({ id }, {}, ctx, {})));
+    await ctx.cleanupLoaders();
+
+    expect(out).toEqual([{ id: '1' }, { id: '2' }, { id: '3' }]);
+    expect(instances).toBe(1);
+    expect(calls).toEqual(['1,2,3']);
+  });
+
+  it('runs a service factory once per request, not once per resolver call', async () => {
+    let built = 0;
+    const calls: string[] = [];
+    class Svc {
+      async batch(ids: string[]) {
+        calls.push(ids.join(','));
+        return ids.map((id) => ({ id }));
+      }
+      @batchLoad({ batchMethod: 'batch' })
+      async get(id: string): Promise<any> {
+        return undefined;
+      }
+    }
+    const factory = () => {
+      built++;
+      return new Svc();
+    };
+    const resolver = graphqlLoader({ service: factory, method: 'get', key: (p: any) => p.id });
+
+    const ctx = createGraphQLLoaderContext();
+    await Promise.all(['1', '2', '3'].map((id) => resolver({ id }, {}, ctx, {})));
+    expect(built).toBe(1);
+    expect(calls).toEqual(['1,2,3']);
+    await ctx.cleanupLoaders();
+
+    const ctx2 = createGraphQLLoaderContext();
+    await resolver({ id: '1' }, {}, ctx2, {});
+    expect(built).toBe(2);
+    await ctx2.cleanupLoaders();
+  });
+
+  it('fails at definition time when the method does not exist on a service instance', () => {
+    expect(() => graphqlLoader({ service: { other: async () => 1 }, method: 'get', key: (p: any) => p.id })).toThrow(
+      /Method 'get' not found/
+    );
+  });
+
+  it('fails clearly when a factory returns a service without the method', async () => {
+    const resolver = graphqlLoader({ service: () => ({}), method: 'get', key: (p: any) => p.id });
+    const ctx = createGraphQLLoaderContext();
+    await expect(resolver({ id: '1' }, {}, ctx, {})).rejects.toThrow(/Method 'get' not found/);
+  });
+
+  it('fails at definition time when the method does not exist on a service class', () => {
+    class Svc {
+      async get(id: string) {
+        return id;
+      }
+    }
+    expect(() =>
+      graphqlLoader({ key: (p: any) => p.id, service: Svc as any, method: 'gett' })
+    ).toThrow("Method 'gett' not found on service Svc");
+  });
+
+  it('never calls a service class without new', async () => {
+    let instances = 0;
+    class Svc {
+      constructor() {
+        instances++;
+      }
+      async get(id: string) {
+        return id;
+      }
+    }
+    const resolver = graphqlLoader({ key: (p: any) => p.id, service: Svc as any, method: 'get' });
+    const ctx = createGraphQLLoaderContext();
+    const result = await resolver({ id: '1' }, {}, ctx, {});
+    await ctx.cleanupLoaders();
+
+    expect(result).toBe('1');
+    expect(instances).toBe(1);
+  });
+
+  it('still treats a plain function without the method as a factory', async () => {
+    class Svc {
+      async get(id: string) {
+        return id;
+      }
+    }
+    const resolver = graphqlLoader({
+      key: (p: any) => p.id,
+      service: () => new Svc(),
+      method: 'get',
+    });
+    const ctx = createGraphQLLoaderContext();
+    const result = await resolver({ id: '1' }, {}, ctx, {});
+    await ctx.cleanupLoaders();
+
+    expect(result).toBe('1');
   });
 });

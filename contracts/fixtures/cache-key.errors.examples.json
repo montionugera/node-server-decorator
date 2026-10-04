@@ -1,0 +1,53 @@
+{
+  "$comment": "Inputs the cache-key algorithm MUST reject (rules/cache-key.md, 'Float NaN / Infinity'). JSON cannot carry a non-finite number, so the object {\"$nonfinite\": \"NaN\" | \"Infinity\" | \"-Infinity\"} is a placeholder: each implementation's test replaces it, at any depth, with its own non-finite float before calling build_cache_key, then asserts the lane's error (Python ValueError, Node TypeError, Go ErrNonFiniteCacheArg) and that no key is returned.",
+  "examples": [
+    {
+      "name": "nan-top-level",
+      "qualname": "F.b",
+      "args": [{"$nonfinite": "NaN"}],
+      "kwargs": {}
+    },
+    {
+      "name": "infinity-top-level",
+      "qualname": "F.b",
+      "args": [{"$nonfinite": "Infinity"}],
+      "kwargs": {}
+    },
+    {
+      "name": "negative-infinity-top-level",
+      "qualname": "F.b",
+      "args": [{"$nonfinite": "-Infinity"}],
+      "kwargs": {}
+    },
+    {
+      "name": "nan-after-finite-arg",
+      "qualname": "F.b",
+      "args": ["cust-1", {"$nonfinite": "NaN"}],
+      "kwargs": {}
+    },
+    {
+      "name": "nan-in-array",
+      "qualname": "F.b",
+      "args": [[1, {"$nonfinite": "NaN"}, 3]],
+      "kwargs": {}
+    },
+    {
+      "name": "infinity-in-object-value",
+      "qualname": "F.b",
+      "args": [{"price": {"$nonfinite": "Infinity"}}],
+      "kwargs": {}
+    },
+    {
+      "name": "nan-nested-deep",
+      "qualname": "F.b",
+      "args": [{"items": [{"qty": 1, "price": {"$nonfinite": "NaN"}}]}],
+      "kwargs": {}
+    },
+    {
+      "name": "negative-infinity-in-kwarg",
+      "qualname": "F.b",
+      "args": [],
+      "kwargs": {"limit": {"$nonfinite": "-Infinity"}}
+    }
+  ]
+}

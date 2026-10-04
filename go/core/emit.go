@@ -54,6 +54,19 @@ func WithEmitTransform(transform func(any) any) EmitOption {
 	}
 }
 
+// applyEmitTransform runs the optional transform, reporting ok=false if it panicked.
+func applyEmitTransform(transform func(any) any, out any) (payload any, ok bool) {
+	if transform == nil {
+		return out, true
+	}
+	defer func() {
+		if recover() != nil {
+			payload, ok = nil, false
+		}
+	}()
+	return transform(out), true
+}
+
 // EmitOnSuccess wraps a function so that upon successful execution (no error returned),
 // a QueueMessage is constructed with Timestamp = time.Now().UnixMilli() and published
 // to the provided QueueAdapter. If fn returns an error, no message is published.
@@ -74,9 +87,11 @@ func EmitOnSuccess[In, Out any](
 			return out, err
 		}
 
-		payload := any(out)
-		if cfg.transform != nil {
-			payload = cfg.transform(out)
+		// fn already succeeded: a panicking transform must not change its outcome
+		// (Node/Python parity). Skip emission instead of panicking into the caller.
+		payload, ok := applyEmitTransform(cfg.transform, out)
+		if !ok {
+			return out, nil
 		}
 
 		meta := cfg.metadata

@@ -13,6 +13,7 @@ from server_decorator.decorators.circuit_breaker import (
 from server_decorator.decorators.coalesce import batch_load
 from server_decorator.decorators.distributed_lock import (
     LockAcquisitionError,
+    LockLostError,
     RedisLockAdapter,
     clear_global_distributed_lock_adapter,
     configure_distributed_lock,
@@ -73,6 +74,7 @@ __all__ = [
     "distributed_lock",
     "distributed_lock_class",
     "LockAcquisitionError",
+    "LockLostError",
     "RedisLockAdapter",
     "configure_distributed_lock",
     "get_global_distributed_lock_adapter",

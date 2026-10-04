@@ -42,6 +42,7 @@ def test_circuit_breaker_state_transitions():
     cb.record_success()
     assert cb.state == CircuitState.HALF_OPEN
 
+    assert cb.allow_request()
     cb.record_success()
     assert cb.state == CircuitState.CLOSED
 

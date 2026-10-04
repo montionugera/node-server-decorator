@@ -1,19 +1,21 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { entitySpec } from '@montionugera/entity-spec';
+import { EntitySpec, entitySpec } from '@montionugera/entity-spec';
 import { UserFixture } from '@montionugera/entity-spec/testing';
 import { actionInputSchema, createSchema, updateSchema, readSchema, validationErrorFields } from './index';
 
 interface Case {
   name: string; dto: string; payload: unknown; valid: boolean; errorFields: string[];
+  // Optional inline IR: the case runs against it instead of the User fixture.
+  spec?: EntitySpec;
 }
 const { cases } = JSON.parse(readFileSync(
   join(__dirname, '../../../../contracts/fixtures/entity-spec.cases.json'), 'utf8'
 )) as { cases: Case[] };
 
-const spec = entitySpec(UserFixture);
+const userSpec = entitySpec(UserFixture);
 
-function schemaFor(dto: string) {
+function schemaFor(dto: string, spec: EntitySpec) {
   if (dto === 'create') return createSchema(spec);
   if (dto === 'update') return updateSchema(spec);
   if (dto === 'read') return readSchema(spec);
@@ -24,7 +26,7 @@ function schemaFor(dto: string) {
 describe('gen-zod against contract validation cases', () => {
   for (const c of cases) {
     it(c.name, () => {
-      const result = schemaFor(c.dto).safeParse(c.payload);
+      const result = schemaFor(c.dto, c.spec ?? userSpec).safeParse(c.payload);
       expect(result.success).toBe(c.valid);
       if (!result.success) {
         const fields = validationErrorFields(result.error);

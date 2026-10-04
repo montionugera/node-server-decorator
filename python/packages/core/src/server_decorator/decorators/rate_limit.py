@@ -9,8 +9,10 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
+from server_decorator import logger as _logger_mod
 from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
 from server_decorator.decorators._qualname import shorten_qualname
+from server_decorator.decorators._warn_once import OncePerObject
 
 F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T", bound=type)
@@ -33,7 +35,7 @@ class TokenBucket:
     def allow(self, cost: float = 1.0) -> bool:
         with self._lock:
             now = time.monotonic()
-            elapsed = now - self.last_refill
+            elapsed = max(0.0, now - self.last_refill)
             self.last_refill = now
             self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_rate)
 
@@ -44,27 +46,42 @@ class TokenBucket:
 
     def available_tokens(self) -> float:
         with self._lock:
-            now = time.monotonic()
-            elapsed = now - self.last_refill
+            elapsed = max(0.0, time.monotonic() - self.last_refill)
             return min(self.capacity, self.tokens + elapsed * self.refill_rate)
 
 
 _buckets: dict[str, TokenBucket] = {}
 _registry_lock = threading.Lock()
 
+# Idle-bucket eviction (contracts/rules/resilience.md): a bucket that has refilled to
+# capacity is indistinguishable from a fresh one, so dropping it loses no state.
+_EVICTION_SWEEP_MIN_SIZE = 1024
+_next_sweep_size = _EVICTION_SWEEP_MIN_SIZE
+
+
+def _evict_idle_buckets_locked() -> None:
+    global _next_sweep_size
+    for key in [k for k, b in _buckets.items() if b.available_tokens() >= b.capacity]:
+        del _buckets[key]
+    _next_sweep_size = max(_EVICTION_SWEEP_MIN_SIZE, len(_buckets) * 2)
+
 
 def get_token_bucket(key: str, capacity: float, refill_rate: float) -> TokenBucket:
     with _registry_lock:
         bucket = _buckets.get(key)
         if bucket is None:
+            if len(_buckets) >= _next_sweep_size:
+                _evict_idle_buckets_locked()
             bucket = TokenBucket(capacity=capacity, refill_rate=refill_rate)
             _buckets[key] = bucket
         return bucket
 
 
 def clear_rate_limiters() -> None:
+    global _next_sweep_size
     with _registry_lock:
         _buckets.clear()
+        _next_sweep_size = _EVICTION_SWEEP_MIN_SIZE
 
 
 def rate_limit(
@@ -78,6 +95,19 @@ def rate_limit(
 
     def decorator(fn: F) -> F:
         base_key = shorten_qualname(fn.__qualname__)
+        warned = OncePerObject()
+
+        def resolve(limit_key: str) -> TokenBucket:
+            bucket = get_token_bucket(limit_key, capacity, refill_rate)
+            if (bucket.capacity != capacity or bucket.refill_rate != refill_rate) and warned.first(
+                bucket
+            ):
+                _logger_mod.global_logger.warn(
+                    f"@rate_limit: bucket '{limit_key}' is already registered with "
+                    f"different options; {fn.__qualname__} shares it and its own "
+                    "capacity/refill_rate are ignored"
+                )
+            return bucket
 
         if inspect.iscoroutinefunction(fn):
 
@@ -89,7 +119,7 @@ def rate_limit(
                 else:
                     limit_key = base_key
 
-                bucket = get_token_bucket(limit_key, capacity, refill_rate)
+                bucket = resolve(limit_key)
                 if not bucket.allow(cost):
                     raise RateLimitExceededError(limit_key)
 
@@ -106,7 +136,7 @@ def rate_limit(
             else:
                 limit_key = base_key
 
-            bucket = get_token_bucket(limit_key, capacity, refill_rate)
+            bucket = resolve(limit_key)
             if not bucket.allow(cost):
                 raise RateLimitExceededError(limit_key)
 

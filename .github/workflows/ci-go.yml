@@ -24,6 +24,9 @@ jobs:
       # Scoped to go/: a root ./... would walk node/, python/ and interop/.
       - run: go vet ./go/...
       # Byte parity, HTML-escape, zero-min, key-order guards and the go:generate drift gate.
-      - run: go test ./go/...
+      # Runs the tests once, with a coverprofile, and enforces the per-package
+      # coverage thresholds declared at the top of the script.
+      - name: go test + coverage gate
+        run: bash scripts/check-go-coverage.sh
       # Gin adapter submodule
       - run: cd go/adapter/gin && go vet ./... && go test ./...

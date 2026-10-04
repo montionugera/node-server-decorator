@@ -26,6 +26,15 @@ Both are top-level exports. Built-in adapters (Redis-backed, in-memory, etc.) MU
 
 `set` does not interact with the sentinel — adapters serialize whatever value they get. Caching `CACHE_MISS` itself is undefined behavior (it shouldn't ever happen because the user code never sees it).
 
+## Adapter failures
+
+The same cache outage MUST have the same outcome in every language:
+
+- **`set` fails (throws, rejects, or returns an error) → fail open.** The wrapped function has already run, so the decorator returns its result and reports the write failure to the package logger at `warn` (Go's `Cache` has no logger and discards the error). It MUST NOT surface the write error to the caller: a caller that retries on error would repeat the wrapped function's side effects.
+- **`get` fails → fail closed.** The error propagates to the caller and the wrapped function is not called. Falling through to the wrapped function on a read error would turn a cache outage into an unbounded load spike on the backing service; consumers that prefer that trade-off wrap their adapter's `get` to return `CACHE_MISS` on error.
+- A cache-key error (see `cache-key.md`: NaN/Infinity, circular structures) is raised before the adapter or the wrapped function is touched.
+- Python only: pairing an async adapter with a sync function is a programming error, not an adapter failure, and still raises `TypeError`.
+
 ## Examples
 
 ```python

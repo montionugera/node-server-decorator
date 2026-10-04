@@ -1,5 +1,6 @@
 """Compile EntitySpec IR dicts into pydantic v2 models (create/update/read/action DTOs)."""
 
+import re
 from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
@@ -45,14 +46,80 @@ def _reject_str(v: Any) -> Any:
     return v
 
 
+def _reject_str_and_bool(v: Any) -> Any:
+    """BeforeValidator for int/float fields: `_reject_str`, plus a JSON boolean is not a JSON
+    number (pydantic's lax mode would coerce true/false into 1/0; zod and Go reject it).
+    """
+    if isinstance(v, bool):
+        raise ValueError("boolean input is not accepted for a number field")
+    return _reject_str(v)
+
+
+def _require_bool(v: Any) -> Any:
+    """BeforeValidator for bool fields: only a JSON boolean is accepted (pydantic's lax mode
+    would coerce the numbers 0/1 and strings; zod and Go reject them).
+    """
+    if not isinstance(v, bool):
+        raise ValueError("bool fields require a JSON boolean")
+    return v
+
+
+# RFC 3339 shape every lane pre-checks a `datetime` string against — see `type: "datetime"` in
+# contracts/rules/entity-spec-validation.md. Keep identical to gen-zod's DATETIME_PATTERN and Go
+# dto's DateTimePattern.
+DATETIME_PATTERN = (
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?"
+    r"(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+)
+_DATETIME_RE = re.compile(DATETIME_PATTERN)
+
+
 def _reject_non_str_datetime(v: Any) -> Any:
     """BeforeValidator for datetime fields — rejects a non-string JSON value (e.g. an integer
     epoch timestamp) ahead of AwareDatetime parsing. An epoch integer is neither ISO 8601 nor
-    string-shaped and must not be silently accepted, per entity-spec-validation.md.
+    string-shaped and must not be silently accepted, per entity-spec-validation.md. A string
+    must also have the shared RFC 3339 shape: AwareDatetime alone accepts a space separator,
+    lowercase `t`/`z`, `+0100` and a numeric (epoch) string, which the other lanes reject.
     """
-    if not isinstance(v, str):
-        raise ValueError("datetime fields require an ISO-8601 string with a UTC offset")
+    if not isinstance(v, str) or _DATETIME_RE.fullmatch(v) is None:
+        raise ValueError("datetime fields require an RFC 3339 string with a UTC offset")
     return v
+
+
+_ASCII_CLASS = {"d": "0-9", "w": "0-9A-Za-z_"}
+
+
+def _ascii_classes(pattern: str) -> str:
+    """Rewrite `\\d`/`\\w`/`\\b` (and their negations) to their ASCII meaning.
+
+    pydantic's Rust regex engine is Unicode-aware for these (`\\w` matches Thai letters, `\\d`
+    Arabic-Indic digits) while JS RegExp and Go RE2 are ASCII — see "`pattern` character
+    classes are ASCII" in contracts/rules/entity-spec-validation.md. A lexical scan that only
+    tracks escapes and whether it is inside a `[...]` class; everything else passes through.
+    """
+    out: list[str] = []
+    in_class = False
+    i = 0
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "\\" and i + 1 < len(pattern):
+            nxt = pattern[i + 1]
+            body = _ASCII_CLASS.get(nxt.lower())
+            if body is not None:
+                out.append(f"[^{body}]" if nxt.isupper() else body if in_class else f"[{body}]")
+            elif nxt in "bB" and not in_class:
+                out.append(f"(?-u:\\{nxt})")
+            else:
+                out.append(c + nxt)
+            i += 2
+            continue
+        if c == "[" and not in_class:
+            in_class = True
+        elif c == "]" and in_class:
+            in_class = False
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def _annotation(f: dict[str, Any], include: Include) -> tuple[Any, Any]:
@@ -75,25 +142,25 @@ def _annotation(f: dict[str, Any], include: Include) -> tuple[Any, Any]:
         elif fmt == "uri":
             kwargs["pattern"] = URI_PATTERN
         elif "pattern" in f:
-            kwargs["pattern"] = f["pattern"]
+            kwargs["pattern"] = _ascii_classes(f["pattern"])
         if "min" in f:
             kwargs["min_length"] = f["min"]
         if "max" in f:
             kwargs["max_length"] = f["max"]
     elif t == "int":
-        ann = Annotated[int, BeforeValidator(_reject_str)]
+        ann = Annotated[int, BeforeValidator(_reject_str_and_bool)]
         if "min" in f:
             kwargs["ge"] = f["min"]
         if "max" in f:
             kwargs["le"] = f["max"]
     elif t == "float":
-        ann = Annotated[float, BeforeValidator(_reject_str)]
+        ann = Annotated[float, BeforeValidator(_reject_str_and_bool)]
         if "min" in f:
             kwargs["ge"] = f["min"]
         if "max" in f:
             kwargs["le"] = f["max"]
     elif t == "bool":
-        ann = Annotated[bool, BeforeValidator(_reject_str)]
+        ann = Annotated[bool, BeforeValidator(_require_bool)]
     elif t == "datetime":
         # IR 'datetime' requires an explicit UTC offset on the wire (multi-replica
         # decision) — a naive ISO-8601 string (no offset) must be rejected, so this
@@ -222,6 +289,7 @@ def validation_error_fields(exc: pydantic.ValidationError) -> list[str]:
 
 
 __all__ = [
+    "DATETIME_PATTERN",
     "EMAIL_PATTERN",
     "URI_PATTERN",
     "UUID_PATTERN",

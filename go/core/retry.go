@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -45,11 +46,17 @@ func calculateBackoff(opts RetryOptions, attempt int) time.Duration {
 }
 
 // Retry wraps a function with exponential backoff and jitter retry semantics.
+//
+// MaxAttempts 0 (the zero value) means the default of 3. A negative MaxAttempts is a
+// configuration error and panics at wrap time (contracts/rules/resilience.md).
 func Retry[In, Out any](
 	opts RetryOptions,
 	fn func(context.Context, In) (Out, error),
 ) func(context.Context, In) (Out, error) {
-	if opts.MaxAttempts <= 0 {
+	if opts.MaxAttempts < 0 {
+		panic(fmt.Sprintf("core.Retry: MaxAttempts must be an integer >= 1, got %d", opts.MaxAttempts))
+	}
+	if opts.MaxAttempts == 0 {
 		opts.MaxAttempts = 3
 	}
 	if opts.Multiplier <= 0 {
@@ -64,7 +71,7 @@ func Retry[In, Out any](
 
 	return func(ctx context.Context, in In) (Out, error) {
 		var zero Out
-		for attempt := 1; attempt <= opts.MaxAttempts; attempt++ {
+		for attempt := 1; ; attempt++ {
 			select {
 			case <-ctx.Done():
 				return zero, ctx.Err()
@@ -76,7 +83,7 @@ func Retry[In, Out any](
 				return res, nil
 			}
 
-			if attempt == opts.MaxAttempts {
+			if attempt >= opts.MaxAttempts {
 				return zero, err
 			}
 
@@ -93,6 +100,5 @@ func Retry[In, Out any](
 				}
 			}
 		}
-		return zero, nil
 	}
 }

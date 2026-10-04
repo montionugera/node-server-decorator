@@ -1,4 +1,6 @@
 import asyncio
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -7,6 +9,10 @@ from server_decorator import (
     create_graphql_loader_context,
     graphql_loader,
 )
+
+
+def _info(ctx: dict[str, Any]) -> SimpleNamespace:
+    return SimpleNamespace(context=ctx)
 
 
 class TestGraphQLDataLoaderAdapter:
@@ -35,7 +41,7 @@ class TestGraphQLDataLoaderAdapter:
         # 50 books with 10 distinct authors
         books = [{"id": f"b-{i}", "author_id": f"auth-{i % 10}"} for i in range(50)]
 
-        results = await asyncio.gather(*(author_resolver(book, info=None) for book in books))
+        results = await asyncio.gather(*(author_resolver(book, info=_info(ctx)) for book in books))
 
         assert len(results) == 50
         assert results[0] == {"id": "auth-0", "name": "Author auth-0"}
@@ -84,7 +90,7 @@ class TestGraphQLDataLoaderAdapter:
         ctx = create_graphql_loader_context()
 
         authors = [{"id": "a-1"}, {"id": "a-2"}, {"id": "a-3"}]
-        results = await asyncio.gather(*(books_resolver(a, info=None) for a in authors))
+        results = await asyncio.gather(*(books_resolver(a, info=_info(ctx)) for a in authors))
 
         assert len(results) == 3
         assert len(results[0]) == 2
@@ -111,11 +117,11 @@ class TestGraphQLDataLoaderAdapter:
         )(lambda *args, **kwargs: None)
 
         ctx_a = create_graphql_loader_context()
-        res_a = await author_resolver({"id": "b-1", "author_id": "auth-A"})
+        res_a = await author_resolver({"id": "b-1", "author_id": "auth-A"}, info=_info(ctx_a))
         await ctx_a["cleanup_loaders"]()
 
         ctx_b = create_graphql_loader_context()
-        res_b = await author_resolver({"id": "b-2", "author_id": "auth-B"})
+        res_b = await author_resolver({"id": "b-2", "author_id": "auth-B"}, info=_info(ctx_b))
         await ctx_b["cleanup_loaders"]()
 
         assert res_a == {"id": "auth-A", "name": "Author auth-A"}

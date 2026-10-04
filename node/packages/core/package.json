@@ -27,7 +27,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
-    "test:unit": "jest --selectProjects unit",
+    "test:unit": "jest --selectProjects unit --coverage",
     "test:e2e": "jest --selectProjects e2e",
     "test:e2e:redis": "jest --selectProjects e2e --testPathPattern=redis",
     "test:e2e:rabbitmq": "jest --selectProjects e2e --testPathPattern=rabbitmq",

@@ -6,19 +6,97 @@ import { createHash } from 'crypto'
 
 export const MAX_KEY_BYTES = 250
 
+function throwNonFinite(value: unknown): never {
+  throw new TypeError(`cache key: non-finite number (${String(value)}) is not JSON-serializable`)
+}
+
+// `Object.prototype.toString` output: names the type, says nothing about the instance.
+const GENERIC_OBJECT_TAG = /^\[object [^\]]*\]$/
+
+// Fail loud: every such instance would otherwise share one key and read each other's entry.
+function throwOpaque(text: string): never {
+  throw new TypeError(
+    `cache key: ${text} has no enumerable keys and no meaningful string form, so distinct ` +
+      'instances would share one cache key; implement toJSON() on it or pass a value that ' +
+      'identifies it (an id, a plain object) instead',
+  )
+}
+
+// Code-point order (what Python `sort_keys` and Go use); the default sort compares UTF-16 units.
+function compareCodePoints(a: string, b: string): number {
+  if (a === b) return 0
+  const lenA = a.length
+  const lenB = b.length
+  let i = 0
+  let j = 0
+  while (i < lenA && j < lenB) {
+    const cpA = a.codePointAt(i)!
+    const cpB = b.codePointAt(j)!
+    if (cpA !== cpB) {
+      return cpA < cpB ? -1 : 1
+    }
+    i += cpA > 0xffff ? 2 : 1
+    j += cpB > 0xffff ? 2 : 1
+  }
+  return lenA - lenB
+}
+
 /**
  * Stable JSON serializer: sorts object keys recursively. Mirrors Python's
  * `json.dumps(x, sort_keys=True, default=str, separators=(",", ":"))`.
  */
 function stableStringify(x: unknown): string {
   if (x === null) return 'null'
-  if (typeof x === 'number' || typeof x === 'boolean') return JSON.stringify(x)
+  if (typeof x === 'number') {
+    // JSON.stringify(NaN|Infinity) is "null", which would collide with a real null arg.
+    if (!Number.isFinite(x)) {
+      throwNonFinite(x)
+    }
+    return JSON.stringify(x)
+  }
+  if (typeof x === 'boolean') return JSON.stringify(x)
   if (typeof x === 'string') return JSON.stringify(x)
   if (Array.isArray(x)) {
     return '[' + x.map(stableStringify).join(',') + ']'
   }
   if (typeof x === 'object') {
-    const keys = Object.keys(x as Record<string, unknown>).sort()
+    if (x instanceof Number && !Number.isFinite(x.valueOf())) {
+      throwNonFinite(x)
+    }
+    // Keyless built-ins would otherwise all serialise as `{}` and collide.
+    // toISOString throws RangeError on an invalid Date (toJSON would yield null).
+    if (x instanceof Date) return JSON.stringify(x.toISOString())
+    if (x instanceof Map) {
+      const entries: [string, unknown][] = []
+      for (const [k, v] of x) {
+        const num = k instanceof Number ? k.valueOf() : k
+        if (typeof num === 'number' && !Number.isFinite(num)) {
+          throwNonFinite(k)
+        }
+        entries.push([String(k), v])
+      }
+      entries.sort(([k1], [k2]) => compareCodePoints(k1, k2))
+      const parts = entries.map(([k, v]) => JSON.stringify(k) + ':' + stableStringify(v))
+      return '{' + parts.join(',') + '}'
+    }
+    if (x instanceof Set) {
+      return '[' + Array.from(x, stableStringify).sort(compareCodePoints).join(',') + ']'
+    }
+    if (typeof (x as { toJSON?: unknown }).toJSON === 'function') {
+      return stableStringify((x as { toJSON: () => unknown }).toJSON())
+    }
+    const keys = Object.keys(x as Record<string, unknown>).sort(compareCodePoints)
+    const proto = Object.getPrototypeOf(x)
+    if (keys.length === 0 && proto !== Object.prototype && proto !== null) {
+      // Keyless non-plain object (RegExp, Error, ...) — match Python `default=str`.
+      const text = String(x)
+      if (GENERIC_OBJECT_TAG.test(text)) {
+        // A plain object from another realm (vm context, iframe): same as a local `{}`.
+        if (text === '[object Object]' && Object.getPrototypeOf(proto) === null) return '{}'
+        throwOpaque(text)
+      }
+      return JSON.stringify(text)
+    }
     const parts = keys.map(
       (k) => JSON.stringify(k) + ':' + stableStringify((x as Record<string, unknown>)[k]),
     )
@@ -38,7 +116,7 @@ export function buildCacheKey(
   kwargs: Record<string, unknown> = {},
 ): string {
   const argPieces: string[] = args.map(stableStringify)
-  const kwargKeys = Object.keys(kwargs).sort()
+  const kwargKeys = Object.keys(kwargs).sort(compareCodePoints)
   for (const k of kwargKeys) {
     argPieces.push(`${k}=${stableStringify(kwargs[k])}`)
   }

@@ -65,21 +65,21 @@ export class SSEBroadcaster<T = any> {
     this.clients.add(client);
 
     if (lastEventId) {
-      let startIndex = -1;
+      // Replay is positional: events after lastEventId's position in the history,
+      // or the whole history when it is not (or no longer) in the buffer.
+      let startIndex = 0;
       for (let i = 0; i < this.history.length; i++) {
         if (this.history[i].id === lastEventId) {
           startIndex = i + 1;
           break;
         }
       }
-      if (startIndex !== -1) {
-        for (let i = startIndex; i < this.history.length; i++) {
-          try {
-            client.write(formatSSEMessage(this.history[i]));
-          } catch {
-            this.clients.delete(client);
-            break;
-          }
+      for (let i = startIndex; i < this.history.length; i++) {
+        try {
+          client.write(formatSSEMessage(this.history[i]));
+        } catch {
+          this.clients.delete(client);
+          break;
         }
       }
     }

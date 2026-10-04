@@ -16,4 +16,11 @@ fi
 $RUN ruff check src tests
 $RUN ruff format --check src tests
 $RUN mypy src
-$RUN pytest -q tests/unit
+
+# Coverage gate (unit tests only; integration-marked tests are excluded).
+# COV_MIN is a ratchet: achieved line+branch coverage (--cov-branch) rounded down,
+# measured on Python 3.10, 3.12 and 3.14. Raise it, never lower it.
+COV_MIN=${COV_MIN:-98}
+export COVERAGE_FILE="${COVERAGE_FILE:-${TMPDIR:-/tmp}/server-decorator-core.coverage}"
+$RUN pytest -q tests/unit -m "not integration" \
+  --cov=src --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under="$COV_MIN"

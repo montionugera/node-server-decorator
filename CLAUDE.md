@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A **polyglot** library shipping decorators for caching, tracking, and queue emission in two languages — Node/TypeScript (`node/`, npm: `@montionugera/server-decorator`) and Python (`python/`, PyPI: `server-decorator`) — kept in lockstep behind a shared wire-format contract (`contracts/`). Both packages publish together under one semver tag (Decision #2). The published artifact lives in `node/` and `python/`; the repo root is a workspace, not a package — its `package.json` only proxies scripts.
 
-A third lane, **Go** (`go/`, module `github.com/montionugera/node-server-decorator/v2`, root `go.mod`), ships only the `entity` IR producer (`go/entity`), byte-identical to the Node/Python `entity` packages; see `go/README.md`.
+A third lane, **Go** (`go/`, module `github.com/montionugera/node-server-decorator/v2`, root `go.mod`, Go 1.22+, stdlib only), ships a full suite, not just the IR producer: `go/entity` (EntitySpec IR builder + struct-tag parser, byte-identical to the Node/Python `entity` packages), `go/openapi` (OpenAPI 3.1 generator), `go/dto` (runtime DTO validation + struct codegen), `go/core` (cache key, `Cache`, `EmitOnSuccess`, `Retry`, `CircuitBreakerWrapper`, `RateLimit`) with sub-packages `go/core/coalesce` (batch loader, multi-tier L1/L2/L3), `go/core/distlock` (Redis distributed lock) and `go/core/tracing` (W3C trace context + spans), `go/http` (package `httpserver`: REST routes on `http.ServeMux`, RFC 9457 problems, scope auth), `go/sse` (broadcaster with `Last-Event-ID` replay), `go/adapter/gqlloader` (request-scoped GraphQL loader registry), the CLIs `go/cmd/gen-entity-spec` and `go/cmd/gen-dto`, and `go/internal/example` fixtures. `go/adapter/gin` is a **separate module** with its own `go.mod` (the only place a third-party dependency is allowed); `go test ./go/...` from the root does not cover it. See `go/README.md`.
 
 A fourth lane, **Nim** (`nim/`, nimble package `server_decorator`, Nim 2.2.12), ships the `entity` IR producer (a `restful` block macro + field pragmas — the decorator ergonomics Go could not offer) **and** the OpenAPI generator (`server_decorator/gen_openapi`), both byte-identical to the Node/Python twins; see `nim/README.md`.
 
@@ -34,18 +34,19 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 
 | Task | Command |
 |------|---------|
-| Node unit tests (fast) | `cd node && pnpm -r test:unit` |
+| Node unit tests + coverage gate (fast) | `cd node && pnpm -r test:unit` (each package's `jest.config.js` holds a `coverageThreshold` on lines: core 98, entity 97, gen-zod 100, gen-openapi 100; plain `test` and `test:e2e` collect no coverage) |
 | Node e2e (needs Docker) | `cd node && pnpm -r test:e2e` |
 | Backend-specific e2e | `cd node && pnpm -r test:e2e:redis` / `:rabbitmq` / `:kafka` |
 | Single Jest test file | `cd node/packages/core && pnpm test -- --testPathPattern=cache.spec` |
 | Build Node | `cd node && pnpm -r run build` (outputs `node/packages/core/dist/`) |
 | gen-zod tests | `cd node/packages/gen-zod && pnpm test:unit` (builds `entity` first via `pretest:unit`; schemas checked against `contracts/fixtures/entity-spec.cases.json`) |
-| Python lint+type+unit | `cd python && bash scripts/check.sh` (runs every package's own `scripts/check.sh`; uses `uv` if present, ruff + ruff format + mypy strict + pytest) |
+| Python lint+type+unit + coverage gate | `cd python && bash scripts/check.sh` (runs every package's own `scripts/check.sh`; uses `uv` if present, ruff + ruff format + mypy strict + pytest with `--cov-fail-under=$COV_MIN` on unit tests: core 99, entity 96, gen_openapi 96, gen_pydantic 97) |
 | Single pytest | `cd python/packages/core && uv run pytest tests/unit/test_cache.py::test_x -q` |
 | gen_pydantic tests | `cd python/packages/gen_pydantic && bash scripts/check.sh` (DTO models checked against `contracts/fixtures/entity-spec.cases.json`) |
 | gen-openapi tests | `cd node/packages/gen-openapi && pnpm test:unit` (builds `entity` first via `pretest:unit`) |
 | gen_openapi tests | `cd python/packages/gen_openapi && bash scripts/check.sh` |
 | Go tests (byte parity, guards, drift gate) | `go test ./go/...` (repo root; stdlib only, no install) |
+| Go coverage gate | `bash scripts/check-go-coverage.sh` (runs `go test ./go/...` once with a coverprofile and fails if any package is below its statement threshold, declared at the top of the script; a new package must add an entry; `ci-go.yml` runs this) |
 | Go hygiene | `test -z "$(gofmt -l go)" && go vet ./go/...` |
 | Regenerate Go example IR | `go generate ./go/...` |
 | Nim tests (byte parity, cases.json openapi suite, compile-error harness) | `export PATH=$HOME/.nimble/bin:$PATH && cd nim && nimble test` (Nim 2.2.12, stdlib only) |
