@@ -4,6 +4,7 @@
 //    identity comparison so users can cache null/undefined/0/""/false as legitimate values.
 
 import { buildCacheKey } from './_cache_key'
+import { globalLogger } from '../logger'
 
 // Process-shared sentinel via Symbol.for so user adapters in separate modules produce the same value.
 export const CACHE_MISS = Symbol.for('server-decorator.cache.miss')
@@ -25,10 +26,29 @@ export interface CacheAdapter {
 const isThenable = (v: unknown): v is PromiseLike<unknown> =>
   v != null && typeof (v as { then?: unknown }).then === 'function'
 
+// Cache writes fail open (contracts/rules/cache-adapter.md): the wrapped method has already
+// run, so a failing `set` must not turn its result into an error (a retrying caller would
+// repeat the side effect). Logs and swallows both a synchronous throw and a rejection; the
+// returned promise (async `set` only) never rejects.
+function safeSet(adapter: CacheAdapter, key: string, value: unknown, ttl: number): void | Promise<void> {
+  const onError = (err: unknown) => {
+    globalLogger.warn(`@cache: failed to write key ${key}: ${String(err)}`)
+  }
+  try {
+    const pending = adapter.set(key, value, ttl)
+    if (isThenable(pending)) return Promise.resolve(pending).then(() => undefined, onError)
+  } catch (err) {
+    onError(err)
+  }
+}
+
 export function cache(cacheAdapter: CacheAdapter, TTL: number) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value
-    const qualname = `${target.constructor.name}.${propertyKey}`
+    // For a static method `target` is the constructor itself, whose own `constructor` is
+    // `Function` — use its name directly so statics on different classes get distinct keys.
+    const className = typeof target === 'function' ? target.name : target.constructor.name
+    const qualname = `${className}.${propertyKey}`
 
     // Decoration-time heuristic for "is the wrapped method async?", used only to pick the
     // SHAPE of a cache HIT with a sync adapter (see below) before any miss has happened to
@@ -60,7 +80,7 @@ export function cache(cacheAdapter: CacheAdapter, TTL: number) {
           const result = originalMethod.apply(this, args)
           treatAsAsync = isThenable(result)
           const resolved = treatAsAsync ? await result : result
-          await cacheAdapter.set(key, resolved, TTL)
+          await safeSet(cacheAdapter, key, resolved, TTL)
           return resolved
         })()
       }
@@ -80,13 +100,13 @@ export function cache(cacheAdapter: CacheAdapter, TTL: number) {
         // Async method + sync adapter: await the resolved value before caching it so the
         // adapter never receives a pending Promise (the ES6-downlevel bug this replaces).
         return result.then(async (resolved: unknown) => {
-          await cacheAdapter.set(key, resolved, TTL)
+          await safeSet(cacheAdapter, key, resolved, TTL)
           return resolved
         })
       }
 
       // Genuinely sync method + sync adapter: stay fully synchronous.
-      cacheAdapter.set(key, result, TTL)
+      safeSet(cacheAdapter, key, result, TTL)
       return result
     }
     return descriptor

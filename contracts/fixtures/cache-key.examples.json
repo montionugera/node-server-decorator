@@ -51,6 +51,30 @@
       "expected": "Foo.bar(null)"
     },
     {
+      "name": "unicode-arg-stays-utf8",
+      "$comment": "Non-ASCII characters are written as UTF-8, never as \\uXXXX escapes.",
+      "qualname": "Customer.find",
+      "args": ["สมชาย é"],
+      "kwargs": {},
+      "expected": "Customer.find(\"สมชาย é\")"
+    },
+    {
+      "name": "html-chars-not-escaped",
+      "$comment": "<, > and & are written literally (no \\u003c-style HTML escaping), in values and in object keys.",
+      "qualname": "Page.render",
+      "args": ["<a href=\"x\">&</a>", {"é<&>": "<&>"}],
+      "kwargs": {},
+      "expected": "Page.render(\"<a href=\\\"x\\\">&</a>\",{\"é<&>\":\"<&>\"})"
+    },
+    {
+      "name": "control-and-separator-chars",
+      "$comment": "Short escapes for \\n and \\t, \\u00XX (lowercase hex) for other C0 controls, and U+2028 written literally.",
+      "qualname": "Text.norm",
+      "args": ["a\nb\tc\u0001d e"],
+      "kwargs": {},
+      "expected": "Text.norm(\"a\\nb\\tc\\u0001d e\")"
+    },
+    {
       "name": "long-key-hashed",
       "$comment": "When the raw key exceeds 250 UTF-8 bytes, the parens content is replaced with sha256:<hex>. Test asserts that the prefix matches and the raw key would have been over 250 bytes; the exact hex is implementation-derived and computed at test time, NOT hard-coded here.",
       "qualname": "Big.method",

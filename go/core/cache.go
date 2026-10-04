@@ -48,7 +48,10 @@ func Cache[In, Out any](
 			args = []any{in}
 		}
 
-		key := BuildCacheKey(qualname, args, kwargs)
+		key, err := BuildCacheKeyE(qualname, args, kwargs)
+		if err != nil {
+			return zero, err
+		}
 
 		cached, err := adapter.Get(ctx, key)
 		if errors.Is(err, ErrCacheMiss) || cached == CacheMiss {
@@ -56,6 +59,7 @@ func Cache[In, Out any](
 			if err != nil {
 				return zero, err
 			}
+			// Fail open on a write error (contracts/rules/cache-adapter.md): fn already ran.
 			_ = adapter.Set(ctx, key, result, ttl)
 			return result, nil
 		}

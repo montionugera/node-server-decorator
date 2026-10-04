@@ -15,7 +15,16 @@ MAX_KEY_BYTES = 250
 
 
 def _repr_arg(x: Any) -> str:
-    return json.dumps(x, sort_keys=True, default=str, separators=(",", ":"))
+    # ensure_ascii=False: the key stays UTF-8 (byte-identical to Node/Go).
+    # allow_nan=False: NaN/Infinity raise ValueError instead of emitting non-JSON tokens.
+    return json.dumps(
+        x,
+        sort_keys=True,
+        default=str,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
 
 
 def build_cache_key(

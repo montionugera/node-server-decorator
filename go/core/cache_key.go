@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 	"strconv"
@@ -28,7 +30,37 @@ const MaxKeyBytes = 250
 // Raw key = qualname + "(" + argRepr + ")"
 // If len(raw) <= 250 bytes: returns raw
 // Otherwise: returns qualname + "(sha256:" + sha256Hex(raw) + ")"
+//
+// Panics with an error wrapping ErrNonFiniteCacheArg when an argument contains NaN or
+// +/-Infinity (not JSON-serializable per the spec). Use BuildCacheKeyE to get that as a
+// returned error instead.
 func BuildCacheKey(qualname string, args []any, kwargs map[string]any) string {
+	key, err := BuildCacheKeyE(qualname, args, kwargs)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
+// ErrNonFiniteCacheArg is returned (wrapped) by BuildCacheKeyE and Cache when a cache-key
+// argument contains NaN or +/-Infinity.
+var ErrNonFiniteCacheArg = errors.New("cache key: non-finite float is not JSON-serializable")
+
+// BuildCacheKeyE is BuildCacheKey returning an error instead of panicking.
+func BuildCacheKeyE(qualname string, args []any, kwargs map[string]any) (key string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			e, ok := r.(error)
+			if !ok || !errors.Is(e, ErrNonFiniteCacheArg) {
+				panic(r)
+			}
+			key, err = "", e
+		}
+	}()
+	return buildCacheKey(qualname, args, kwargs), nil
+}
+
+func buildCacheKey(qualname string, args []any, kwargs map[string]any) string {
 	argPieces := make([]string, 0, len(args)+len(kwargs))
 	for _, a := range args {
 		argPieces = append(argPieces, stableStringify(a))
@@ -52,6 +84,48 @@ func BuildCacheKey(qualname string, args []any, kwargs map[string]any) string {
 	return fmt.Sprintf("%s(sha256:%s)", qualname, hex.EncodeToString(digest[:]))
 }
 
+// quoteJSONString encodes s as a JSON string exactly as JavaScript JSON.stringify and
+// Python json.dumps(ensure_ascii=False) do: UTF-8 is kept as-is and <, >, & and
+// U+2028/U+2029 are NOT escaped (encoding/json escapes all of them).
+func quoteJSONString(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 2)
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '"':
+			b.WriteString(`\"`)
+		case '\\':
+			b.WriteString(`\\`)
+		case '\b':
+			b.WriteString(`\b`)
+		case '\f':
+			b.WriteString(`\f`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+func finiteFloat(f float64) float64 {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		panic(fmt.Errorf("%w (%v)", ErrNonFiniteCacheArg, f))
+	}
+	return f
+}
+
 func stableStringify(v any) string {
 	if v == nil {
 		return "null"
@@ -59,8 +133,7 @@ func stableStringify(v any) string {
 
 	switch val := v.(type) {
 	case string:
-		b, _ := json.Marshal(val)
-		return string(b)
+		return quoteJSONString(val)
 	case bool:
 		if val {
 			return "true"
@@ -87,18 +160,11 @@ func stableStringify(v any) string {
 	case uint64:
 		return strconv.FormatUint(val, 10)
 	case float32:
-		b, err := json.Marshal(val)
-		if err != nil {
-			fallback, _ := json.Marshal(fmt.Sprint(val))
-			return string(fallback)
-		}
+		finiteFloat(float64(val))
+		b, _ := json.Marshal(val)
 		return string(b)
 	case float64:
-		b, err := json.Marshal(val)
-		if err != nil {
-			fallback, _ := json.Marshal(fmt.Sprint(val))
-			return string(fallback)
-		}
+		b, _ := json.Marshal(finiteFloat(val))
 		return string(b)
 	case json.Number:
 		return val.String()
@@ -116,14 +182,16 @@ func stableStringify(v any) string {
 		sort.Strings(keys)
 		parts := make([]string, len(keys))
 		for i, k := range keys {
-			kb, _ := json.Marshal(k)
-			parts[i] = string(kb) + ":" + stableStringify(val[k])
+			parts[i] = quoteJSONString(k) + ":" + stableStringify(val[k])
 		}
 		return "{" + strings.Join(parts, ",") + "}"
 	}
 
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
+	case reflect.Float32, reflect.Float64:
+		// Named float types (type Price float64) miss the type switch above.
+		return stableStringify(rv.Float())
 	case reflect.Pointer, reflect.Interface:
 		if rv.IsNil() {
 			return "null"
@@ -154,12 +222,15 @@ func stableStringify(v any) string {
 		})
 		parts := make([]string, len(entries))
 		for i, entry := range entries {
-			kb, _ := json.Marshal(entry.strKey)
-			parts[i] = string(kb) + ":" + stableStringify(rv.MapIndex(entry.origKey).Interface())
+			parts[i] = quoteJSONString(entry.strKey) + ":" + stableStringify(rv.MapIndex(entry.origKey).Interface())
 		}
 		return "{" + strings.Join(parts, ",") + "}"
 	case reflect.Struct:
 		data, err := json.Marshal(v)
+		var unsupported *json.UnsupportedValueError
+		if errors.As(err, &unsupported) && unsupported.Value.CanFloat() {
+			finiteFloat(unsupported.Value.Float())
+		}
 		if err == nil {
 			var unmarshaled any
 			d := json.NewDecoder(bytes.NewReader(data))
@@ -168,10 +239,8 @@ func stableStringify(v any) string {
 				return stableStringify(unmarshaled)
 			}
 		}
-		fallback, _ := json.Marshal(fmt.Sprint(v))
-		return string(fallback)
+		return quoteJSONString(fmt.Sprint(v))
 	default:
-		fallback, _ := json.Marshal(fmt.Sprint(v))
-		return string(fallback)
+		return quoteJSONString(fmt.Sprint(v))
 	}
 }

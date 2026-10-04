@@ -12,13 +12,38 @@ export const MAX_KEY_BYTES = 250
  */
 function stableStringify(x: unknown): string {
   if (x === null) return 'null'
-  if (typeof x === 'number' || typeof x === 'boolean') return JSON.stringify(x)
+  if (typeof x === 'number') {
+    // JSON.stringify(NaN|Infinity) is "null", which would collide with a real null arg.
+    if (!Number.isFinite(x)) {
+      throw new TypeError(`cache key: non-finite number (${String(x)}) is not JSON-serializable`)
+    }
+    return JSON.stringify(x)
+  }
+  if (typeof x === 'boolean') return JSON.stringify(x)
   if (typeof x === 'string') return JSON.stringify(x)
   if (Array.isArray(x)) {
     return '[' + x.map(stableStringify).join(',') + ']'
   }
   if (typeof x === 'object') {
+    // Keyless built-ins would otherwise all serialise as `{}` and collide.
+    // toISOString throws RangeError on an invalid Date (toJSON would yield null).
+    if (x instanceof Date) return JSON.stringify(x.toISOString())
+    if (x instanceof Map) {
+      const parts = Array.from(x, ([k, v]) => JSON.stringify(String(k)) + ':' + stableStringify(v))
+      return '{' + parts.sort().join(',') + '}'
+    }
+    if (x instanceof Set) {
+      return '[' + Array.from(x, stableStringify).sort().join(',') + ']'
+    }
+    if (typeof (x as { toJSON?: unknown }).toJSON === 'function') {
+      return stableStringify((x as { toJSON: () => unknown }).toJSON())
+    }
     const keys = Object.keys(x as Record<string, unknown>).sort()
+    const proto = Object.getPrototypeOf(x)
+    if (keys.length === 0 && proto !== Object.prototype && proto !== null) {
+      // Keyless non-plain object (RegExp, Error, ...) — match Python `default=str`.
+      return JSON.stringify(String(x))
+    }
     const parts = keys.map(
       (k) => JSON.stringify(k) + ':' + stableStringify((x as Record<string, unknown>)[k]),
     )
