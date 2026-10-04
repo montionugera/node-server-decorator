@@ -124,6 +124,9 @@ jobs:
       # secret (npmjs granular access token, publish scope for @montionugera/*)
       # exists — safe to merge before the token is provisioned.
       - name: Publish Node to npmjs.com
+        # Optional public mirror: a failure here must not block the PyPI
+        # publish or the release tag below.
+        continue-on-error: true
         working-directory: node
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
