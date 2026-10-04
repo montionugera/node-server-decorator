@@ -10,6 +10,18 @@ function throwNonFinite(value: unknown): never {
   throw new TypeError(`cache key: non-finite number (${String(value)}) is not JSON-serializable`)
 }
 
+// `Object.prototype.toString` output: names the type, says nothing about the instance.
+const GENERIC_OBJECT_TAG = /^\[object [^\]]*\]$/
+
+// Fail loud: every such instance would otherwise share one key and read each other's entry.
+function throwOpaque(text: string): never {
+  throw new TypeError(
+    `cache key: ${text} has no enumerable keys and no meaningful string form, so distinct ` +
+      'instances would share one cache key; implement toJSON() on it or pass a value that ' +
+      'identifies it (an id, a plain object) instead',
+  )
+}
+
 // Code-point order (what Python `sort_keys` and Go use); the default sort compares UTF-16 units.
 function compareCodePoints(a: string, b: string): number {
   if (a === b) return 0
@@ -77,7 +89,13 @@ function stableStringify(x: unknown): string {
     const proto = Object.getPrototypeOf(x)
     if (keys.length === 0 && proto !== Object.prototype && proto !== null) {
       // Keyless non-plain object (RegExp, Error, ...) — match Python `default=str`.
-      return JSON.stringify(String(x))
+      const text = String(x)
+      if (GENERIC_OBJECT_TAG.test(text)) {
+        // A plain object from another realm (vm context, iframe): same as a local `{}`.
+        if (text === '[object Object]' && Object.getPrototypeOf(proto) === null) return '{}'
+        throwOpaque(text)
+      }
+      return JSON.stringify(text)
     }
     const parts = keys.map(
       (k) => JSON.stringify(k) + ':' + stableStringify((x as Record<string, unknown>)[k]),

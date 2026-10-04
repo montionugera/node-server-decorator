@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import weakref
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, TypeVar, cast
 
@@ -16,6 +17,7 @@ from server_decorator import logger as _logger_mod
 from server_decorator.decorators._cache_key import build_cache_key
 from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
 from server_decorator.decorators._qualname import shorten_qualname
+from server_decorator.decorators._receiver import has_receiver, receiver_mode
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -29,19 +31,6 @@ class CacheAdapter(Protocol):
     def set(self, key: str, value: Any, ttl: int) -> Any | Awaitable[Any]: ...
 
 
-def _has_receiver(fn: Callable[..., Any]) -> bool:
-    """True when `fn` is declared as a method (first parameter named `self` or `cls`).
-
-    cache-key.md: positional args exclude the receiver, otherwise the key embeds the
-    instance repr (a memory address) and never matches across instances or languages.
-    """
-    try:
-        params = list(inspect.signature(fn).parameters)
-    except (TypeError, ValueError):
-        return False
-    return bool(params) and params[0] in ("self", "cls")
-
-
 def _log_set_failure(key: str, err: Exception) -> None:
     # Cache writes fail open (contracts/rules/cache-adapter.md): `fn` already ran, so a
     # failing `set` must not turn its result into an error the caller might retry on.
@@ -51,12 +40,16 @@ def _log_set_failure(key: str, err: Exception) -> None:
 def cache(adapter: CacheAdapter, ttl: int) -> Callable[[F], F]:
     def decorator(fn: F) -> F:
         qualname = shorten_qualname(fn.__qualname__)
-        skip = 1 if _has_receiver(fn) else 0
+        # cache-key.md: positional args exclude the receiver, otherwise the key embeds the
+        # instance repr (a memory address) and never matches across instances or languages.
+        mode, _ = receiver_mode(fn, key_required=False)
+        owner_cache: weakref.WeakKeyDictionary[type, bool] = weakref.WeakKeyDictionary()
 
         if inspect.iscoroutinefunction(fn):
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                skip = 1 if has_receiver(mode, args, async_wrapper, owner_cache) else 0
                 key = build_cache_key(qualname, args[skip:], kwargs)
                 cached = adapter.get(key)
                 if inspect.isawaitable(cached):
@@ -77,6 +70,7 @@ def cache(adapter: CacheAdapter, ttl: int) -> Callable[[F], F]:
 
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            skip = 1 if has_receiver(mode, args, sync_wrapper, owner_cache) else 0
             key = build_cache_key(qualname, args[skip:], kwargs)
             cached = adapter.get(key)
             # I4: an async adapter's `get` returns an un-awaited coroutine here (sync_wrapper

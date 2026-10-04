@@ -11,7 +11,8 @@ from typing import Any
 import pytest
 
 from server_decorator import logger as logger_mod
-from server_decorator.decorators.cache import CACHE_MISS, _has_receiver, cache, cache_class
+from server_decorator.decorators._receiver import receiver_mode
+from server_decorator.decorators.cache import CACHE_MISS, cache, cache_class
 
 
 class _SyncAdapter:
@@ -67,22 +68,39 @@ def captured_log() -> Iterator[_CaptureLogger]:
     logger_mod.set_global_logger(saved)
 
 
-# --- _has_receiver ----------------------------------------------------------
+# --- receiver_mode (shared with @batch_load) --------------------------------
 
 
-def test_has_receiver_detects_self_and_cls_first_param() -> None:
+def _mode(fn: Any) -> str:
+    return receiver_mode(fn, key_required=False)[0]
+
+
+def test_receiver_mode_classifies_by_name_position_and_class_body() -> None:
     def method(self: Any, a: int) -> None: ...
-    def classmethod_like(cls: Any) -> None: ...
+    def lone_cls(cls: Any) -> None: ...
     def plain(a: int, self: Any) -> None: ...
     def no_params() -> None: ...
 
-    assert _has_receiver(method) is True
-    assert _has_receiver(classmethod_like) is True
-    assert _has_receiver(plain) is False  # only the FIRST parameter counts
-    assert _has_receiver(no_params) is False
+    class Svc:
+        def lone_self(self) -> None: ...
+        def this_named(this, a: int) -> None: ...  # noqa: N805
+        def star(*args: Any) -> None: ...
+        def nothing() -> None: ...  # type: ignore[misc]
+
+    assert _mode(method) == "always"  # a parameter follows `self`
+    assert _mode(Svc.lone_self) == "always"  # defined in a class body
+    assert _mode(Svc.this_named) == "ambiguous"
+    assert _mode(Svc.star) == "ambiguous"
+    assert _mode(Svc.nothing) == "never"
+    assert _mode(lone_cls) == "never"  # a plain function's only parameter is data
+    assert _mode(plain) == "never"  # only the FIRST parameter counts
+    assert _mode(no_params) == "never"
+    # @batch_load needs a key after the receiver, so `*args` / a lone parameter is no receiver.
+    assert receiver_mode(Svc.star, key_required=True)[0] == "never"
+    assert receiver_mode(Svc.this_named, key_required=True) == ("ambiguous", ["this", "a"])
 
 
-def test_has_receiver_is_false_when_signature_is_unavailable() -> None:
+def test_receiver_mode_is_never_when_signature_is_unavailable() -> None:
     class _NoSignature:
         @property
         def __signature__(self) -> Any:
@@ -93,8 +111,8 @@ def test_has_receiver_is_false_when_signature_is_unavailable() -> None:
     with pytest.raises(ValueError):
         inspect.signature(_NoSignature())
 
-    assert _has_receiver(_NoSignature()) is False
-    assert _has_receiver(42) is False  # type: ignore[arg-type]  # non-callable → TypeError path
+    assert _mode(_NoSignature()) == "never"
+    assert _mode(42) == "never"  # non-callable → TypeError path
 
 
 # --- sync wrapper -----------------------------------------------------------

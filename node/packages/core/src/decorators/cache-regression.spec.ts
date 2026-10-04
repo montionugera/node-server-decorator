@@ -3,6 +3,7 @@
 
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { runInNewContext } from 'vm'
 import { cache, CACHE_MISS, type CacheAdapter } from './cache'
 import { buildCacheKey } from './_cache_key'
 import { globalLogger, setGlobalLogger, type Logger } from '../logger'
@@ -106,6 +107,158 @@ describe('buildCacheKey: non-plain objects', () => {
     expect(buildCacheKey('F.b', [new Dto(2, 1)])).toBe('F.b({"a":1,"b":2})')
     expect(buildCacheKey('F.b', [{}])).toBe('F.b({})')
     expect(buildCacheKey('F.b', [Object.create(null)])).toBe('F.b({})')
+  })
+})
+
+describe('buildCacheKey: keyless objects with only a generic "[object X]" string form', () => {
+  const opaque = /no enumerable keys and no meaningful string form.*toJSON\(\)/
+
+  it('rejects a class instance whose state is only #private fields', () => {
+    class Account {
+      #id: number
+      constructor(id: number) {
+        this.#id = id
+      }
+      get id() {
+        return this.#id
+      }
+    }
+    expect(() => buildCacheKey('F.b', [new Account(1)])).toThrow(TypeError)
+    expect(() => buildCacheKey('F.b', [new Account(1)])).toThrow(opaque)
+  })
+
+  it('rejects a class instance that only has getters', () => {
+    class Lazy {
+      get value() {
+        return 1
+      }
+    }
+    expect(() => buildCacheKey('F.b', [new Lazy()])).toThrow(opaque)
+  })
+
+  it.each([
+    ['WeakMap', () => new WeakMap()],
+    ['WeakSet', () => new WeakSet()],
+    ['Promise', () => Promise.resolve(1)],
+  ])('rejects a %s', (name, make) => {
+    expect(() => buildCacheKey('F.b', [make()])).toThrow(TypeError)
+    expect(() => buildCacheKey('F.b', [make()])).toThrow(`[object ${name}]`)
+  })
+
+  it('rejects a class instance with no enumerable fields at all, also behind a Proxy', () => {
+    class Empty {}
+    expect(() => buildCacheKey('F.b', [new Empty()])).toThrow(opaque)
+    expect(() => buildCacheKey('F.b', [new Proxy(new Empty(), {})])).toThrow(opaque)
+  })
+
+  it.each([
+    ['ArrayBuffer', () => new ArrayBuffer(8)],
+    ['DataView', () => new DataView(new ArrayBuffer(8))],
+    ['Custom', () => Object.create({ [Symbol.toStringTag]: 'Custom' })],
+    ['Tagged', () => new (class { get [Symbol.toStringTag]() { return 'Tagged' } })()],
+  ])('rejects a keyless %s', (name, make) => {
+    expect(() => buildCacheKey('F.b', [make()])).toThrow(TypeError)
+    expect(() => buildCacheKey('F.b', [make()])).toThrow(`[object ${name}]`)
+  })
+
+  it('throws synchronously from an async method, before the adapter is touched', () => {
+    const adapter = new MemAdapter()
+    const get = jest.spyOn(adapter, 'get')
+    class Repo {
+      @cache(adapter, 60)
+      async load(_handle: unknown) {
+        return 1
+      }
+    }
+    expect(() => new Repo().load(new ArrayBuffer(8))).toThrow(TypeError)
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('treats a plain object from another realm like a same-realm one', () => {
+    expect(buildCacheKey('F.b', [runInNewContext('({})')])).toBe('F.b({})')
+    expect(buildCacheKey('F.b', [runInNewContext('({ b: 1, a: { c: [] } })')])).toBe(
+      'F.b({"a":{"c":[]},"b":1})',
+    )
+  })
+
+  it('rejects one nested inside a plain object, array, Map or Set', () => {
+    expect(() => buildCacheKey('F.b', [{ a: new WeakMap() }])).toThrow(opaque)
+    expect(() => buildCacheKey('F.b', [[new WeakMap()]])).toThrow(opaque)
+    expect(() =>
+      buildCacheKey('F.b', [new Map([['a', new WeakMap()]])]),
+    ).toThrow(opaque)
+    expect(() => buildCacheKey('F.b', [new Set([new WeakMap()])])).toThrow(
+      opaque,
+    )
+  })
+
+  it('surfaces the error through @cache before the adapter or the method is touched', () => {
+    const adapter = new MemAdapter()
+    const get = jest.spyOn(adapter, 'get')
+    let calls = 0
+    class Repo {
+      @cache(adapter, 60)
+      load(_handle: unknown) {
+        calls += 1
+        return calls
+      }
+    }
+    expect(() => new Repo().load(new WeakMap())).toThrow(TypeError)
+    expect(get).not.toHaveBeenCalled()
+    expect(calls).toBe(0)
+  })
+
+  it('keeps RegExp, Error and any object with a meaningful String(x)', () => {
+    class Sku {
+      #code: string
+      constructor(code: string) {
+        this.#code = code
+      }
+      toString() {
+        return `sku:${this.#code}`
+      }
+    }
+    expect(buildCacheKey('F.b', [/a+/g])).toBe('F.b("/a+/g")')
+    expect(buildCacheKey('F.b', [new Error('boom')])).toBe('F.b("Error: boom")')
+    expect(buildCacheKey('F.b', [new Sku('a')])).toBe('F.b("sku:a")')
+    expect(buildCacheKey('F.b', [new Sku('a')])).not.toBe(
+      buildCacheKey('F.b', [new Sku('b')]),
+    )
+  })
+
+  it('keeps a #private-only instance that implements toJSON', () => {
+    class Account {
+      #id: number
+      constructor(id: number) {
+        this.#id = id
+      }
+      toJSON() {
+        return { id: this.#id }
+      }
+    }
+    expect(buildCacheKey('F.b', [new Account(7)])).toBe('F.b({"id":7})')
+  })
+
+  it('keeps Date, Map and Set, including empty ones', () => {
+    expect(buildCacheKey('F.b', [new Date(0)])).toBe(
+      'F.b("1970-01-01T00:00:00.000Z")',
+    )
+    expect(buildCacheKey('F.b', [new Map()])).toBe('F.b({})')
+    expect(buildCacheKey('F.b', [new Set()])).toBe('F.b([])')
+  })
+
+  it('keeps plain objects, including {} and Object.create(null), and instances with fields', () => {
+    class Dto {
+      constructor(public a: number) {}
+    }
+    expect(buildCacheKey('F.b', [{}])).toBe('F.b({})')
+    expect(buildCacheKey('F.b', [Object.create(null)])).toBe('F.b({})')
+    expect(buildCacheKey('F.b', [{ a: 1 }])).toBe('F.b({"a":1})')
+    expect(buildCacheKey('F.b', [new Dto(1)])).toBe('F.b({"a":1})')
+  })
+
+  it('leaves a plain object with only symbol keys as {} (symbol keys are never part of the key)', () => {
+    expect(buildCacheKey('F.b', [{ [Symbol('s')]: 1 }])).toBe('F.b({})')
   })
 })
 

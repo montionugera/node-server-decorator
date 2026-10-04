@@ -159,6 +159,150 @@ def test_free_function_and_staticmethod_keep_every_arg() -> None:
     ]
 
 
+# --- receiver detection does not depend on the parameter being named self/cls -----------
+
+
+def test_receiver_named_this_is_excluded_and_shared_across_instances() -> None:
+    adapter = _RecordingAdapter()
+    calls = 0
+
+    class Svc:
+        @cache(adapter, ttl=60)
+        def go(this, n: int) -> int:  # noqa: N805
+            nonlocal calls
+            calls += 1
+            return n * 2
+
+        @cache(adapter, ttl=60)
+        def everything(_) -> str:  # noqa: N805
+            return "all"
+
+    class Child(Svc):
+        pass
+
+    assert Svc().go(3) == 6
+    assert Svc().go(3) == 6
+    assert Child().go(3) == 6
+    assert Svc().everything() == "all"
+    assert adapter.gets == ["Svc.go(3)", "Svc.go(3)", "Svc.go(3)", "Svc.everything()"]
+    assert calls == 1
+
+
+async def test_async_receiver_named_this_is_excluded() -> None:
+    adapter = _RecordingAdapter()
+
+    class Svc:
+        @cache(adapter, ttl=60)
+        async def go(this, n: int, *, scale: int = 1) -> int:  # noqa: N805
+            return n * scale
+
+    assert await Svc().go(3, scale=2) == 6
+    assert adapter.gets == ["Svc.go(3,scale=2)"]
+
+
+def test_var_positional_method_excludes_the_instance() -> None:
+    adapter = _RecordingAdapter()
+
+    class Svc:
+        @cache(adapter, ttl=60)
+        def go(*args: Any) -> int:
+            return len(args)
+
+    assert Svc().go(3, "a") == 3
+    assert Svc().go(3, "a") == 3
+    assert adapter.gets == ['Svc.go(3,"a")', 'Svc.go(3,"a")']
+
+
+def test_classmethod_receiver_named_mcs_is_excluded() -> None:
+    adapter = _RecordingAdapter()
+
+    class Svc:
+        @classmethod
+        @cache(adapter, ttl=60)
+        def cm(mcs, n: int) -> int:  # noqa: N804
+            return n
+
+    class Child(Svc):
+        pass
+
+    assert Svc.cm(1) == 1
+    assert Child.cm(1) == 1
+    assert Svc().cm(1) == 1
+    assert adapter.gets == ["Svc.cm(1)", "Svc.cm(1)", "Svc.cm(1)"]
+
+
+def test_class_form_excludes_a_receiver_named_this() -> None:
+    adapter = _RecordingAdapter()
+
+    @cache_class(adapter, ttl=60)
+    class Svc:
+        def go(this, n: int) -> int:  # noqa: N805
+            return n
+
+    Svc().go(3)
+    assert adapter.gets == ["Svc.go(3)"]
+
+
+def test_staticmethod_keeps_its_first_argument_even_an_instance_of_its_own_class() -> None:
+    adapter = _RecordingAdapter()
+
+    class Svc:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def __str__(self) -> str:
+            return f"svc:{self.name}"
+
+        @staticmethod
+        @cache(adapter, ttl=60)
+        def st(first: Any, n: int = 0) -> int:
+            return n
+
+    Svc.st(5)
+    Svc.st(Svc("a"), 1)
+    Svc("b").st(Svc("c"))
+    assert adapter.gets == ["Svc.st(5)", 'Svc.st("svc:a",1)', 'Svc.st("svc:c")']
+
+
+def test_plain_function_whose_only_parameter_is_named_self_keeps_it_in_the_key() -> None:
+    adapter = _RecordingAdapter()
+
+    @cache(adapter, ttl=60)
+    def load(self: int) -> int:
+        return self * 2
+
+    assert load(1) == 2
+    assert load(2) == 4
+    name = "test_plain_function_whose_only_parameter_is_named_self_keeps_it_in_the_key.load"
+    assert adapter.gets == [f"{name}(1)", f"{name}(2)"]
+
+
+def test_method_in_class_body_called_with_only_keywords_has_no_receiver_to_drop() -> None:
+    adapter = _RecordingAdapter()
+
+    class Svc:
+        @staticmethod
+        @cache(adapter, ttl=60)
+        def st(n: int) -> int:
+            return n
+
+    assert Svc.st(n=4) == 4
+    assert adapter.gets == ["Svc.st(n=4)"]
+
+
+def test_callable_without_an_inspectable_signature_keeps_every_arg() -> None:
+    adapter = _RecordingAdapter()
+
+    def raw(n: int) -> int:
+        return n
+
+    raw.__signature__ = "not a signature"  # type: ignore[attr-defined]
+    cached = cache(adapter, ttl=60)(raw)
+
+    assert cached(7) == 7
+    assert adapter.gets == ["test_callable_without_an_inspectable_signature_keeps_every_arg.raw(7)"]
+
+
 # --- string escaping ---------------------------------------------------------------------
 
 
