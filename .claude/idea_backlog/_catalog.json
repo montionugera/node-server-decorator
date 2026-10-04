@@ -118,5 +118,29 @@
     "title": "Native web framework router adapters: FastAPI and Express route mounting over EntitySpec IR",
     "created_at": "2026-09-19T17:12:32.889580+00:00",
     "promoted_to": "F-017"
+  },
+  {
+    "id": "I-021",
+    "title": "Polyglot benchmark comparison suite and interactive demo examples",
+    "created_at": "2026-09-20T10:39:03.666347+00:00",
+    "promoted_to": "F-018"
+  },
+  {
+    "id": "I-022",
+    "title": "Distributed lock decorator: Redis Redlock mutual exclusion with heartbeat watchdog and timeout queueing",
+    "created_at": "2026-09-20T17:56:08.209031+00:00",
+    "promoted_to": "F-019"
+  },
+  {
+    "id": "I-023",
+    "title": "OpenTelemetry unified tracing decorator: W3C baggage propagation across HTTP, queues, and SSE",
+    "created_at": "2026-09-20T17:56:11.912460+00:00",
+    "promoted_to": "F-020"
+  },
+  {
+    "id": "I-024",
+    "title": "GraphQL DataLoader adapter: seamless batchLoad bridge for Apollo Server, Strawberry, and GraphQL-Go",
+    "created_at": "2026-09-20T17:56:15.721175+00:00",
+    "promoted_to": "F-021"
   }
 ]

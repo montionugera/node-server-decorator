@@ -10,6 +10,8 @@ class QueueMessageMetadata(TypedDict, total=False):
     methodName: str
     topic: str | None
     service: str
+    traceparent: str
+    tracestate: str
 
 
 class _QueueMessageRequired(TypedDict):

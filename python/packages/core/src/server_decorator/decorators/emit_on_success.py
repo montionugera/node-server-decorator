@@ -22,7 +22,7 @@ from server_decorator.config import get_service
 from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
 from server_decorator.decorators._qualname import shorten_qualname
 from server_decorator.queue import registry as _registry_mod
-from server_decorator.queue.message import QueueMessage
+from server_decorator.queue.message import QueueMessage, QueueMessageMetadata
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -86,17 +86,31 @@ def emit_on_success(
                     auto_topic = resolved_event
                     if service and opts.topic is None:
                         auto_topic = f"{service}.{resolved_event}"
+                    meta: dict[str, Any] = {
+                        "className": class_name,
+                        "methodName": method_name,
+                        "topic": opts.topic,
+                        **({"service": service} if service else {}),
+                        **opts.queue_metadata,
+                    }
+                    from server_decorator.decorators.trace import (
+                        format_traceparent,
+                        get_active_trace_context,
+                    )
+
+                    active_trace = get_active_trace_context()
+                    if active_trace:
+                        meta["traceparent"] = format_traceparent(
+                            active_trace.trace_id, active_trace.span_id, active_trace.sampled
+                        )
+                        if active_trace.tracestate:
+                            meta["tracestate"] = active_trace.tracestate
+
                     msg: QueueMessage = {
                         "eventName": resolved_event,
                         "payload": payload,
                         "timestamp": int(time.time() * 1000),
-                        "metadata": {
-                            "className": class_name,
-                            "methodName": method_name,
-                            "topic": opts.topic,
-                            **({"service": service} if service else {}),
-                            **opts.queue_metadata,  # type: ignore[typeddict-item]
-                        },
+                        "metadata": cast(QueueMessageMetadata, meta),
                     }
                     if opts.queue or opts.topic or service:
                         await _registry_mod.global_queue_registry.publish(

@@ -372,9 +372,12 @@ def resolve_entity_spec(spec_or_class: Any) -> dict[str, Any]:
             return cast(dict[str, Any], res)
 
         try:
-            from server_decorator_entity import entity_spec  # type: ignore[import-not-found]
+            import importlib
 
-            return cast(dict[str, Any], entity_spec(spec_or_class))
+            entity_mod = importlib.import_module("server_decorator_entity")
+            spec_fn = getattr(entity_mod, "entity_spec", None)
+            if callable(spec_fn):
+                return cast(dict[str, Any], spec_fn(spec_or_class))
         except Exception:
             pass
 

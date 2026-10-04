@@ -3,6 +3,7 @@ import { globalQueue, QueueMessage } from './global-queue';
 import { globalQueueRegistry } from './queue-registry';
 import { globalLogger } from '../logger';
 import { getService } from '../config';
+import { getActiveTraceContext, formatTraceparent } from './trace';
 
 export interface EmitOnSuccessOptions {
   /**
@@ -136,6 +137,7 @@ async function handleSuccess(
   if (useQueue) {
     try {
       const service = getService();
+      const activeTrace = getActiveTraceContext();
       const message: QueueMessage = {
         eventName,
         payload,
@@ -145,7 +147,13 @@ async function handleSuccess(
           methodName: propertyKey,
           topic,
           ...(service ? { service } : {}),
-          ...queueMetadata
+          ...queueMetadata,
+          ...(activeTrace
+            ? {
+                traceparent: formatTraceparent(activeTrace.traceId, activeTrace.spanId, activeTrace.sampled),
+                ...(activeTrace.tracestate ? { tracestate: activeTrace.tracestate } : {})
+              }
+            : {})
         }
       };
 

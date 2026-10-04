@@ -2,6 +2,7 @@ name: CI - Python
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths: ['python/**', 'contracts/**', '.github/workflows/ci-python.yml']
   push:
     branches: [main]
