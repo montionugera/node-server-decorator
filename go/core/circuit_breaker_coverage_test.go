@@ -266,3 +266,37 @@ func TestCircuitBreakerCoverage_WrapperFallbackReceivesTheCause(t *testing.T) {
 		t.Errorf("fallback causes = %v, want [upstream 500, circuit breaker is open]", causes)
 	}
 }
+
+// A probe that panics after the breaker moved on (Reset, re-trip, new probe admitted) holds a
+// stale epoch: its release must not free the slot that now belongs to the newer probe.
+func TestCircuitBreakerCoverage_StalePanickedProbeDoesNotFreeANewerProbeSlot(t *testing.T) {
+	cb := NewCircuitBreaker(CircuitBreakerOptions{FailureThreshold: 1, RecoveryTimeout: time.Minute, HalfOpenSuccessThreshold: 1})
+	cb.RecordFailure()
+	cbCovExpireRecovery(cb)
+
+	wrapped := CircuitBreakerWrapper(cb, nil, func(context.Context, int) (int, error) {
+		cb.Reset()
+		cb.RecordFailure()
+		cbCovExpireRecovery(cb)
+		if !cb.AllowRequest() {
+			t.Error("the newer probe must be admitted after the re-trip")
+		}
+		panic("stale probe blew up")
+	})
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("expected the wrapped call to panic")
+			}
+		}()
+		_, _ = wrapped(context.Background(), 0)
+	}()
+
+	if cb.State() != StateHalfOpen {
+		t.Fatalf("state = %v, want half-open", cb.State())
+	}
+	if cb.AllowRequest() {
+		t.Error("the stale probe's release freed the newer probe's slot")
+	}
+}

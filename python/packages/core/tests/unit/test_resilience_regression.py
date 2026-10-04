@@ -345,3 +345,331 @@ async def test_clear_resets_decorated_async_methods() -> None:
     clear_circuit_breakers()
     fail = False
     assert await probe() == "ok"
+
+
+def test_late_result_from_abandoned_probe_is_discarded_after_reclaim() -> None:
+    cb = CircuitBreaker(
+        failure_threshold=1,
+        recovery_timeout_ms=30,
+        half_open_success_threshold=1,
+    )
+    epoch = cb.acquire()
+    assert epoch is not None
+    cb.record_failure(epoch)
+    assert cb.state == CircuitState.OPEN
+    time.sleep(0.04)
+    assert cb.state == CircuitState.HALF_OPEN
+    a = cb.acquire()
+    assert a is not None
+    time.sleep(0.04)
+    b = cb.acquire()
+    assert b is not None
+    assert a != b
+    cb.record_success(a)
+    assert cb.state == CircuitState.HALF_OPEN
+    cb.record_failure(a)
+    assert cb.state == CircuitState.HALF_OPEN
+    cb.record_success(b)
+    assert cb.state == CircuitState.CLOSED
+
+
+async def test_cancelled_async_probe_releases_its_slot() -> None:
+    started = asyncio.Event()
+    gate = asyncio.Event()
+    mode = "fail"
+
+    @circuit_breaker(
+        name="cancel-probe",
+        failure_threshold=1,
+        recovery_timeout_ms=200,
+        half_open_success_threshold=1,
+    )
+    async def call() -> str:
+        if mode == "fail":
+            raise RuntimeError("down")
+        if mode == "cancel":
+            started.set()
+            await gate.wait()
+        return "ok"
+
+    with pytest.raises(RuntimeError):
+        await call()
+
+    cb = get_circuit_breaker("cancel-probe")
+    assert cb.state == CircuitState.OPEN
+
+    await asyncio.sleep(0.22)
+    assert cb.state == CircuitState.HALF_OPEN
+
+    mode = "cancel"
+    task = asyncio.create_task(call())
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert cb.state == CircuitState.HALF_OPEN
+
+    mode = "ok"
+    res = await call()
+    assert res == "ok"
+    assert cb.state == CircuitState.CLOSED
+
+
+def test_base_exception_in_sync_probe_releases_its_slot() -> None:
+    class Abort(BaseException):
+        pass
+
+    fallback_called = False
+
+    def fallback(exc: BaseException, *args: Any, **kwargs: Any) -> str:
+        nonlocal fallback_called
+        fallback_called = True
+        return "fallback"
+
+    mode = "abort"
+
+    @circuit_breaker(
+        name="sync-abort-probe",
+        failure_threshold=1,
+        recovery_timeout_ms=200,
+        half_open_success_threshold=1,
+        fallback=fallback,
+    )
+    def call() -> str:
+        if mode == "abort":
+            raise Abort()
+        return "ok"
+
+    cb = get_circuit_breaker("sync-abort-probe")
+    epoch = cb.acquire()
+    assert epoch is not None
+    cb.record_failure(epoch)
+    assert cb.state == CircuitState.OPEN
+
+    time.sleep(0.22)
+    assert cb.state == CircuitState.HALF_OPEN
+
+    with pytest.raises(Abort):
+        call()
+
+    assert not fallback_called
+    assert cb.state == CircuitState.HALF_OPEN
+
+    mode = "ok"
+    assert call() == "ok"
+    assert not fallback_called
+    assert cb.state == CircuitState.CLOSED
+
+
+def test_unpaired_manual_success_cannot_close_half_open_breaker() -> None:
+    cb = CircuitBreaker(
+        failure_threshold=1,
+        recovery_timeout_ms=30,
+        half_open_success_threshold=1,
+    )
+    assert cb.allow_request()
+    cb.record_failure()
+    assert cb.state == CircuitState.OPEN
+    time.sleep(0.04)
+    assert cb.state == CircuitState.HALF_OPEN
+    cb.record_success()
+    assert cb.state == CircuitState.HALF_OPEN
+    assert cb.allow_request()
+    cb.record_success()
+    assert cb.state == CircuitState.CLOSED
+
+
+def test_half_open_record_success_without_epoch_ignored_unless_probe_admitted() -> None:
+    cb = CircuitBreaker(
+        failure_threshold=1,
+        recovery_timeout_ms=10,
+        half_open_success_threshold=1,
+    )
+    assert cb.allow_request()
+    cb.record_failure()
+    assert cb.state == CircuitState.OPEN
+    time.sleep(0.02)
+    assert cb.state == CircuitState.HALF_OPEN
+
+    # In HALF_OPEN without acquire/allow_request, record_success is ignored.
+    cb.record_success()
+    assert cb.state == CircuitState.HALF_OPEN
+
+    # In HALF_OPEN after allow_request returns True, record_success closes circuit.
+    assert cb.allow_request() is True
+    cb.record_success()
+    assert cb.state == CircuitState.CLOSED
+
+
+def test_warns_when_rate_limit_bucket_reused_with_different_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings: list[str] = []
+
+    class _Capture:
+        def debug(self, msg: object) -> None: ...
+        def info(self, msg: object) -> None: ...
+        def warn(self, msg: object) -> None:
+            warnings.append(str(msg))
+
+        def error(self, msg: object) -> None: ...
+
+    monkeypatch.setattr(logger_mod, "global_logger", _Capture())
+
+    def fn1() -> str:
+        return "1"
+
+    fn1.__qualname__ = "SharedSvc.get"
+    f1 = rate_limit(capacity=1, refill_rate=0.001)(fn1)
+
+    def fn2() -> str:
+        return "2"
+
+    fn2.__qualname__ = "SharedSvc.get"
+    f2 = rate_limit(capacity=100, refill_rate=0.001)(fn2)
+
+    assert f1() == "1"
+    assert warnings == []
+
+    with pytest.raises(RateLimitExceededError):
+        f2()
+
+    assert len(warnings) == 1
+    assert "already registered with different options" in warnings[0]
+
+    with pytest.raises(RateLimitExceededError):
+        f2()
+
+    assert len(warnings) == 1
+
+    # Negative assertion: two decorators with identical options sharing a key log nothing.
+    clear_rate_limiters()
+    warnings.clear()
+
+    def fn3() -> str:
+        return "3"
+
+    fn3.__qualname__ = "IdenticalSvc.get"
+    f3 = rate_limit(capacity=10, refill_rate=1.0)(fn3)
+
+    def fn4() -> str:
+        return "4"
+
+    fn4.__qualname__ = "IdenticalSvc.get"
+    f4 = rate_limit(capacity=10, refill_rate=1.0)(fn4)
+
+    assert f3() == "3"
+    assert f4() == "4"
+    assert warnings == []
+
+
+def test_rate_limit_warns_once_per_mismatched_bucket_with_key_extractor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from server_decorator.decorators._qualname import shorten_qualname
+    from server_decorator.decorators.rate_limit import get_token_bucket
+
+    warnings: list[str] = []
+
+    class _Capture:
+        def debug(self, msg: object) -> None: ...
+        def info(self, msg: object) -> None: ...
+        def warn(self, msg: object) -> None:
+            warnings.append(str(msg))
+
+        def error(self, msg: object) -> None: ...
+
+    monkeypatch.setattr(logger_mod, "global_logger", _Capture())
+
+    def target(key: str) -> str:
+        return key
+
+    target.__qualname__ = "DynamicSvc.query"
+    base_key = shorten_qualname(target.__qualname__)
+
+    get_token_bucket(f"{base_key}:a", 1.0, 1.0)
+    get_token_bucket(f"{base_key}:b", 1.0, 1.0)
+
+    decorated = rate_limit(
+        capacity=10.0,
+        refill_rate=5.0,
+        key_extractor=lambda key: key,
+    )(target)
+
+    decorated("a")
+    with pytest.raises(RateLimitExceededError):
+        decorated("a")
+    decorated("b")
+
+    assert len(warnings) == 2
+    assert f"bucket '{base_key}:a' is already registered with different options" in warnings[0]
+    assert f"bucket '{base_key}:b' is already registered with different options" in warnings[1]
+
+
+def test_warns_when_cleared_registry_is_repopulated_with_other_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings: list[str] = []
+
+    class _Capture:
+        def debug(self, msg: object) -> None: ...
+        def info(self, msg: object) -> None: ...
+        def warn(self, msg: object) -> None:
+            warnings.append(str(msg))
+
+        def error(self, msg: object) -> None: ...
+
+    monkeypatch.setattr(logger_mod, "global_logger", _Capture())
+
+    @circuit_breaker(name="A.probe", failure_threshold=1, recovery_timeout_ms=10_000)
+    def probe() -> str:
+        return "ok"
+
+    assert warnings == []
+
+    clear_circuit_breakers()
+    get_circuit_breaker("A.probe")
+
+    assert probe() == "ok"
+    assert probe() == "ok"
+
+    assert len(warnings) == 1
+    assert "already registered with different options" in warnings[0]
+
+
+def test_static_methods_of_different_classes_get_separate_breakers_and_buckets() -> None:
+    class A:
+        @staticmethod
+        @circuit_breaker(failure_threshold=1)
+        def run() -> None:
+            raise RuntimeError("fail")
+
+        @staticmethod
+        @rate_limit(capacity=1, refill_rate=0.001)
+        def hit() -> str:
+            return "a_hit"
+
+    class B:
+        @staticmethod
+        @circuit_breaker(failure_threshold=1)
+        def run() -> str:
+            return "b_run"
+
+        @staticmethod
+        @rate_limit(capacity=1, refill_rate=0.001)
+        def hit() -> str:
+            return "b_hit"
+
+    # Tripping A.run leaves B.run callable
+    with pytest.raises(RuntimeError):
+        A.run()
+    with pytest.raises(CircuitBreakerOpenError):
+        A.run()
+    assert B.run() == "b_run"
+
+    # Draining A.hit leaves B.hit callable
+    assert A.hit() == "a_hit"
+    with pytest.raises(RateLimitExceededError):
+        A.hit()
+    assert B.hit() == "b_hit"

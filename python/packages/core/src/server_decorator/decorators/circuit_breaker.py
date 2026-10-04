@@ -13,6 +13,7 @@ from typing import Any, TypeVar, cast
 from server_decorator import logger as _logger_mod
 from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
 from server_decorator.decorators._qualname import shorten_qualname
+from server_decorator.decorators._warn_once import OncePerObject
 
 F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T", bound=type)
@@ -86,7 +87,9 @@ class CircuitBreaker:
                     now = time.monotonic()
                     if (now - self._last_state_change) * 1000.0 < self.recovery_timeout_ms:
                         return None
-                    # Probes that never reported back are treated as abandoned.
+                    # Probes that never reported back are treated as abandoned;
+                    # the epoch bump makes any late result from them stale.
+                    self._epoch += 1
                     self._half_open_in_flight = 0
                     self._last_state_change = now
                 self._half_open_in_flight += 1
@@ -96,10 +99,16 @@ class CircuitBreaker:
         return self.acquire() is not None
 
     def record_success(self, epoch: int | None = None) -> None:
+        """Pass the epoch returned by acquire(); a call without an epoch in HALF_OPEN counts
+        only if a probe was admitted through acquire()/allow_request(), otherwise it is
+        ignored, so a stray success cannot close the circuit.
+        """
         with self._lock:
             if epoch is not None and epoch != self._epoch:
                 return
             if self._state == CircuitState.HALF_OPEN:
+                if epoch is None and self._half_open_in_flight == 0:
+                    return
                 if self._half_open_in_flight > 0:
                     self._half_open_in_flight -= 1
                 self._consecutive_successes += 1
@@ -120,6 +129,14 @@ class CircuitBreaker:
                 self._consecutive_failures += 1
                 if self._consecutive_failures >= self.failure_threshold:
                     self._transition_locked(CircuitState.OPEN)
+
+    def release(self, epoch: int | None = None) -> None:
+        """Give back a half-open probe slot without recording a result (cancelled call)."""
+        with self._lock:
+            if epoch is not None and epoch != self._epoch:
+                return
+            if self._state == CircuitState.HALF_OPEN and self._half_open_in_flight > 0:
+                self._half_open_in_flight -= 1
 
     def reset(self) -> None:
         with self._lock:
@@ -168,27 +185,29 @@ def circuit_breaker(
 
     def decorator(fn: F) -> F:
         breaker_name = name or shorten_qualname(fn.__qualname__)
+        warned = OncePerObject()
 
         def resolve() -> CircuitBreaker:
             # Resolved per call so a registry clear is honoured by decorated methods.
-            return get_circuit_breaker(
+            cb = get_circuit_breaker(
                 breaker_name,
                 failure_threshold=failure_threshold,
                 recovery_timeout_ms=recovery_timeout_ms,
                 half_open_success_threshold=half_open_success_threshold,
             )
+            if (
+                cb.failure_threshold != failure_threshold
+                or cb.recovery_timeout_ms != recovery_timeout_ms
+                or cb.half_open_success_threshold != half_open_success_threshold
+            ) and warned.first(cb):
+                _logger_mod.global_logger.warn(
+                    f"@circuit_breaker: breaker '{breaker_name}' is already registered with "
+                    f"different options; {fn.__qualname__} shares it and its own thresholds "
+                    "are ignored"
+                )
+            return cb
 
-        registered = resolve()
-        if (
-            registered.failure_threshold != failure_threshold
-            or registered.recovery_timeout_ms != recovery_timeout_ms
-            or registered.half_open_success_threshold != half_open_success_threshold
-        ):
-            _logger_mod.global_logger.warn(
-                f"@circuit_breaker: breaker '{breaker_name}' is already registered with "
-                f"different options; {fn.__qualname__} shares it and its own thresholds "
-                "are ignored"
-            )
+        resolve()
 
         if inspect.iscoroutinefunction(fn):
 
@@ -213,6 +232,9 @@ def circuit_breaker(
                         res = fallback(e, *args, **kwargs)
                         return await res if inspect.isawaitable(res) else res
                     raise
+                except BaseException:
+                    cb.release(epoch)
+                    raise
 
             _mark_wrapped(async_wrapper, "circuit_breaker")
             return cast(F, async_wrapper)
@@ -235,6 +257,9 @@ def circuit_breaker(
                 cb.record_failure(epoch)
                 if fallback is not None:
                     return fallback(e, *args, **kwargs)
+                raise
+            except BaseException:
+                cb.release(epoch)
                 raise
 
         _mark_wrapped(sync_wrapper, "circuit_breaker")

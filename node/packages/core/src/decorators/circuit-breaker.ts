@@ -1,5 +1,6 @@
 import { performance } from 'perf_hooks';
 import { globalLogger } from '../logger';
+import { resolveClassName } from './_class-name';
 
 export enum CircuitState {
   CLOSED = 'closed',
@@ -110,6 +111,9 @@ export class CircuitBreaker {
       return;
     }
     if (s === CircuitState.HALF_OPEN) {
+      if (epoch === undefined && this.halfOpenInFlight === 0) {
+        return;
+      }
       if (this.halfOpenInFlight > 0) this.halfOpenInFlight--;
       this.consecutiveSuccessCount++;
       if (this.consecutiveSuccessCount >= this.halfOpenSuccessThreshold) {
@@ -168,28 +172,33 @@ export function circuitBreaker(options: CircuitBreakerOptions = {}) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     // For a static method `target` is the constructor itself.
-    const className = typeof target === 'function' ? target.name : target.constructor.name;
+    const className = resolveClassName(target);
     const breakerName = options.name ?? `${className}.${propertyKey}`;
     const breakerOptions = { ...options, name: breakerName };
 
-    const existing = circuitBreakerRegistry.get(breakerName);
     const wanted = resolveThresholds(options);
-    if (
-      existing &&
-      (existing.failureThreshold !== wanted.failureThreshold ||
-        existing.recoveryTimeoutMs !== wanted.recoveryTimeoutMs ||
-        existing.halfOpenSuccessThreshold !== wanted.halfOpenSuccessThreshold)
-    ) {
-      globalLogger.warn(
-        `@circuitBreaker: breaker '${breakerName}' is already registered with different options; ` +
-          `${className}.${propertyKey} shares it and its own thresholds are ignored`,
-      );
-    }
-    getCircuitBreaker(breakerName, breakerOptions);
-
-    descriptor.value = async function (...args: unknown[]) {
+    let warnedFor: CircuitBreaker | undefined;
+    const resolve = (): CircuitBreaker => {
       // Resolved per call so a registry clear/replace is honoured by decorated methods.
       const cb = getCircuitBreaker(breakerName, breakerOptions);
+      if (
+        cb !== warnedFor &&
+        (cb.failureThreshold !== wanted.failureThreshold ||
+          cb.recoveryTimeoutMs !== wanted.recoveryTimeoutMs ||
+          cb.halfOpenSuccessThreshold !== wanted.halfOpenSuccessThreshold)
+      ) {
+        warnedFor = cb;
+        globalLogger.warn(
+          `@circuitBreaker: breaker '${breakerName}' is already registered with different options; ` +
+            `${className}.${propertyKey} shares it and its own thresholds are ignored`,
+        );
+      }
+      return cb;
+    };
+    resolve();
+
+    descriptor.value = async function (...args: unknown[]) {
+      const cb = resolve();
       const epoch = cb.acquire();
       if (epoch === null) {
         const err = new CircuitBreakerOpenError(breakerName);

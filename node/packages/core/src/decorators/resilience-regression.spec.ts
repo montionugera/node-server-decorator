@@ -207,6 +207,26 @@ describe('resilience regressions', () => {
       cb.recordSuccess(fresh as number);
       expect(cb.state).toBe(CircuitState.CLOSED);
     });
+
+    it('ignores an unpaired epoch-less success in half-open', () => {
+      const clock = mockClock();
+      const cb = new CircuitBreaker({
+        name: 'unpaired',
+        failureThreshold: 1,
+        recoveryTimeoutMs: 10,
+        halfOpenSuccessThreshold: 1,
+      });
+      cb.allowRequest();
+      cb.recordFailure();
+      expect(cb.state).toBe(CircuitState.OPEN);
+      clock.advance(11);
+      expect(cb.state).toBe(CircuitState.HALF_OPEN);
+      cb.recordSuccess();
+      expect(cb.state).toBe(CircuitState.HALF_OPEN);
+      expect(cb.allowRequest()).toBe(true);
+      cb.recordSuccess();
+      expect(cb.state).toBe(CircuitState.CLOSED);
+    });
   });
 
   describe('monotonic clock', () => {
@@ -341,6 +361,133 @@ describe('resilience regressions', () => {
       expect(String(warn.mock.calls[0][0])).toContain('shared');
       expect([A, B]).toHaveLength(2);
     });
+
+    it('gives same-named methods of different anonymous classes separate breakers', async () => {
+      const makeA = () => {
+        const Cls = (() =>
+          class {
+            async get(): Promise<string> {
+              throw new Error('down');
+            }
+          })();
+        const desc = Object.getOwnPropertyDescriptor(Cls.prototype, 'get')!;
+        circuitBreaker({ failureThreshold: 1 })(Cls.prototype, 'get', desc);
+        Object.defineProperty(Cls.prototype, 'get', desc);
+        return Cls;
+      };
+      const makeB = () => {
+        const Cls = (() =>
+          class {
+            async get(): Promise<string> {
+              return 'ok';
+            }
+          })();
+        const desc = Object.getOwnPropertyDescriptor(Cls.prototype, 'get')!;
+        circuitBreaker({ failureThreshold: 1 })(Cls.prototype, 'get', desc);
+        Object.defineProperty(Cls.prototype, 'get', desc);
+        return Cls;
+      };
+      const A = makeA();
+      const B = makeB();
+      expect(A.name).toBe('');
+      expect(B.name).toBe('');
+      const a = new A();
+      const b = new B();
+      await expect(a.get()).rejects.toThrow('down');
+      await expect(b.get()).resolves.toBe('ok');
+    });
+
+    it('gives same-named methods of different anonymous classes separate buckets', async () => {
+      const makeA = () => {
+        const Cls = (() =>
+          class {
+            async get(): Promise<string> {
+              return 'a';
+            }
+          })();
+        const desc = Object.getOwnPropertyDescriptor(Cls.prototype, 'get')!;
+        rateLimit({ capacity: 1, refillRate: 0.001 })(Cls.prototype, 'get', desc);
+        Object.defineProperty(Cls.prototype, 'get', desc);
+        return Cls;
+      };
+      const makeB = () => {
+        const Cls = (() =>
+          class {
+            async get(): Promise<string> {
+              return 'b';
+            }
+          })();
+        const desc = Object.getOwnPropertyDescriptor(Cls.prototype, 'get')!;
+        rateLimit({ capacity: 1, refillRate: 0.001 })(Cls.prototype, 'get', desc);
+        Object.defineProperty(Cls.prototype, 'get', desc);
+        return Cls;
+      };
+      const A = makeA();
+      const B = makeB();
+      expect(A.name).toBe('');
+      expect(B.name).toBe('');
+      const a = new A();
+      const b = new B();
+      await expect(a.get()).resolves.toBe('a');
+      await expect(b.get()).resolves.toBe('b');
+    });
+
+    it('warns when a second decorator reuses a rate-limit bucket with different options', async () => {
+      const warn = jest.spyOn(globalLogger, 'warn').mockImplementation(() => undefined);
+      let aInstance: { get(): Promise<string> };
+      let bInstance: { get(): Promise<string> };
+      {
+        class Svc {
+          @rateLimit({ capacity: 1, refillRate: 0.001 })
+          async get(): Promise<string> {
+            return 'a';
+          }
+        }
+        aInstance = new Svc();
+      }
+      {
+        class Svc {
+          @rateLimit({ capacity: 100, refillRate: 0.001 })
+          async get(): Promise<string> {
+            return 'b';
+          }
+        }
+        bInstance = new Svc();
+      }
+
+      await expect(aInstance.get()).resolves.toBe('a');
+      await expect(bInstance.get()).rejects.toThrow(RateLimitExceededError);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('already registered with different options');
+      await expect(bInstance.get()).rejects.toThrow(RateLimitExceededError);
+      expect(warn).toHaveBeenCalledTimes(1);
+
+      warn.mockClear();
+      clearRateLimitRegistry();
+      let i1Instance: { get(): Promise<string> };
+      let i2Instance: { get(): Promise<string> };
+      {
+        class Svc {
+          @rateLimit({ capacity: 5, refillRate: 1.0 })
+          async get(): Promise<string> {
+            return 'ok';
+          }
+        }
+        i1Instance = new Svc();
+      }
+      {
+        class Svc {
+          @rateLimit({ capacity: 5, refillRate: 1.0 })
+          async get(): Promise<string> {
+            return 'ok';
+          }
+        }
+        i2Instance = new Svc();
+      }
+      await expect(i1Instance.get()).resolves.toBe('ok');
+      await expect(i2Instance.get()).resolves.toBe('ok');
+      expect(warn).not.toHaveBeenCalled();
+    });
   });
 
   describe('registry clear', () => {
@@ -370,6 +517,24 @@ describe('resilience regressions', () => {
       cb.reset();
       fail = false;
       await expect(a.probe()).resolves.toBe('ok');
+    });
+
+    it('warns when a cleared registry is repopulated with other options', async () => {
+      const warn = jest.spyOn(globalLogger, 'warn').mockImplementation(() => undefined);
+      class A {
+        @circuitBreaker({ failureThreshold: 1, recoveryTimeoutMs: 10_000 })
+        async probe(): Promise<string> {
+          return 'ok';
+        }
+      }
+      expect(warn).not.toHaveBeenCalled();
+      clearCircuitBreakerRegistry();
+      getCircuitBreaker('A.probe');
+      const a = new A();
+      await expect(a.probe()).resolves.toBe('ok');
+      await expect(a.probe()).resolves.toBe('ok');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('already registered with different options');
     });
   });
 });

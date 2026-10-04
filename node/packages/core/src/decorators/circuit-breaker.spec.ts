@@ -1,3 +1,4 @@
+import { performance } from 'perf_hooks';
 import {
   circuitBreaker,
   CircuitBreakerOpenError,
@@ -6,9 +7,26 @@ import {
   clearCircuitBreakerRegistry,
 } from './circuit-breaker';
 
+// Deterministic monotonic clock: the breaker reads perf_hooks' performance.now(), so the tests
+// step it by hand. Sleeping against a 20-50 ms recovery window races the assertions under load
+// (the OPEN breaker lazily turns HALF_OPEN as soon as the window has elapsed).
+const mockClock = () => {
+  let now = 1000;
+  jest.spyOn(performance, 'now').mockImplementation(() => now);
+  return {
+    advance: (ms: number) => {
+      now += ms;
+    },
+  };
+};
+
 describe('@circuitBreaker decorator', () => {
   beforeEach(() => {
     clearCircuitBreakerRegistry();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('allows calls when circuit is closed and records successes', async () => {
@@ -28,6 +46,7 @@ describe('@circuitBreaker decorator', () => {
   });
 
   it('trips to open after reaching failureThreshold and fast-fails', async () => {
+    mockClock();
     let calls = 0;
 
     class UnstableService {
@@ -60,6 +79,7 @@ describe('@circuitBreaker decorator', () => {
   });
 
   it('recovers to closed after trial successes in half-open state', async () => {
+    const clock = mockClock();
     let fail = true;
 
     class RecoveringService {
@@ -82,8 +102,12 @@ describe('@circuitBreaker decorator', () => {
     await expect(svc.query()).rejects.toThrow('down');
     expect(cb.state).toBe(CircuitState.OPEN);
 
-    // Wait for recovery timeout -> transitions to HALF_OPEN
-    await new Promise((r) => setTimeout(r, 30));
+    // Just short of the recovery timeout: still OPEN
+    clock.advance(19);
+    expect(cb.state).toBe(CircuitState.OPEN);
+
+    // Recovery timeout elapsed -> transitions to HALF_OPEN
+    clock.advance(1);
     expect(cb.state).toBe(CircuitState.HALF_OPEN);
 
     // Now service recovers

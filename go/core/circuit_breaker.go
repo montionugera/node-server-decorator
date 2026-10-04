@@ -137,13 +137,27 @@ func (cb *CircuitBreaker) acquire() (uint64, bool) {
 			if time.Since(cb.lastStateChange) < cb.recoveryTimeout {
 				return 0, false
 			}
-			// Probes that never reported back are treated as abandoned.
+			// Probes that never reported back are treated as abandoned; the epoch bump makes any late result from them stale.
+			cb.epoch++
 			cb.halfOpenInFlight = 0
 			cb.lastStateChange = time.Now()
 		}
 		cb.halfOpenInFlight++
 	}
 	return cb.epoch, true
+}
+
+// release gives back a Half-Open probe slot without recording a result (the call panicked).
+func (cb *CircuitBreaker) release(epoch uint64) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	if epoch != cb.epoch {
+		return
+	}
+	if cb.state == StateHalfOpen && cb.halfOpenInFlight > 0 {
+		cb.halfOpenInFlight--
+	}
 }
 
 // record applies a call result. When checkEpoch is set, a result admitted under an
@@ -157,6 +171,9 @@ func (cb *CircuitBreaker) record(epoch uint64, checkEpoch bool, success bool) {
 	}
 	switch {
 	case cb.state == StateHalfOpen && success:
+		if !checkEpoch && cb.halfOpenInFlight == 0 {
+			return
+		}
 		if cb.halfOpenInFlight > 0 {
 			cb.halfOpenInFlight--
 		}
@@ -185,14 +202,34 @@ func (cb *CircuitBreaker) AllowRequest() bool {
 	return ok
 }
 
-// RecordSuccess records a successful execution.
+// Acquire admits a call like AllowRequest and also returns the admission epoch. Pass it to
+// RecordSuccessAt / RecordFailureAt so a result admitted before a state transition is ignored.
+func (cb *CircuitBreaker) Acquire() (epoch uint64, ok bool) {
+	return cb.acquire()
+}
+
+// RecordSuccess records a successful execution. In Half-Open, a call with no
+// admitted probe in flight (no preceding AllowRequest) is ignored, so an
+// unpaired success cannot close the circuit.
 func (cb *CircuitBreaker) RecordSuccess() {
 	cb.record(0, false, true)
 }
 
-// RecordFailure records an error and may trip the circuit to Open.
+// RecordSuccessAt records a success for a call admitted by Acquire; a stale epoch is ignored.
+func (cb *CircuitBreaker) RecordSuccessAt(epoch uint64) {
+	cb.record(epoch, true, true)
+}
+
+// RecordFailure records an error and may trip the circuit to Open. In Half-Open
+// it re-opens the circuit even when no probe is in flight; this is deliberately
+// asymmetric with RecordSuccess (failing safe) and matches the Node and Python breakers.
 func (cb *CircuitBreaker) RecordFailure() {
 	cb.record(0, false, false)
+}
+
+// RecordFailureAt records a failure for a call admitted by Acquire; a stale epoch is ignored.
+func (cb *CircuitBreaker) RecordFailureAt(epoch uint64) {
+	cb.record(epoch, true, false)
 }
 
 // Reset explicitly forces the circuit breaker back into Closed state.
@@ -220,8 +257,16 @@ func CircuitBreakerWrapper[In, Out any](
 			return zero, ErrCircuitBreakerOpen
 		}
 
+		recorded := false
+		defer func() {
+			if !recorded {
+				cb.release(epoch)
+			}
+		}()
+
 		res, err := fn(ctx, in)
 		if err != nil {
+			recorded = true
 			cb.record(epoch, true, false)
 			if fallback != nil {
 				return fallback(ctx, in, err)
@@ -229,6 +274,7 @@ func CircuitBreakerWrapper[In, Out any](
 			return zero, err
 		}
 
+		recorded = true
 		cb.record(epoch, true, true)
 		return res, nil
 	}

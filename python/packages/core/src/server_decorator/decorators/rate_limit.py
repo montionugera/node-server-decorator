@@ -9,8 +9,10 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
+from server_decorator import logger as _logger_mod
 from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
 from server_decorator.decorators._qualname import shorten_qualname
+from server_decorator.decorators._warn_once import OncePerObject
 
 F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T", bound=type)
@@ -93,6 +95,19 @@ def rate_limit(
 
     def decorator(fn: F) -> F:
         base_key = shorten_qualname(fn.__qualname__)
+        warned = OncePerObject()
+
+        def resolve(limit_key: str) -> TokenBucket:
+            bucket = get_token_bucket(limit_key, capacity, refill_rate)
+            if (bucket.capacity != capacity or bucket.refill_rate != refill_rate) and warned.first(
+                bucket
+            ):
+                _logger_mod.global_logger.warn(
+                    f"@rate_limit: bucket '{limit_key}' is already registered with "
+                    f"different options; {fn.__qualname__} shares it and its own "
+                    "capacity/refill_rate are ignored"
+                )
+            return bucket
 
         if inspect.iscoroutinefunction(fn):
 
@@ -104,7 +119,7 @@ def rate_limit(
                 else:
                     limit_key = base_key
 
-                bucket = get_token_bucket(limit_key, capacity, refill_rate)
+                bucket = resolve(limit_key)
                 if not bucket.allow(cost):
                     raise RateLimitExceededError(limit_key)
 
@@ -121,7 +136,7 @@ def rate_limit(
             else:
                 limit_key = base_key
 
-            bucket = get_token_bucket(limit_key, capacity, refill_rate)
+            bucket = resolve(limit_key)
             if not bucket.allow(cost):
                 raise RateLimitExceededError(limit_key)
 

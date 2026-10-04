@@ -180,10 +180,19 @@ def test_half_open_success_without_in_flight_probe_does_not_go_negative(clock: _
     clock.advance_ms(1000)
     assert cb.state == CircuitState.HALF_OPEN
 
+    # No probe was admitted, so an epoch-less success is not a probe result.
     cb.record_success()
 
     assert cb._half_open_in_flight == 0
-    assert cb._consecutive_successes == 1
+    assert cb._consecutive_successes == 0
+
+    # A duplicate record for one admitted probe must not drive the count negative.
+    probe = cb.acquire()
+    cb.record_success(probe)
+    cb.record_success(probe)
+
+    assert cb._half_open_in_flight == 0
+    assert cb._consecutive_successes == 2
 
 
 def test_closed_success_resets_failure_streak() -> None:

@@ -1,4 +1,6 @@
 import { performance } from 'perf_hooks';
+import { globalLogger } from '../logger';
+import { resolveClassName } from './_class-name';
 
 export class RateLimitExceededError extends Error {
   readonly limitKey: string;
@@ -83,8 +85,9 @@ export function rateLimit(options: RateLimitOptions = {}) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
     // For a static method `target` is the constructor itself.
-    const className = typeof target === 'function' ? target.name : target.constructor.name;
+    const className = resolveClassName(target);
     const baseKey = `${className}.${propertyKey}`;
+    let warned = false;
 
     descriptor.value = async function (...args: unknown[]) {
       const key = options.keyExtractor ? `${baseKey}:${options.keyExtractor(...args)}` : baseKey;
@@ -96,6 +99,14 @@ export function rateLimit(options: RateLimitOptions = {}) {
         }
         bucket = new TokenBucket(capacity, refillRate);
         rateLimitRegistry.set(key, bucket);
+      }
+
+      if (!warned && (bucket.capacity !== capacity || bucket.refillRate !== refillRate)) {
+        warned = true;
+        globalLogger.warn(
+          `@rateLimit: bucket '${key}' is already registered with different options; ` +
+            `${baseKey} shares it and its own capacity/refillRate are ignored`,
+        );
       }
 
       if (!bucket.allow(cost)) {
