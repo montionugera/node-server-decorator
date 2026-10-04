@@ -62,7 +62,7 @@ export function parseTraceparent(header?: string): {
   sampled: boolean;
 } | null {
   if (!header || typeof header !== 'string') return null;
-  const parts = header.trim().split('-');
+  const parts = header.split('-');
   if (parts.length !== 4) return null;
 
   const [version, traceId, spanId, flags] = parts;
@@ -84,8 +84,8 @@ export function parseTraceparent(header?: string): {
 
   return {
     version,
-    traceId: traceId.toLowerCase(),
-    spanId: spanId.toLowerCase(),
+    traceId,
+    spanId,
     sampled,
   };
 }

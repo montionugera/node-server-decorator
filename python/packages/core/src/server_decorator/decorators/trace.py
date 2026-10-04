@@ -10,7 +10,7 @@ import os
 import re
 import time
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Coroutine, Iterator
 from dataclasses import dataclass, field
 from typing import Any, TypeVar, cast
 
@@ -73,8 +73,7 @@ def parse_traceparent(header: str | None) -> TraceContext | None:
     """Parse a W3C traceparent header string (00-traceid-spanid-flags)."""
     if not header or not isinstance(header, str):
         return None
-    header = header.strip()
-    match = _TRACEPARENT_REGEX.match(header)
+    match = _TRACEPARENT_REGEX.fullmatch(header)
     if not match:
         return None
 
@@ -179,6 +178,51 @@ def _span_scope(
                 global_logger.warn(f"Trace span exporter error: {exp_err}")
 
 
+async def _await_in_span(
+    scope: contextlib.ExitStack,
+    ctx: TraceContext,
+    coro: Coroutine[Any, Any, Any],
+) -> Any:
+    with scope:
+        token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+        try:
+            return await coro
+        finally:
+            _ACTIVE_TRACE_CONTEXT.reset(token)
+
+
+async def _iterate_in_span(
+    scope: contextlib.ExitStack,
+    ctx: TraceContext,
+    agen: Any,
+) -> AsyncIterator[Any]:
+    with scope:
+        resume: Callable[[Any], Any] = agen.asend
+        value: Any = None
+        try:
+            while True:
+                token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+                try:
+                    item = await resume(value)
+                except StopAsyncIteration:
+                    return
+                finally:
+                    _ACTIVE_TRACE_CONTEXT.reset(token)
+                try:
+                    value = yield item
+                    resume = agen.asend
+                except GeneratorExit:
+                    raise
+                except BaseException as thrown:
+                    resume, value = agen.athrow, thrown
+        finally:
+            token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+            try:
+                await agen.aclose()
+            finally:
+                _ACTIVE_TRACE_CONTEXT.reset(token)
+
+
 def trace(
     options: dict[str, Any] | None = None,
     *,
@@ -191,11 +235,12 @@ def trace(
     attrs_config = attributes if attributes is not None else opts.get("attributes")
 
     def decorator(fn: F) -> F:
-        qualname = getattr(fn, "__qualname__", fn.__name__)
+        fn_name = getattr(fn, "__name__", type(fn).__name__)
+        qualname = getattr(fn, "__qualname__", fn_name)
 
         def _resolve_attributes(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
             resolved = {
-                "code.function": fn.__name__,
+                "code.function": fn_name,
                 "code.namespace": qualname,
             }
             if attrs_config:
@@ -310,8 +355,20 @@ def trace(
 
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            with _span_scope(resolved_name, _resolve_attributes(args, kwargs)):
-                return fn(*args, **kwargs)
+            with contextlib.ExitStack() as stack:
+                ctx = stack.enter_context(
+                    _span_scope(resolved_name, _resolve_attributes(args, kwargs), activate=False)
+                )
+                token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+                try:
+                    result = fn(*args, **kwargs)
+                finally:
+                    _ACTIVE_TRACE_CONTEXT.reset(token)
+                if inspect.iscoroutine(result):
+                    return _await_in_span(stack.pop_all(), ctx, result)
+                if inspect.isasyncgen(result):
+                    return _iterate_in_span(stack.pop_all(), ctx, result)
+                return result
 
         _mark_wrapped(sync_wrapper, "trace")
         return cast(F, sync_wrapper)

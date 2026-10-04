@@ -69,7 +69,6 @@ func FromContext(ctx context.Context) (TraceContext, bool) {
 
 // ParseTraceparent parses a W3C traceparent header string.
 func ParseTraceparent(header string) (*TraceContext, error) {
-	header = strings.TrimSpace(header)
 	matches := traceparentRegex.FindStringSubmatch(header)
 	if len(matches) != 5 {
 		return nil, fmt.Errorf("invalid traceparent header: %s", header)

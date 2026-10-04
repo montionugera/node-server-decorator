@@ -61,5 +61,50 @@
     "description": "invalid upper-case hex flags",
     "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-0A",
     "valid": false
+  },
+  {
+    "description": "invalid leading space (no trimming)",
+    "traceparent": " 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": false
+  },
+  {
+    "description": "invalid trailing space (no trimming)",
+    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01 ",
+    "valid": false
+  },
+  {
+    "description": "invalid leading tab (no trimming)",
+    "traceparent": "\t00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": false
+  },
+  {
+    "description": "invalid trailing line feed (no trimming)",
+    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\n",
+    "valid": false
+  },
+  {
+    "description": "invalid trailing CRLF (no trimming)",
+    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\r\n",
+    "valid": false
+  },
+  {
+    "description": "invalid leading U+FEFF byte order mark",
+    "traceparent": "\ufeff00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": false
+  },
+  {
+    "description": "invalid leading U+0085 next line",
+    "traceparent": "\u008500-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": false
+  },
+  {
+    "description": "invalid leading U+001C file separator",
+    "traceparent": "\u001c00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": false
+  },
+  {
+    "description": "invalid upper-case hex version",
+    "traceparent": "0A-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "valid": false
   }
 ]

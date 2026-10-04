@@ -85,7 +85,7 @@ def test_parse_traceparent_rejects_invalid(header: Any) -> None:
     ("flags", "sampled"), [("01", True), ("00", False), ("03", True), ("fe", False)]
 )
 def test_parse_traceparent_sampled_flag_is_bit_zero(flags: str, sampled: bool) -> None:
-    ctx = parse_traceparent(f"  00-{'a' * 32}-{'b' * 16}-{flags}  ")
+    ctx = parse_traceparent(f"00-{'a' * 32}-{'b' * 16}-{flags}")
     assert ctx == TraceContext(trace_id="a" * 32, span_id="b" * 16, sampled=sampled)
     assert ctx is not None and ctx.parent_span_id is None and ctx.tracestate is None
 

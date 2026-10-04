@@ -21,6 +21,7 @@ Example: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
 4. **Trace Flags**: Exactly 2 hexadecimal characters (`01` = recorded/sampled, `00` = not sampled).
 5. **Case**: Hexadecimal is lower-case only (`0-9a-f`), as W3C requires. A carrier with any upper-case hex digit is invalid and ignored; parsers do not normalise it.
 6. **Fail closed**: The all-zero checks apply regardless of version, and any version other than `00` is invalid. Every lane must return the same verdict for the same carrier (`contracts/fixtures/trace-context.cases.json`); an invalid carrier starts a new trace rather than continuing one.
+7. **No trimming**: Parsers do not trim or otherwise normalise the header. The carrier must be exactly the 55-character form above; any leading or trailing character (space, tab, CR, LF, U+FEFF, U+0085 or any other) makes it invalid and it is ignored. Language whitespace sets differ (`String.trim`, `str.strip`, `strings.TrimSpace`), so trimming would give the same carrier a different verdict per lane. Transports that pad header values must strip the padding before handing the value to the parser.
 
 ---
 

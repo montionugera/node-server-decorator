@@ -311,3 +311,172 @@ class TestFailureStatus:
 
         assert [(s.name, s.status) for s in spans] == [("interrupted", "ERROR")]
         assert get_active_trace_context() is None
+
+
+class TestSyncCallableReturningAwaitable:
+    async def test_sync_function_returning_coroutine_span_covers_await(self, spans):
+        body_ctx = []
+
+        async def _inner():
+            await asyncio.sleep(0.02)
+            body_ctx.append(get_active_trace_context())
+            return "ok"
+
+        @trace()
+        def handler():
+            return _inner()
+
+        coro = handler()
+        assert len(spans) == 0
+        res = await coro
+        assert res == "ok"
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status == "OK"
+        assert span.duration_ms >= 15
+        assert len(body_ctx) == 1
+        assert body_ctx[0] is not None
+        assert body_ctx[0].span_id == span.span_id
+        assert get_active_trace_context() is None
+
+    async def test_sync_function_returning_coroutine_records_error(self, spans):
+        async def _inner():
+            await asyncio.sleep(0)
+            raise ValueError("boom")
+
+        @trace()
+        def handler():
+            return _inner()
+
+        with pytest.raises(ValueError, match="boom"):
+            await handler()
+
+        assert len(spans) == 1
+        assert spans[0].status == "ERROR"
+        assert spans[0].attributes["exception.type"] == "ValueError"
+
+    async def test_sync_function_returning_async_generator_span_covers_iteration(self, spans):
+        inside_ctx = []
+
+        async def _agen():
+            inside_ctx.append(get_active_trace_context())
+            yield 1
+            await asyncio.sleep(0.02)
+            inside_ctx.append(get_active_trace_context())
+            yield 2
+
+        @trace()
+        def handler():
+            return _agen()
+
+        it = handler()
+        assert len(spans) == 0
+
+        items = []
+        async for x in it:
+            items.append(x)
+            assert get_active_trace_context() is None
+
+        assert items == [1, 2]
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status == "OK"
+        assert span.duration_ms >= 15
+        assert len(inside_ctx) == 2
+        assert inside_ctx[0] is not None
+        assert inside_ctx[0].span_id == span.span_id
+        assert inside_ctx[1] is not None
+        assert inside_ctx[1].span_id == span.span_id
+        assert get_active_trace_context() is None
+
+    async def test_sync_function_returning_async_generator_records_error(self, spans):
+        async def _agen():
+            yield 1
+            raise ValueError("stream-fail")
+
+        @trace()
+        def handler():
+            return _agen()
+
+        items = []
+        with pytest.raises(ValueError, match="stream-fail"):
+            async for x in handler():
+                items.append(x)
+
+        assert items == [1]
+        assert len(spans) == 1
+        assert spans[0].status == "ERROR"
+        assert spans[0].attributes["exception.type"] == "ValueError"
+
+    async def test_callable_object_with_async_call(self, spans):
+        class Handler:
+            async def __call__(self, x):
+                await asyncio.sleep(0.02)
+                return x * 2
+
+        traced_handler = trace()(Handler())
+        assert await traced_handler(21) == 42
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status == "OK"
+        assert span.duration_ms >= 15
+        assert span.name == "Handler"
+        assert span.attributes["code.function"] == "Handler"
+
+    async def test_child_of_outer_span_and_context_restored(self, spans):
+        async def _inner():
+            await asyncio.sleep(0.02)
+            return "ok"
+
+        @trace()
+        def handler():
+            return _inner()
+
+        outer_ctx_after_await = None
+
+        @trace()
+        async def outer():
+            nonlocal outer_ctx_after_await
+            res = await handler()
+            outer_ctx_after_await = get_active_trace_context()
+            return res
+
+        result = await outer()
+        assert result == "ok"
+        inner_span = spans[0]
+        outer_span = spans[1]
+        assert inner_span.attributes["code.function"] == "handler"
+        assert outer_span.attributes["code.function"] == "outer"
+        assert inner_span.parent_span_id == outer_span.span_id
+        assert inner_span.trace_id == outer_span.trace_id
+        assert outer_ctx_after_await is not None
+        assert outer_ctx_after_await.span_id == outer_span.span_id
+        assert get_active_trace_context() is None
+
+    def test_plain_sync_function_unchanged(self, spans):
+        body_ctx = []
+
+        @trace()
+        def plain():
+            body_ctx.append(get_active_trace_context())
+            return 5
+
+        assert plain() == 5
+        assert len(spans) == 1
+        assert spans[0].status == "OK"
+        assert len(body_ctx) == 1
+        assert body_ctx[0] is not None
+        assert body_ctx[0].span_id == spans[0].span_id
+        assert get_active_trace_context() is None
+
+        @trace()
+        def plain_failing():
+            raise RuntimeError("sync-boom")
+
+        with pytest.raises(RuntimeError, match="sync-boom"):
+            plain_failing()
+
+        assert len(spans) == 2
+        assert spans[1].status == "ERROR"
+        assert spans[1].attributes["exception.type"] == "RuntimeError"
+        assert get_active_trace_context() is None
