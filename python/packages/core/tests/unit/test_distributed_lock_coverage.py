@@ -21,6 +21,9 @@ distributed_lock_class = dl_mod.distributed_lock_class
 get_global_distributed_lock_adapter = dl_mod.get_global_distributed_lock_adapter
 
 
+_UNSET = object()
+
+
 class FakeLockAdapter:
     """Minimal single-node Redis stand-in implementing the two Lua scripts' semantics."""
 
@@ -32,6 +35,9 @@ class FakeLockAdapter:
         self.renew_result: Any = 1
         self.renew_error: Exception | None = None
         self.release_error: Exception | None = None
+        self.release_result: Any = _UNSET
+        self.release_block: asyncio.Event | None = None
+        self.release_entered: asyncio.Event | None = None
         self.renew_count = 0
         self._renew_seen = asyncio.Event()
 
@@ -63,8 +69,14 @@ class FakeLockAdapter:
             if self.renew_error is not None:
                 raise self.renew_error
             return self.renew_result
+        if self.release_block is not None:
+            if self.release_entered is not None:
+                self.release_entered.set()
+            await self.release_block.wait()
         if self.release_error is not None:
             raise self.release_error
+        if self.release_result is not _UNSET:
+            return self.release_result
         if self.store.get(keys[0]) == args[0]:
             del self.store[keys[0]]
             return 1
@@ -496,3 +508,153 @@ async def test_class_form_default_prefix_and_contention_fallback() -> None:
 
     assert await Worker().run() == "busy"
     assert adapter.set_calls[0][0] == "lock:Worker:run"
+
+
+# -------------------------------------------------------- release loss / cancellation
+
+
+async def test_auto_renew_off_takeover_seen_only_at_release_raises_lock_lost() -> None:
+    adapter = FakeLockAdapter()
+
+    @distributed_lock("k", auto_renew=False, adapter=adapter)
+    async def job() -> str:
+        adapter.store["k"] = "other-owner"
+        return "ok"
+
+    with pytest.raises(LockLostError, match="Lock for 'k' was lost while 'job' was running"):
+        await job()
+
+    assert adapter.store.get("k") == "other-owner"
+    assert adapter.scripts() == ["release"]
+
+
+async def test_release_returning_zero_raises_lock_lost_even_if_no_renewal_saw_it() -> None:
+    adapter = FakeLockAdapter()
+
+    @distributed_lock("k", ttl_seconds=30.0, auto_renew=True, adapter=adapter)
+    async def job() -> str:
+        adapter.store["k"] = "other-owner"
+        return "ok"
+
+    with pytest.raises(LockLostError, match="Lock for 'k' was lost while 'job' was running"):
+        await job()
+
+    assert adapter.scripts() == ["release"]
+
+
+async def test_release_reported_loss_keeps_function_error_as_context() -> None:
+    adapter = FakeLockAdapter()
+
+    @distributed_lock("k", auto_renew=False, adapter=adapter)
+    async def job() -> None:
+        adapter.store["k"] = "other-owner"
+        raise ValueError("boom")
+
+    with pytest.raises(LockLostError) as excinfo:
+        await job()
+
+    assert isinstance(excinfo.value.__context__, ValueError)
+    assert str(excinfo.value.__context__) == "boom"
+
+
+async def test_release_error_after_full_ttl_raises_lock_lost() -> None:
+    adapter = FakeLockAdapter()
+    adapter.release_error = ConnectionError("redis down")
+
+    @distributed_lock("k", ttl_seconds=0.03, auto_renew=False, adapter=adapter)
+    async def job() -> str:
+        await asyncio.sleep(0.06)
+        return "ok"
+
+    with pytest.raises(LockLostError):
+        await job()
+
+    assert adapter.scripts() == ["release"]
+
+
+async def test_release_error_within_ttl_still_returns_result() -> None:
+    adapter = FakeLockAdapter()
+    adapter.release_error = ConnectionError("redis blip")
+
+    @distributed_lock("k", ttl_seconds=10.0, auto_renew=False, adapter=adapter)
+    async def job() -> str:
+        return "ok"
+
+    assert await job() == "ok"
+    assert adapter.scripts() == ["release"]
+
+
+async def test_release_returning_none_is_not_treated_as_lost() -> None:
+    adapter = FakeLockAdapter()
+    adapter.release_result = None
+
+    @distributed_lock("k", auto_renew=False, adapter=adapter)
+    async def job() -> str:
+        return "ok"
+
+    assert await job() == "ok"
+    assert adapter.scripts() == ["release"]
+
+
+async def test_cancellation_during_release_is_not_replaced_by_lock_lost() -> None:
+    adapter = FakeLockAdapter()
+    adapter.renew_result = 0
+    adapter.release_block = asyncio.Event()
+    adapter.release_entered = asyncio.Event()
+
+    @distributed_lock("k", ttl_seconds=0.06, auto_renew=True, adapter=adapter)
+    async def job() -> str:
+        await adapter.wait_for_renews(1)
+        return "ok"
+
+    task = asyncio.create_task(job())
+    await adapter.release_entered.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert task.cancelled() is True
+    assert "release" in adapter.scripts()
+
+
+async def test_cancellation_during_watchdog_stop_is_not_replaced_by_lock_lost() -> None:
+    adapter = FakeLockAdapter()
+
+    @distributed_lock("k", ttl_seconds=10.0, auto_renew=True, adapter=adapter)
+    async def job() -> str:
+        adapter.store["k"] = "other-owner"
+        cur = asyncio.current_task()
+        assert cur is not None
+        asyncio.get_running_loop().call_soon(cur.cancel)
+        return "ok"
+
+    task = asyncio.create_task(job())
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert task.cancelled() is True
+    assert "release" in adapter.scripts()
+
+
+async def test_cancelled_function_with_release_returning_zero_stays_cancelled() -> None:
+    adapter = FakeLockAdapter()
+    started = asyncio.Event()
+
+    @distributed_lock("k", auto_renew=False, adapter=adapter)
+    async def job() -> str:
+        adapter.store["k"] = "other-owner"
+        started.set()
+        await asyncio.sleep(10)
+        return "ok"
+
+    task = asyncio.create_task(job())
+    await started.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert task.cancelled() is True
+    assert adapter.scripts() == ["release"]

@@ -463,3 +463,76 @@ func TestDoSurfacesReleaseError(t *testing.T) {
 		t.Fatalf("expected Do to surface the release error, got %v", err)
 	}
 }
+
+type boundedReleaseMock struct {
+	*mockRedisClient
+	mu                sync.Mutex
+	releaseEvalCalled bool
+	hasDeadline       bool
+	deadlineRemaining time.Duration
+}
+
+func (m *boundedReleaseMock) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
+	if script == ReleaseLockLua {
+		calledAt := time.Now()
+		deadline, ok := ctx.Deadline()
+		m.mu.Lock()
+		m.releaseEvalCalled = true
+		m.hasDeadline = ok
+		if ok {
+			m.deadlineRemaining = deadline.Sub(calledAt)
+		}
+		m.mu.Unlock()
+
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return m.mockRedisClient.Eval(ctx, script, keys, args...)
+}
+
+func TestDoReleaseContextIsBoundedByTTL(t *testing.T) {
+	client := &boundedReleaseMock{
+		mockRedisClient: newMockRedis(),
+	}
+	ttl := 80 * time.Millisecond
+	locker := New(Config{
+		Client:           client,
+		DefaultTTL:       ttl,
+		DisableAutoRenew: true,
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- locker.Do(context.Background(), "lock:do-bounded-release", func(ctx context.Context) error {
+			return nil
+		})
+	}()
+
+	var err error
+	select {
+	case err = <-errCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Do did not return within 2 seconds: release context was likely unbounded")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected Do error to satisfy errors.Is(err, context.DeadlineExceeded), got %v", err)
+	}
+
+	client.mu.Lock()
+	evalCalled := client.releaseEvalCalled
+	hasDeadline := client.hasDeadline
+	remaining := client.deadlineRemaining
+	client.mu.Unlock()
+
+	if !evalCalled {
+		t.Fatal("expected Eval to be called with ReleaseLockLua")
+	}
+	if !hasDeadline {
+		t.Fatal("expected release Eval context to have a deadline")
+	}
+	slack := 20 * time.Millisecond
+	if remaining <= 0 || remaining > ttl+slack {
+		t.Fatalf("expected deadline to be no more than %v away from Eval call time, got %v", ttl+slack, remaining)
+	}
+}

@@ -194,9 +194,13 @@ def distributed_lock(
                     # Always attempt the release: the script is token-guarded, so it is a
                     # no-op when the lease is no longer ours.
                     try:
-                        await active_adapter.eval_lua(RELEASE_LOCK_LUA, [lock_key], [token])
+                        res = await active_adapter.eval_lua(RELEASE_LOCK_LUA, [lock_key], [token])
                     except Exception:
-                        pass
+                        if time.monotonic() - last_confirmed >= ttl_seconds:
+                            lock_lost = True
+                    else:
+                        if isinstance(res, int) and not isinstance(res, bool) and res == 0:
+                            lock_lost = True
 
                 # Fail closed on a lost lease, but never mask a cancellation in flight.
                 if lock_lost and (failure is None or isinstance(failure, Exception)):

@@ -8,6 +8,7 @@ import {
   RELEASE_LOCK_LUA,
   RENEW_LOCK_LUA,
 } from './distributed-lock';
+import { globalLogger } from '../logger';
 
 class MockRedisLockAdapter implements RedisLockAdapter {
   public store = new Map<string, { token: string; expiresAt: number }>();
@@ -313,5 +314,149 @@ describe('@distributedLock Decorator', () => {
     const res = await service.run();
     expect(res).toBe('global-ok');
     expect(adapter.setNxCallCount).toBe(1);
+  });
+
+  it('rejects with LockLostError when autoRenew is off and another instance took the key over', async () => {
+    class UnrenewedService {
+      @distributedLock({
+        key: 'lock:unrenewed-lost',
+        ttlMs: 50,
+        autoRenew: false,
+        adapter,
+      })
+      async run() {
+        adapter.store.set('lock:unrenewed-lost', { token: 'other-owner', expiresAt: Date.now() + 5000 });
+        await new Promise((r) => setTimeout(r, 60));
+        return 'completed';
+      }
+    }
+
+    const service = new UnrenewedService();
+    await expect(service.run()).rejects.toThrow(LockLostError);
+    expect(adapter.store.get('lock:unrenewed-lost')?.token).toBe('other-owner');
+  });
+
+  it('rejects with LockLostError when the release script returns 0 although no renewal saw the loss', async () => {
+    class StolenLockService {
+      @distributedLock({
+        key: 'lock:stolen-fast',
+        ttlMs: 500,
+        autoRenew: true,
+        adapter,
+      })
+      async run() {
+        adapter.store.set('lock:stolen-fast', { token: 'other-owner', expiresAt: Date.now() + 5000 });
+        await new Promise((r) => setTimeout(r, 20));
+        return 'completed';
+      }
+    }
+
+    const service = new StolenLockService();
+    await expect(service.run()).rejects.toThrow(LockLostError);
+  });
+
+  it('attaches the method error as cause when the release reports the lease lost', async () => {
+    const boom = new Error('boom');
+
+    class FailingOrderService {
+      @distributedLock({
+        key: 'lock:failing-release-lost',
+        ttlMs: 500,
+        autoRenew: false,
+        adapter,
+      })
+      async run() {
+        adapter.store.set('lock:failing-release-lost', { token: 'other-owner', expiresAt: Date.now() + 5000 });
+        throw boom;
+      }
+    }
+
+    const err: any = await new FailingOrderService().run().catch((e) => e);
+    expect(err).toBeInstanceOf(LockLostError);
+    expect(err.cause).toBe(boom);
+  });
+
+  it('rejects with LockLostError when the release throws after a full TTL without confirmation', async () => {
+    const realEval = adapter.evalLua.bind(adapter);
+    adapter.evalLua = async (script, keys, args) => {
+      if (script === RELEASE_LOCK_LUA) {
+        throw new Error('redis release timeout');
+      }
+      return realEval(script, keys, args);
+    };
+
+    class TimeoutReleaseService {
+      @distributedLock({
+        key: 'lock:release-throw-expired',
+        ttlMs: 40,
+        autoRenew: false,
+        adapter,
+      })
+      async run() {
+        await new Promise((r) => setTimeout(r, 60));
+        return 'completed';
+      }
+    }
+
+    const service = new TimeoutReleaseService();
+    await expect(service.run()).rejects.toThrow(LockLostError);
+  });
+
+  it('still returns the result when the release throws within the TTL', async () => {
+    const realEval = adapter.evalLua.bind(adapter);
+    adapter.evalLua = async (script, keys, args) => {
+      if (script === RELEASE_LOCK_LUA) {
+        throw new Error('redis blip on release');
+      }
+      return realEval(script, keys, args);
+    };
+
+    class QuickReleaseThrowService {
+      @distributedLock({
+        key: 'lock:release-throw-quick',
+        ttlMs: 2000,
+        autoRenew: false,
+        adapter,
+      })
+      async run() {
+        await new Promise((r) => setTimeout(r, 10));
+        return 'quick-ok';
+      }
+    }
+
+    const warn = jest.spyOn(globalLogger, 'warn').mockImplementation(() => undefined);
+    try {
+      const service = new QuickReleaseThrowService();
+      const result = await service.run();
+      expect(result).toBe('quick-ok');
+      // The swallowed failure leaves the key held until its TTL: it must be visible in the log.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('lock:release-throw-quick');
+      expect(warn.mock.calls[0][0]).toContain('redis blip on release');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it.each([
+    ['false', false],
+    ['null', null],
+    ['undefined', undefined],
+    ['the string "0"', '0'],
+  ])('rejects with LockLostError when the release script resolves to %s', async (_label, reply) => {
+    const realEval = adapter.evalLua.bind(adapter);
+    adapter.evalLua = async (script, keys, args) => {
+      if (script === RELEASE_LOCK_LUA) return reply;
+      return realEval(script, keys, args);
+    };
+
+    class FalsyReleaseService {
+      @distributedLock({ key: 'lock:falsy-release', ttlMs: 2000, autoRenew: false, adapter })
+      async run() {
+        return 'completed';
+      }
+    }
+
+    await expect(new FalsyReleaseService().run()).rejects.toThrow(LockLostError);
   });
 });

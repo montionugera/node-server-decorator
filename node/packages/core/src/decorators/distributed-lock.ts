@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { globalLogger } from '../logger';
 
 export interface RedisLockAdapter {
   setNxPx(key: string, value: string, ttlMs: number): Promise<boolean>;
@@ -20,6 +21,9 @@ else
     return 0
 end
 `.trim();
+
+/** A token-guarded script reports "not ours" as 0; adapters may surface it as 0, "0", false, null or undefined. */
+const scriptReportedMiss = (reply: unknown): boolean => !reply || Number(reply) === 0;
 
 export class LockAcquisitionError extends Error {
   constructor(message: string) {
@@ -164,7 +168,7 @@ export function distributedLock(options: DistributedLockOptions) {
           const sentAt = Date.now();
           try {
             const renewed = await adapter.evalLua(RENEW_LOCK_LUA, [lockKey], [token, ttlMs]);
-            if (!renewed || renewed === 0) {
+            if (scriptReportedMiss(renewed)) {
               markLost();
             } else {
               lastConfirmedAt = Math.max(lastConfirmedAt, sentAt);
@@ -201,9 +205,18 @@ export function distributedLock(options: DistributedLockOptions) {
       // Always attempt the release: the script is token-guarded, so it is a no-op when the
       // lease is no longer ours and frees the key immediately when it still is.
       try {
-        await adapter.evalLua(RELEASE_LOCK_LUA, [lockKey], [token]);
-      } catch {
-        // Ignore release errors on shutdown
+        const released = await adapter.evalLua(RELEASE_LOCK_LUA, [lockKey], [token]);
+        if (scriptReportedMiss(released)) {
+          lockLost = true;
+        }
+      } catch (err) {
+        // A thrown release is "unknown", the key stays held until TTL.
+        globalLogger.warn(
+          `@distributedLock: failed to release lock for key "${lockKey}": ${String(err)}; key stays held until its TTL expires`
+        );
+        if (Date.now() - lastConfirmedAt >= ttlMs) {
+          lockLost = true;
+        }
       }
 
       if (lockLost) {
