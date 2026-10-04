@@ -2,17 +2,25 @@
 
 When `use_queue=True` is set on a sync method called outside an event loop, the side
 effect runs on a single-worker `_EMIT_EXECUTOR` so the caller doesn't block (D-C).
-Register `atexit(_EMIT_EXECUTOR.shutdown, wait=True)` for delivery on shutdown.
+That one worker thread runs every publish on one long-lived event loop (`_EMIT_LOOP`),
+so loop-bound queue clients stay usable across messages.
+
+Shutdown needs nothing from the caller: `concurrent.futures` joins the worker at
+interpreter exit, which drains the emits already submitted, and an `atexit` hook
+(`_close_emit_loop`) then closes the loop. Call `_EMIT_EXECUTOR.shutdown(wait=True)`
+only to flush earlier than interpreter exit.
 """
 
 from __future__ import annotations
 
 import asyncio
+import atexit
 import concurrent.futures
+import contextvars
 import functools
 import inspect
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from typing import Any, TypeVar, cast
 
@@ -35,6 +43,29 @@ _EMIT_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 # Strong references to in-flight create_task() futures so the GC doesn't drop them
 # mid-flight (RUF006). Tasks self-remove via add_done_callback.
 _BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
+
+# One long-lived event loop for the executor's single worker thread. asyncio.run()
+# would create and close a loop per message, breaking loop-bound queue clients
+# (redis.asyncio, aio-pika, aiokafka) after the first publish. Only ever touched
+# from the worker thread, so no lock is needed.
+_EMIT_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+def _run_on_emit_loop(coro: Coroutine[Any, Any, None]) -> None:
+    global _EMIT_LOOP
+    if _EMIT_LOOP is None or _EMIT_LOOP.is_closed():
+        _EMIT_LOOP = asyncio.new_event_loop()
+    _EMIT_LOOP.run_until_complete(coro)
+
+
+def _close_emit_loop() -> None:
+    # atexit handlers run after concurrent.futures has joined the worker thread,
+    # so the loop is idle here.
+    if _EMIT_LOOP is not None and not _EMIT_LOOP.is_running() and not _EMIT_LOOP.is_closed():
+        _EMIT_LOOP.close()
+
+
+atexit.register(_close_emit_loop)
 
 
 @dataclass
@@ -74,7 +105,15 @@ def emit_on_success(
         resolved_event = opts.event_name or qualname
 
         async def _on_success(result: Any) -> None:
-            payload = opts.transform(result) if opts.transform else result
+            # The method already succeeded: a raising transform must not change its
+            # outcome. Log and skip emission instead of raising into the caller.
+            try:
+                payload = opts.transform(result) if opts.transform else result
+            except Exception as e:
+                _logger_mod.global_logger.error(
+                    f"emit_on_success transform failed for {resolved_event}; nothing emitted: {e!r}"
+                )
+                return
             if opts.use_events:
                 try:
                     _emitter_mod.global_emitter.emit(resolved_event, payload)
@@ -83,9 +122,11 @@ def emit_on_success(
             if opts.use_queue:
                 try:
                     service = get_service()
-                    auto_topic = resolved_event
+                    # topic-naming.md: the auto topic is ClassName.methodName, never
+                    # the event_name override (Node parity).
+                    auto_topic = qualname
                     if service and opts.topic is None:
-                        auto_topic = f"{service}.{resolved_event}"
+                        auto_topic = f"{service}.{qualname}"
                     meta: dict[str, Any] = {
                         "className": class_name,
                         "methodName": method_name,
@@ -143,7 +184,11 @@ def emit_on_success(
                 task.add_done_callback(_BACKGROUND_TASKS.discard)
             except RuntimeError:
                 # D-C: no running loop — submit to executor so caller doesn't block.
-                _EMIT_EXECUTOR.submit(asyncio.run, _on_success(result))
+                # Run inside a copy of the caller's context: the worker thread's own
+                # context is empty, which would drop the active trace (traceparent).
+                _EMIT_EXECUTOR.submit(
+                    contextvars.copy_context().run, _run_on_emit_loop, _on_success(result)
+                )
             return result
 
         _mark_wrapped(sync_wrapper, "emit_on_success")
