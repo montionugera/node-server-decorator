@@ -25,10 +25,9 @@ func CheckScopes(required []string, held []string) (bool, string) {
 // EnforceScopeAuth wraps an http.HandlerFunc to enforce authentication and required scopes.
 func EnforceScopeAuth(requiredScopes []string, extractor ScopeExtractor, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Fail closed: declared security with no extractor never exposes the route.
 		if extractor == nil {
-			if next != nil {
-				next(w, r)
-			}
+			WriteProblem(w, http.StatusUnauthorized, "Unauthorized", "authentication required", r.URL.Path)
 			return
 		}
 

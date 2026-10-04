@@ -50,24 +50,26 @@ ScopeExtractor = Callable[[Any], Awaitable[tuple[bool, list[str]]] | tuple[bool,
 
 async def enforce_scope_auth(
     required_scopes: Sequence[str],
-    extractor: ScopeExtractor,
+    extractor: ScopeExtractor | None,
     request: Any,
 ) -> ProblemDetails | None:
     """Helper function to enforce scope authorization on a request.
 
     Returns None if authorized; returns ProblemDetails (401 or 403) on failure.
     """
+    auth_result: Any
     if extractor is None:
-        return None
-
-    try:
-        res = extractor(request)
-        if inspect.isawaitable(res):
-            auth_result = await res
-        else:
-            auth_result = res
-    except Exception:
+        # Fail closed: declared security with no extractor never exposes the route.
         auth_result = (False, [])
+    else:
+        try:
+            res = extractor(request)
+            if inspect.isawaitable(res):
+                auth_result = await res
+            else:
+                auth_result = res
+        except Exception:
+            auth_result = (False, [])
 
     if isinstance(auth_result, tuple):
         authenticated = bool(auth_result[0])

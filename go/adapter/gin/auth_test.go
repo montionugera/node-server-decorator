@@ -26,11 +26,12 @@ func TestEnforceScopeAuth(t *testing.T) {
 		wantExecuted   bool
 	}{
 		{
-			name:           "no extractor passes through",
+			name:           "no extractor fails closed with 401",
 			requiredScopes: []string{"read"},
 			extractor:      nil,
-			wantStatus:     http.StatusOK,
-			wantExecuted:   true,
+			wantStatus:     http.StatusUnauthorized,
+			wantBodySub:    "authentication required",
+			wantExecuted:   false,
 		},
 		{
 			name:           "unauthenticated returns 401 and aborts",
