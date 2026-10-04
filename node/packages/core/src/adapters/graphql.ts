@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
+import { batchLoadScopeStorage, type BatchLoadScope } from '../decorators/batch-load';
 
 export interface GraphQLLoaderOptions<TParent = any, TKey = any, TResult = any> {
   /**
@@ -23,8 +24,33 @@ export interface GraphQLLoaderOptions<TParent = any, TKey = any, TResult = any> 
   isList?: boolean;
 }
 
-export class GraphQLLoaderRegistry {
+export class GraphQLLoaderRegistry implements BatchLoadScope {
   private loaders = new Map<string, any>();
+  private scopes = new Map<any, object>();
+  private services = new Map<any, any>();
+
+  /**
+   * Batching scope token for a service instance, unique to this registry. `@batchLoad` keys its
+   * queue and L1 cache by this token, so neither is shared with another request nor outlives dispose().
+   */
+  scopeFor(identity: object): object {
+    let scope = this.scopes.get(identity);
+    if (!scope) {
+      scope = {};
+      this.scopes.set(identity, scope);
+    }
+    return scope;
+  }
+
+  /**
+   * Get or build the service instance for a `service` option, keyed by identity (never by name).
+   */
+  serviceFor<T>(source: any, factory: () => T): T {
+    if (!this.services.has(source)) {
+      this.services.set(source, factory());
+    }
+    return this.services.get(source);
+  }
   private disposers: Array<() => void | Promise<void>> = [];
 
   /**
@@ -57,6 +83,8 @@ export class GraphQLLoaderRegistry {
       }
     }
     this.loaders.clear();
+    this.scopes.clear();
+    this.services.clear();
     this.disposers = [];
   }
 }
@@ -87,6 +115,20 @@ export function graphqlLoader<TParent = any, TKey = any, TResult = any>(
 ) {
   const { key: keyExtractor, service, method, loader, isList } = options;
 
+  const missingMethod = (target: any) =>
+    new Error(`Method '${method}' not found on service ${target?.constructor?.name}`);
+
+  // A pre-built instance (or anything already exposing the method) is used as-is; a class whose
+  // prototype has the method is instantiated; any other function is a factory.
+  const isInstance = !service || !method || typeof service !== 'function' || typeof service[method] === 'function';
+  const buildService = (): any => {
+    if (isInstance) return service;
+    return typeof service.prototype?.[method!] === 'function' ? new service() : service();
+  };
+  if (!loader && service && method && isInstance && typeof service[method] !== 'function') {
+    throw missingMethod(service);
+  }
+
   return async function graphqlFieldResolver(
     parent: TParent,
     args: any,
@@ -116,32 +158,24 @@ export function graphqlLoader<TParent = any, TKey = any, TResult = any>(
     if (loader) {
       loadFn = loader;
     } else if (service && method) {
-      const targetInstance = typeof service === 'function' && !(service.prototype && service.prototype[method])
-        ? service()
-        : service;
-
-      // If the service is a class or factory, check if registry has a request-scoped instance
-      if (registry) {
-        const cacheKey = `${targetInstance.constructor?.name || 'Service'}.${method}`;
-        loadFn = registry.getOrCreate(cacheKey, () => {
-          const fn = targetInstance[method];
-          if (typeof fn !== 'function') {
-            throw new Error(`Method '${method}' not found on service ${targetInstance.constructor?.name}`);
-          }
-          return fn.bind(targetInstance);
-        });
-      } else {
-        const fn = targetInstance[method];
-        if (typeof fn !== 'function') {
-          throw new Error(`Method '${method}' not found on service ${targetInstance.constructor?.name}`);
-        }
-        loadFn = fn.bind(targetInstance);
+      // One instance per request for classes/factories; without a registry nothing is shared.
+      const targetInstance = registry ? registry.serviceFor(service, buildService) : buildService();
+      const fn = targetInstance?.[method];
+      if (typeof fn !== 'function') {
+        throw missingMethod(targetInstance);
       }
+      loadFn = fn.bind(targetInstance);
     }
 
     if (!loadFn) {
       throw new Error('graphqlLoader requires either `loader` function or `service` and `method`');
     }
+
+    // Batch queues and L1 caches are owned by the request registry. Without one, use a scope that
+    // lives for this call only: no batching across calls, but nothing shared across requests either.
+    const scope = registry ?? new GraphQLLoaderRegistry();
+    const rawLoad = loadFn;
+    loadFn = (k: TKey) => batchLoadScopeStorage.run(scope, () => rawLoad(k));
 
     if (Array.isArray(key)) {
       if (key.length === 0) {
