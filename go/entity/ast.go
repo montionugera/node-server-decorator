@@ -90,16 +90,21 @@ func ParseStruct(src any, structName string) (Spec, error) {
 		}
 	}
 
-	fields, err := parseStructFields(targetStructType, fset, node)
+	fields, err := parseStructFields(targetStructType, fset, node, map[string]bool{structName: true})
 	if err != nil {
 		return Spec{}, err
+	}
+	for _, f := range fields {
+		if err := validateField(f, f.Name); err != nil {
+			return Spec{}, err
+		}
 	}
 	builder.Fields(fields...)
 
 	return builder.Build(), nil
 }
 
-func parseStructFields(st *ast.StructType, fset *token.FileSet, file *ast.File) ([]Field, error) {
+func parseStructFields(st *ast.StructType, fset *token.FileSet, file *ast.File, visiting map[string]bool) ([]Field, error) {
 	var fields []Field
 
 	if st.Fields == nil {
@@ -140,7 +145,7 @@ func parseStructFields(st *ast.StructType, fset *token.FileSet, file *ast.File) 
 		}
 
 		for _, name := range fieldNames {
-			f, err := parseField(name, astField.Type, entityTag, jsonTag, fset, file)
+			f, err := parseField(name, astField.Type, entityTag, jsonTag, fset, file, visiting)
 			if err != nil {
 				return nil, err
 			}
@@ -151,7 +156,7 @@ func parseStructFields(st *ast.StructType, fset *token.FileSet, file *ast.File) 
 	return fields, nil
 }
 
-func parseField(goFieldName string, astType ast.Expr, entityTag, jsonTag string, fset *token.FileSet, file *ast.File) (Field, error) {
+func parseField(goFieldName string, astType ast.Expr, entityTag, jsonTag string, fset *token.FileSet, file *ast.File, visiting map[string]bool) (Field, error) {
 	// Parse entity tag attributes
 	tagAttrs, err := parseTagString(entityTag)
 	if err != nil {
@@ -171,7 +176,7 @@ func parseField(goFieldName string, astType ast.Expr, entityTag, jsonTag string,
 	}
 
 	// Resolve type
-	f, err := resolveAstType(astType, fset, file)
+	f, err := resolveAstType(astType, fset, file, visiting)
 	if err != nil {
 		return Field{}, fmt.Errorf("field %s: %w", goFieldName, err)
 	}
@@ -223,15 +228,17 @@ func parseField(goFieldName string, astType ast.Expr, entityTag, jsonTag string,
 		f.Writeonly = true
 	}
 
-	// If item name is needed for list item
-	if f.Type == "list" && f.Item != nil && f.Item.Name == "" {
-		f.Item.Name = f.Name
+	// A list item carries the field's wire name at every nesting level ([][]T included).
+	if f.Type == "list" {
+		for item := f.Item; item != nil && item.Name == ""; item = item.Item {
+			item.Name = f.Name
+		}
 	}
 
 	return f, nil
 }
 
-func resolveAstType(expr ast.Expr, fset *token.FileSet, file *ast.File) (Field, error) {
+func resolveAstType(expr ast.Expr, fset *token.FileSet, file *ast.File, visiting map[string]bool) (Field, error) {
 	switch t := expr.(type) {
 	case *ast.Ident:
 		switch t.Name {
@@ -250,7 +257,14 @@ func resolveAstType(expr ast.Expr, fset *token.FileSet, file *ast.File) (Field, 
 			// Named type in the same file/package or embedded struct
 			st := findStructByName(file, t.Name)
 			if st != nil {
-				subFields, err := parseStructFields(st, fset, file)
+				// visiting holds the struct names on the current resolution path; meeting one
+				// again is a cycle, which the IR cannot express (and would recurse forever).
+				if visiting[t.Name] {
+					return Field{}, fmt.Errorf("recursive struct %q cannot be expressed as an entity spec", t.Name)
+				}
+				visiting[t.Name] = true
+				defer delete(visiting, t.Name)
+				subFields, err := parseStructFields(st, fset, file, visiting)
 				if err != nil {
 					return Field{}, err
 				}
@@ -268,7 +282,7 @@ func resolveAstType(expr ast.Expr, fset *token.FileSet, file *ast.File) (Field, 
 
 	case *ast.StarExpr:
 		// Pointer type - unwrap pointer
-		sub, err := resolveAstType(t.X, fset, file)
+		sub, err := resolveAstType(t.X, fset, file, visiting)
 		if err != nil {
 			return Field{}, err
 		}
@@ -276,7 +290,7 @@ func resolveAstType(expr ast.Expr, fset *token.FileSet, file *ast.File) (Field, 
 
 	case *ast.ArrayType:
 		// Slice / array: []T
-		itemField, err := resolveAstType(t.Elt, fset, file)
+		itemField, err := resolveAstType(t.Elt, fset, file, visiting)
 		if err != nil {
 			return Field{}, err
 		}
@@ -287,7 +301,7 @@ func resolveAstType(expr ast.Expr, fset *token.FileSet, file *ast.File) (Field, 
 
 	case *ast.StructType:
 		// Inline anonymous struct
-		subFields, err := parseStructFields(t, fset, file)
+		subFields, err := parseStructFields(t, fset, file, visiting)
 		if err != nil {
 			return Field{}, err
 		}

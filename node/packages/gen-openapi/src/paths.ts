@@ -67,7 +67,9 @@ export function openapiPaths(spec: EntitySpec): Record<string, JsonSchema> {
 
   if (spec.ops.includes('list')) {
     const params = [...paginationParams(spec), ...filterParams(spec)]
-      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      // Code-point order like every other lane (names are ASCII) — never localeCompare, which
+      // is ICU/locale dependent and orders `userid` before `userName`.
+      .sort((a, b) => (String(a.name) < String(b.name) ? -1 : String(a.name) > String(b.name) ? 1 : 0));
     collection.get = {
       ...tags, operationId: `list${e}`, parameters: params,
       responses: {

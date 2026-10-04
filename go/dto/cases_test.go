@@ -8,11 +8,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/montionugera/node-server-decorator/v2/go/entity"
 	"github.com/montionugera/node-server-decorator/v2/go/internal/example"
 )
 
 type contractCase struct {
 	Name        string          `json:"name"`
+	Spec        *entity.Spec    `json:"spec"` // optional inline IR; replaces the User fixture
 	DTO         string          `json:"dto"`
 	Payload     json.RawMessage `json:"payload"`
 	Valid       bool            `json:"valid"`
@@ -36,8 +38,8 @@ func TestCasesMatchesContractFixture(t *testing.T) {
 		t.Fatalf("failed to unmarshal fixture: %v", err)
 	}
 
-	if len(fixture.Cases) != 22 {
-		t.Fatalf("expected 22 test cases, got %d", len(fixture.Cases))
+	if len(fixture.Cases) != 38 {
+		t.Fatalf("expected 38 test cases, got %d", len(fixture.Cases))
 	}
 
 	for _, c := range fixture.Cases {
@@ -51,7 +53,11 @@ func TestCasesMatchesContractFixture(t *testing.T) {
 				t.Fatalf("failed to decode payload: %v", err)
 			}
 
-			errFields, ok := Validate(example.UserSpec, c.DTO, payload)
+			spec := example.UserSpec
+			if c.Spec != nil {
+				spec = *c.Spec
+			}
+			errFields, ok := Validate(spec, c.DTO, payload)
 
 			if ok != c.Valid {
 				t.Errorf("expected valid=%v, got %v (errFields=%v)", c.Valid, ok, errFields)
