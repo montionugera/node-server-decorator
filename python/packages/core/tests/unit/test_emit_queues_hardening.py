@@ -249,3 +249,39 @@ async def test_topic_naming_contract_cases(case: dict[str, Any]) -> None:
     assert len(messages) == 1
     assert messages[0]["eventName"] == case["expectedEventName"]
     assert messages[0]["metadata"]["topic"] == case["expectedTopic"]
+
+
+async def test_registry_stop_drains_other_consumers_when_one_run_died() -> None:
+    from server_decorator.consumer.registry import ConsumerRegistry
+
+    class Bad:
+        async def run(self, dispatch: Any) -> None:
+            raise RuntimeError("redis down")
+
+        async def stop(self) -> None:
+            pass
+
+    class Good:
+        def __init__(self) -> None:
+            self.event = asyncio.Event()
+            self.finished = False
+
+        async def run(self, dispatch: Any) -> None:
+            await self.event.wait()
+            await asyncio.sleep(0.05)
+            self.finished = True
+
+        async def stop(self) -> None:
+            self.event.set()
+
+    good = Good()
+    registry = ConsumerRegistry()
+    registry.register("bad", Bad())
+    registry.register("good", good)
+
+    await registry.start()
+    await asyncio.sleep(0.01)
+    await registry.stop()
+
+    assert good.finished is True
+    assert registry._tasks == []

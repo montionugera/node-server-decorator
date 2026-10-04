@@ -67,3 +67,5 @@ Everything that runs after the decorated method succeeded (the `transform`, the 
 ## Consumer delivery guarantees
 
 Consumers are at-least-once. A Kafka consumer whose handler fails must not commit that offset and must rewind the partition to it (after a retry backoff, default 1000 ms) before dispatching anything later, so no commit can ever pass over a failed or undispatched offset. A consumer adapter whose run loop fails is logged by the registry; it is not restarted and must not crash the process.
+
+A failure to acknowledge is not a reason to crash either. If the broker call that acks or rejects a message throws (for example a RabbitMQ channel that closed while the handler ran), the adapter logs it and leaves the message unacknowledged, so the broker redelivers it; the adapter never rejects a message whose handler succeeded. Stopping the registry always drains every consumer: a consumer whose run loop already died was logged when it died and does not make `stop()` fail or skip the others.

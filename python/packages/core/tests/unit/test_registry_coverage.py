@@ -396,7 +396,7 @@ async def test_stop_tolerates_task_that_was_already_cancelled() -> None:
     assert reg._tasks == []
 
 
-async def test_crashed_consumer_task_is_logged_and_stop_surfaces_the_error(
+async def test_crashed_consumer_task_is_logged_once_and_stop_does_not_raise(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     class _Crashing(_StubAdapter):
@@ -414,8 +414,10 @@ async def test_crashed_consumer_task_is_logged_and_stop_surfaces_the_error(
     assert len(crashed) == 1
     assert isinstance(crashed[0].exc_info[1], RuntimeError)  # type: ignore[index]
 
-    with pytest.raises(RuntimeError, match="adapter crashed"):
-        await reg.stop()
+    # contracts/rules/topic-naming.md "Consumer delivery guarantees": a dead run loop
+    # was already logged and must not make stop() fail (Node uses Promise.allSettled).
+    await reg.stop()
+    assert reg._tasks == []
 
 
 async def test_on_task_done_ignores_cancelled_and_clean_tasks(

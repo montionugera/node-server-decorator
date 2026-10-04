@@ -1,8 +1,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { configure } from '../config'
-import { setGlobalLogger } from '../logger'
-import { KafkaConsumer } from './consumer-adapters'
+import { setGlobalLogger, globalLogger } from '../logger'
+import { KafkaConsumer, RabbitMQConsumer } from './consumer-adapters'
+import type { Channel } from 'amqplib'
 import { ConsumerAdapter, ConsumerRegistry } from './consumer-registry'
 import { EmitOnSuccess } from './emit-on-success'
 import { globalEmitter } from './global-emitter'
@@ -368,5 +369,135 @@ describe('emit / queues / consumers hardening', () => {
         expect(messages[0].metadata?.topic).toBe(c.expectedTopic)
       },
     )
+  })
+
+  describe('RabbitMQConsumer ack/nack failure', () => {
+    it('logs a throwing ack instead of leaving an unhandled rejection', async () => {
+      const unhandled: unknown[] = []
+      const onUnhandled = (reason: unknown) => unhandled.push(reason)
+      process.on('unhandledRejection', onUnhandled)
+      try {
+        let consumeCallback!: (msg: any) => void
+        const channel = {
+          assertQueue: jest.fn().mockResolvedValue({}),
+          prefetch: jest.fn().mockResolvedValue({}),
+          consume: jest
+            .fn()
+            .mockImplementation(async (_q: string, cb: (msg: any) => void) => {
+              consumeCallback = cb
+              return { consumerTag: 't' }
+            }),
+          ack: jest.fn().mockImplementation(() => {
+            throw new Error('IllegalOperationError: Channel closed')
+          }),
+          nack: jest.fn(),
+          cancel: jest.fn().mockResolvedValue({}),
+        } as unknown as Channel
+
+        const consumer = new RabbitMQConsumer(channel, { queue: 'q' })
+        const dispatch = jest.fn().mockResolvedValue(undefined)
+        await consumer.run(dispatch)
+
+        consumeCallback({ content: Buffer.from(JSON.stringify({ a: 1 })) })
+        await new Promise((r) => setImmediate(r))
+        await new Promise((r) => setImmediate(r))
+
+        expect(unhandled).toEqual([])
+        expect(globalLogger.error).toHaveBeenCalledWith(
+          expect.stringContaining('Channel closed'),
+        )
+        expect(channel.nack).not.toHaveBeenCalled()
+      } finally {
+        process.off('unhandledRejection', onUnhandled)
+      }
+    })
+
+    it('logs a throwing nack after a failed dispatch instead of leaving an unhandled rejection', async () => {
+      const unhandled: unknown[] = []
+      const onUnhandled = (reason: unknown) => unhandled.push(reason)
+      process.on('unhandledRejection', onUnhandled)
+      try {
+        let consumeCallback!: (msg: any) => void
+        const nackError = new Error(
+          'IllegalOperationError: Channel closed on nack',
+        )
+        const channel = {
+          assertQueue: jest.fn().mockResolvedValue({}),
+          prefetch: jest.fn().mockResolvedValue({}),
+          consume: jest
+            .fn()
+            .mockImplementation(async (_q: string, cb: (msg: any) => void) => {
+              consumeCallback = cb
+              return { consumerTag: 't' }
+            }),
+          ack: jest.fn(),
+          nack: jest.fn().mockImplementation(() => {
+            throw nackError
+          }),
+          cancel: jest.fn().mockResolvedValue({}),
+        } as unknown as Channel
+
+        const consumer = new RabbitMQConsumer(channel, { queue: 'q' })
+        const dispatch = jest
+          .fn()
+          .mockRejectedValue(new Error('handler failed'))
+        await consumer.run(dispatch)
+
+        consumeCallback({ content: Buffer.from(JSON.stringify({ a: 1 })) })
+        await new Promise((r) => setImmediate(r))
+        await new Promise((r) => setImmediate(r))
+
+        expect(unhandled).toEqual([])
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining('Channel closed on nack'),
+        )
+        expect(channel.ack).not.toHaveBeenCalled()
+      } finally {
+        process.off('unhandledRejection', onUnhandled)
+      }
+    })
+
+    it('logs a throwing ack on an unparseable body instead of leaving an unhandled rejection', async () => {
+      const unhandled: unknown[] = []
+      const onUnhandled = (reason: unknown) => unhandled.push(reason)
+      process.on('unhandledRejection', onUnhandled)
+      try {
+        let consumeCallback!: (msg: any) => void
+        const ackError = new Error(
+          'IllegalOperationError: Channel closed on unparseable ack',
+        )
+        const channel = {
+          assertQueue: jest.fn().mockResolvedValue({}),
+          prefetch: jest.fn().mockResolvedValue({}),
+          consume: jest
+            .fn()
+            .mockImplementation(async (_q: string, cb: (msg: any) => void) => {
+              consumeCallback = cb
+              return { consumerTag: 't' }
+            }),
+          ack: jest.fn().mockImplementation(() => {
+            throw ackError
+          }),
+          nack: jest.fn(),
+          cancel: jest.fn().mockResolvedValue({}),
+        } as unknown as Channel
+
+        const consumer = new RabbitMQConsumer(channel, { queue: 'q' })
+        const dispatch = jest.fn().mockResolvedValue(undefined)
+        await consumer.run(dispatch)
+
+        consumeCallback({ content: Buffer.from('not json') })
+        await new Promise((r) => setImmediate(r))
+        await new Promise((r) => setImmediate(r))
+
+        expect(unhandled).toEqual([])
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining('Channel closed on unparseable ack'),
+        )
+        expect(channel.nack).not.toHaveBeenCalled()
+      } finally {
+        process.off('unhandledRejection', onUnhandled)
+      }
+    })
   })
 })

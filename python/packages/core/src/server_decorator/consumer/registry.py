@@ -96,6 +96,9 @@ class ConsumerRegistry:
                     await task
             except asyncio.CancelledError:
                 pass
+            except Exception:
+                # run() already died; _on_task_done logged it. Keep draining the rest.
+                pass
         self._tasks.clear()
 
     def _entry(self, consumer: str | None) -> _ConsumerEntry:

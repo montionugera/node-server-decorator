@@ -184,6 +184,7 @@ export class KafkaConsumer implements ConsumerAdapter {
 // RabbitMQConsumer — at-least-once consume via basic.consume. The message body is the
 // JSON envelope (matching the producer's RabbitMQAdapter). dispatch success -> ack;
 // dispatch raise -> nack(requeue=true); unparseable body -> ack + drop (log). One queue.
+// An ack/nack failure is logged and the message is left unacked (broker redelivers).
 export class RabbitMQConsumer implements ConsumerAdapter {
   private consumerTag?: string
 
@@ -199,7 +200,11 @@ export class RabbitMQConsumer implements ConsumerAdapter {
       this.options.queue,
       (msg: ConsumeMessage | null) => {
         if (!msg) return
-        void this.handle(dispatch, msg)
+        this.handle(dispatch, msg).catch((err) => {
+          globalLogger.error(
+            `rabbitmq ack/nack failed; message left unacked for broker redelivery: ${err}`,
+          )
+        })
       },
       { noAck: false },
     )
