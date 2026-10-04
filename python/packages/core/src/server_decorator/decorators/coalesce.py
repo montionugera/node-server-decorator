@@ -12,6 +12,8 @@ import functools
 import inspect
 import json
 import time
+import weakref
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from typing import Any, Generic, TypeVar, cast
 
@@ -23,13 +25,56 @@ V = TypeVar("V")
 
 _MISSING_SENTINEL = object()
 
+# Scope values that cannot be weakly referenced (str/int request ids, tuples) cannot be released
+# automatically, so at most this many of their queues are kept per decorated function (LRU).
+_MAX_STRONG_SCOPES = 1024
+
+# Ambient batching scope. While set, every @batch_load method keys its queue (and L1 cache) by
+# ``scope.scope_for(instance)`` instead of the service instance, so the state belongs to the
+# scope owner (e.g. one GraphQL request). The value must expose ``scope_for(identity) -> object``.
+batch_load_scope: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
+    "server_decorator_batch_load_scope", default=None
+)
+
 
 class QueuedItem(Generic[K, V]):
-    __slots__ = ("future", "key")
+    __slots__ = ("future", "key", "stale")
 
     def __init__(self, key: K, future: asyncio.Future[V]) -> None:
         self.future = future
         self.key = key
+        # Set by clear(): the value this load reads may predate the invalidation; do not cache it.
+        self.stale = False
+
+
+def _weak_batch_method(instance: Any, name: str, method: Any) -> Any:
+    """Resolve ``instance.<name>`` lazily through a weak reference.
+
+    A queue scoped to a service instance must not keep that instance (and thereby itself)
+    alive, or transient instances would never be collected.
+    """
+    try:
+        ref = weakref.ref(instance)
+    except TypeError:
+        return method
+
+    async def _call(keys: list[Any]) -> Any:
+        inst = ref()
+        if inst is None:
+            raise ReferenceError(f"@batch_load: instance owning {name!r} no longer exists")
+        return await getattr(inst, name)(keys)
+
+    return _call
+
+
+async def _l2_delete(l2_cache: Any, key: Any) -> None:
+    if l2_cache is None:
+        return
+    del_fn = getattr(l2_cache, "delete", None) or getattr(l2_cache, "del", None)
+    if callable(del_fn):
+        res = del_fn([str(key)])
+        if inspect.isawaitable(res):
+            await res
 
 
 class LruCache:
@@ -117,6 +162,9 @@ class BatchQueue(Generic[K, V]):
         self.queue: list[QueuedItem[K, V]] = []
         self.scheduled_handle: asyncio.TimerHandle | asyncio.Handle | None = None
         self.in_flight: dict[K, asyncio.Future[V]] = {}
+        # Every load that has not settled yet; clear() marks the matching ones stale so that a
+        # value read before the invalidation is never written back to L1/L2.
+        self._pending: set[QueuedItem[K, V]] = set()
         self._background_tasks: set[asyncio.Task[Any]] = set()
 
     def _spawn_task(self, coro: Awaitable[Any]) -> None:
@@ -145,15 +193,21 @@ class BatchQueue(Generic[K, V]):
             return self.in_flight[key]
 
         fut = loop.create_future()
-        self.queue.append(QueuedItem(key, fut))
+        queued = QueuedItem(key, fut)
+        self.queue.append(queued)
+        self._pending.add(queued)
 
         if self.deduplicate:
             self.in_flight[key] = fut
 
-            def _clean(_: Any) -> None:
-                self.in_flight.pop(key, None)
+        def _clean(_: Any) -> None:
+            self._pending.discard(queued)
+            # Only drop the in-flight entry if it is still ours: clear() may have let a newer
+            # flight take the slot.
+            if self.in_flight.get(key) is fut:
+                del self.in_flight[key]
 
-            fut.add_done_callback(_clean)
+        fut.add_done_callback(_clean)
 
         if len(self.queue) >= self.max_batch_size:
             batch = self.queue[: self.max_batch_size]
@@ -237,15 +291,20 @@ class BatchQueue(Generic[K, V]):
                 # Suppress prefetch errors so parent never fails
                 pass
 
-    async def clear(self, key: K) -> None:
+    def clear_local(self, key: K) -> None:
+        """Invalidate this queue's own state for ``key``: L1 entry and any load in flight."""
         if self.l1_cache is not None:
             self.l1_cache.delete(key)
-        if self.l2_cache is not None:
-            del_fn = getattr(self.l2_cache, "delete", None) or getattr(self.l2_cache, "del", None)
-            if callable(del_fn):
-                res = del_fn([str(key)])
-                if inspect.isawaitable(res):
-                    await res
+        # A load in flight may already have read the pre-invalidation value: later reads must
+        # not join it, and it must not write that value back to L1/L2 when it settles.
+        self.in_flight.pop(key, None)
+        for item in self._pending:
+            if item.key == key:
+                item.stale = True
+
+    async def clear(self, key: K) -> None:
+        self.clear_local(key)
+        await _l2_delete(self.l2_cache, key)
 
     def _schedule_dispatch(self, loop: asyncio.AbstractEventLoop) -> None:
         if self.window_seconds > 0:
@@ -303,7 +362,7 @@ class BatchQueue(Generic[K, V]):
                         raw_val = res_map.get(s_key) or res_map.get(item.key)
                         if raw_val is not None:
                             val = self.deserializer(raw_val)
-                            if self.l1_cache is not None:
+                            if self.l1_cache is not None and not item.stale:
                                 self.l1_cache.set(item.key, val)
                             if not item.future.done():
                                 item.future.set_result(val)
@@ -341,15 +400,15 @@ class BatchQueue(Generic[K, V]):
                 if not item.future.done():
                     if item.key in result_map:
                         val = result_map[item.key]
-                        if self.l1_cache is not None:
+                        if self.l1_cache is not None and not item.stale:
                             self.l1_cache.set(item.key, val)
-                        if self.l2_cache is not None:
+                        if self.l2_cache is not None and not item.stale:
                             l2_set_items[str(item.key)] = self.serializer(val)
                         item.future.set_result(val)
                         l3_resolved_items.append(val)
                     else:
                         # Negative cache
-                        if self.l1_cache is not None:
+                        if self.l1_cache is not None and not item.stale:
                             self.l1_cache.set(
                                 item.key, _MISSING_SENTINEL, self.negative_ttl_seconds
                             )
@@ -429,21 +488,37 @@ def batch_load(
         if not inspect.iscoroutinefunction(fn):
             raise TypeError(f"@batch_load requires an async coroutine function, got {fn}")
 
-        queues_by_scope: dict[Any, BatchQueue[Any, Any]] = {}
-        all_queues: set[BatchQueue[Any, Any]] = set()
+        # Queues are owned by their scope (request context value, service instance): a weak
+        # mapping lets a queue and its L1 cache die with the scope. Scope values that cannot be
+        # weakly referenced fall back to a bounded LRU.
+        weak_queues: weakref.WeakKeyDictionary[Any, BatchQueue[Any, Any]] = (
+            weakref.WeakKeyDictionary()
+        )
+        strong_queues: OrderedDict[Any, BatchQueue[Any, Any]] = OrderedDict()
+        all_queues: weakref.WeakSet[BatchQueue[Any, Any]] = weakref.WeakSet()
+
+        # Bound-vs-free and the key parameter are decided from the signature, never guessed
+        # from the runtime type of the first argument (a UUID key is not a ``self``).
+        params = list(inspect.signature(fn).parameters)
+        has_self_param = bool(params) and params[0] in ("self", "cls")
+        key_index = 1 if has_self_param else 0
+        key_name = params[key_index] if len(params) > key_index else None
 
         def _get_or_create_queue(instance: Any) -> BatchQueue[Any, Any] | None:
             resolved_batch_fn = batch_fn
             if resolved_batch_fn is None and batch_method and instance is not None:
                 method = getattr(instance, batch_method, None)
                 if callable(method):
-                    resolved_batch_fn = method
+                    resolved_batch_fn = _weak_batch_method(instance, batch_method, method)
 
             if resolved_batch_fn is None:
                 return None
 
             scope_target: Any = None
-            if context_var is not None:
+            ambient_scope = batch_load_scope.get()
+            if ambient_scope is not None:
+                scope_target = ambient_scope.scope_for(instance if instance is not None else fn)
+            elif context_var is not None:
                 try:
                     scope_target = context_var.get()
                 except LookupError:
@@ -451,7 +526,14 @@ def batch_load(
             if scope_target is None:
                 scope_target = instance if instance is not None else fn
 
-            queue = queues_by_scope.get(scope_target)
+            try:
+                queue = weak_queues.get(scope_target)
+                weak_scope = True
+            except TypeError:
+                weak_scope = False
+                queue = strong_queues.get(scope_target)
+                if queue is not None:
+                    strong_queues.move_to_end(scope_target)
             if queue is None:
                 queue = BatchQueue(
                     resolved_batch_fn,
@@ -469,7 +551,12 @@ def batch_load(
                     prefetch_rules=normalized_prefetch_rules,
                     relation=relation,
                 )
-                queues_by_scope[scope_target] = queue
+                if weak_scope:
+                    weak_queues[scope_target] = queue
+                else:
+                    strong_queues[scope_target] = queue
+                    while len(strong_queues) > _MAX_STRONG_SCOPES:
+                        strong_queues.popitem(last=False)
                 all_queues.add(queue)
 
             return queue
@@ -477,21 +564,22 @@ def batch_load(
         @functools.wraps(fn)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             # Determine scope and key
-            prims = (str, int, float, bool, list, tuple, dict)
-            is_prim = isinstance(args[0], prims) if args else True
-            has_self = bool(args) and not is_prim
-            instance = args[0] if has_self else None
+            instance = args[0] if has_self_param and args else None
 
-            if has_self:
-                key = args[1] if len(args) > 1 else kwargs.get("id", kwargs.get("key"))
+            if len(args) > key_index:
+                key = args[key_index]
+            elif key_name is not None and key_name in kwargs:
+                key = kwargs[key_name]
             else:
-                key = args[0] if args else kwargs.get("id", kwargs.get("key"))
+                key = kwargs.get("id", kwargs.get("key"))
 
             queue = _get_or_create_queue(instance)
             if queue is None:
                 return await fn(*args, **kwargs)
 
-            return await queue.load(key)
+            # The future may be shared with other callers of the same key: shield it so that
+            # cancelling this caller (disconnect, timeout) never cancels theirs.
+            return await asyncio.shield(queue.load(key))
 
         def _prime(key: Any, val: Any, instance: Any = None) -> None:
             queue = _get_or_create_queue(instance)
@@ -504,8 +592,11 @@ def batch_load(
                 queue.prefetch(keys)
 
         async def _clear(key: Any) -> None:
+            # Every queue of this function shares one L2 cache: invalidate each live queue's own
+            # state, then delete from L2 once instead of once per queue.
             for q in list(all_queues):
-                await q.clear(key)
+                q.clear_local(key)
+            await _l2_delete(l2_cache, key)
 
         async_wrapper.clear = _clear  # type: ignore[attr-defined]
         async_wrapper.prime = _prime  # type: ignore[attr-defined]

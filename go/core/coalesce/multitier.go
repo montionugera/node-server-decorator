@@ -48,7 +48,10 @@ type MultiTierLoader[K comparable, V any] struct {
 	sf          *Group[string, map[K]V]
 	mu          sync.Mutex
 	activeBatch *multiTierBatch[K, V]
-	closed      bool
+	// flights holds every dispatched batch that has not finished yet (guarded by mu), so that
+	// Clear can mark keys a running batch may already have read.
+	flights map[*multiTierBatch[K, V]]struct{}
+	closed  bool
 }
 
 type multiTierRequest[V any] struct {
@@ -65,6 +68,9 @@ type multiTierBatch[K comparable, V any] struct {
 	cancelBatch context.CancelFunc
 	callerCount int32
 	dispatched  bool
+	// stale lists keys cleared while this batch was running (guarded by the loader's mu): the
+	// value the batch read for them may predate the invalidation and must not be cached.
+	stale map[K]bool
 }
 
 // NewMultiTierLoader creates a new 3-tier coalescing loader.
@@ -92,9 +98,10 @@ func NewMultiTierLoader[K comparable, V any](cfg MultiTierConfig[K, V]) *MultiTi
 	}
 
 	return &MultiTierLoader[K, V]{
-		cfg: cfg,
-		l1:  NewLRU[K, multiTierHolder[V]](cfg.L1Capacity, cfg.L1TTL),
-		sf:  NewGroup[string, map[K]V](),
+		cfg:     cfg,
+		l1:      NewLRU[K, multiTierHolder[V]](cfg.L1Capacity, cfg.L1TTL),
+		sf:      NewGroup[string, map[K]V](),
+		flights: make(map[*multiTierBatch[K, V]]struct{}),
 	}
 }
 
@@ -155,10 +162,24 @@ func (l *MultiTierLoader[K, V]) Load(ctx context.Context, key K) (V, error) {
 
 	select {
 	case <-ctx.Done():
-		remaining := atomic.AddInt32(&b.callerCount, -1)
-		if remaining <= 0 {
+		// Done under the lock so that no caller can join a batch that is being abandoned.
+		l.mu.Lock()
+		if atomic.AddInt32(&b.callerCount, -1) <= 0 {
+			if !b.dispatched {
+				// Still collecting and nobody is waiting: discard it so that a later caller
+				// opens a fresh batch instead of joining a cancelled one.
+				b.dispatched = true
+				if b.timer != nil {
+					b.timer.Stop()
+				}
+				if l.activeBatch == b {
+					l.activeBatch = nil
+				}
+			}
+			// Either discarded or already dispatched with no caller left: stop the query.
 			b.cancelBatch()
 		}
+		l.mu.Unlock()
 		var zero V
 		return zero, ctx.Err()
 	case val := <-req.result:
@@ -180,13 +201,29 @@ func (l *MultiTierLoader[K, V]) triggerBatch(b *multiTierBatch[K, V]) {
 	if l.activeBatch == b {
 		l.activeBatch = nil
 	}
+	l.flights[b] = struct{}{}
 
 	go l.dispatchBatch(b)
+}
+
+// cacheL1 stores a value a batch has read, unless the key was cleared while the batch ran.
+// The check and the write happen under mu, the same lock Clear marks and deletes under.
+func (l *MultiTierLoader[K, V]) cacheL1(b *multiTierBatch[K, V], key K, holder multiTierHolder[V], ttl time.Duration) {
+	l.mu.Lock()
+	if !b.stale[key] {
+		l.l1.Set(key, holder, ttl)
+	}
+	l.mu.Unlock()
 }
 
 func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 	keys := b.keys
 	reqs := b.requests
+	defer func() {
+		l.mu.Lock()
+		delete(l.flights, b)
+		l.mu.Unlock()
+	}()
 
 	// Phase A: L1 Check
 	var l1Misses []K
@@ -228,7 +265,7 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 				}
 				val, dErr := l.cfg.Deserialize(rawBytes)
 				if dErr == nil {
-					l.l1.Set(origKey, multiTierHolder[V]{value: val}, l.cfg.L1TTL)
+					l.cacheL1(b, origKey, multiTierHolder[V]{value: val}, l.cfg.L1TTL)
 					for _, r := range reqs[origKey] {
 						r.result <- val
 					}
@@ -268,7 +305,7 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 	for _, k := range l2Misses {
 		if val, found := resMap[k]; found {
 			resolvedItems = append(resolvedItems, val)
-			l.l1.Set(k, multiTierHolder[V]{value: val}, l.cfg.L1TTL)
+			l.cacheL1(b, k, multiTierHolder[V]{value: val}, l.cfg.L1TTL)
 			if l.cfg.L2Cache != nil && l.cfg.Serialize != nil {
 				if bytes, sErr := l.cfg.Serialize(val); sErr == nil {
 					l2SetItems[l.cfg.KeyToString(k)] = bytes
@@ -279,13 +316,22 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 			}
 		} else {
 			// Negative caching for non-existent key
-			l.l1.Set(k, multiTierHolder[V]{isMissing: true}, l.cfg.NegativeTTL)
+			l.cacheL1(b, k, multiTierHolder[V]{isMissing: true}, l.cfg.NegativeTTL)
 			var zero V
 			for _, r := range reqs[k] {
 				r.result <- zero
 			}
 		}
 	}
+
+	// Never re-publish to L2 a value read before a Clear of its key.
+	l.mu.Lock()
+	for _, k := range l2Misses {
+		if b.stale[k] {
+			delete(l2SetItems, l.cfg.KeyToString(k))
+		}
+	}
+	l.mu.Unlock()
 
 	if len(l2SetItems) > 0 && l.cfg.L2Cache != nil {
 		_ = l.cfg.L2Cache.SetMany(b.ctx, l2SetItems, l.cfg.L2TTL)
@@ -366,9 +412,21 @@ func (l *MultiTierLoader[K, V]) Prefetch(ctx context.Context, keys []K) {
 	}()
 }
 
-// Clear invalidates a key from L1 memory and L2 distributed cache.
+// Clear invalidates a key from L1 memory and L2 distributed cache. A batch that is already
+// running may have read the key before the invalidation, so it is barred from writing the key
+// back to L1/L2; loads issued after Clear always go to a new batch.
 func (l *MultiTierLoader[K, V]) Clear(ctx context.Context, key K) error {
+	l.mu.Lock()
+	for b := range l.flights {
+		if b.keyMap[key] {
+			if b.stale == nil {
+				b.stale = make(map[K]bool)
+			}
+			b.stale[key] = true
+		}
+	}
 	l.l1.Delete(key)
+	l.mu.Unlock()
 	if l.cfg.L2Cache != nil {
 		return l.cfg.L2Cache.Delete(ctx, l.cfg.KeyToString(key))
 	}
