@@ -30,6 +30,8 @@ module.exports = {
       testMatch: ['<rootDir>/src/**/*.spec.ts'],
       testPathIgnorePatterns: ['/node_modules/', '/dist/', '/integration/'],
       collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.d.ts', '!src/integration/**'],
+      // macOS-only supertest fix for "socket hang up" on a colliding ephemeral port; see the file.
+      setupFiles: ['<rootDir>/jest.setup-loopback.js'],
       preset: 'ts-jest',
       testEnvironment: 'node'
     },
