@@ -2,6 +2,40 @@
 
 All notable changes to the wire-format contracts will be documented here. The format is loosely [Keep a Changelog](https://keepachangelog.com/), and the contract version follows [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] — 2026-10-04 / lock, trace, coalescing and resilience rules; cross-lane parity fixes
+
+This entry also records the three rule files and one fixture that release 2.6 added without a
+`VERSION` bump.
+
+### Added
+
+- `rules/lock-adapter.md` (release 2.6) — Redis lock adapter protocol, the token-guarded release and renewal Lua scripts and the behaviour invariants. New section 5 "Lease Loss, Renewal Errors & Release": auto-renew is on by default in every lane; a renewal returning `0` is a definite loss; a renewal that errors is *unknown* and retried on the next tick, failing closed only once a full TTL has passed with no confirmed renewal; a lost lease is always reported (`LockLostError` in Node/Python with the method's own error kept as `cause` / `__context__`; `Lock.Lost()`, a context cancelled with cause `ErrLockLost` and an `ErrLockLost` return from `Release` / `Do` in Go); the token-guarded release is always attempted; Go `Release` is retryable; Python cancellation is never absorbed or replaced; Python `distributed_lock_class` wraps coroutine functions only.
+- `rules/trace-context.md` (release 2.6) — W3C `traceparent` format and queue-metadata propagation. Tightened here: the version must be exactly `00`, all-zero trace/span ids are rejected under any version, hex is lower-case only and is never normalised, and every lane returns the same verdict for the same carrier. The consumer span is a real exported span named `consume <eventName>` with `span.kind = "CONSUMER"`, its own span id and the producer span as parent; a handler failure marks it `ERROR` and still propagates; the caller's previous trace context is restored after dispatch. New section 5 "Span Lifecycle Invariants": instrumentation never fails the call, every failure (non-`Error` throws, cancellation and other `BaseException`s, Go panics) is exported as `ERROR` and re-raised unchanged, detached emits keep the caller's trace, and Python generator / async-generator spans cover the whole iteration.
+- `rules/graphql-dataloader.md` (release 2.6) — request-scoped loader registry, resolver key extraction and coalescing parity. New section 2.1 "What the registry owns": batch queue, in-flight map and L1 cache are per registry; no registry means no sharing (fail closed to N+1); context registry wins over an ambient one; services are resolved by identity; Go batch-context value and deadline rules. New section 5 "Coalescing Safety Rules": a caller that gives up never fails another caller, invalidation beats an in-flight load, per-scope state dies with its scope, the key is bound by position/name, and Node plain-object batch results are string-keyed.
+- `rules/resilience.md` — new. Shared behaviour for retry, circuit breaker and rate limit: `maxAttempts` is an integer >= 1 validated when the decorator is applied (default 3); bounded half-open probes with stale-result rejection; monotonic clocks; registry naming and idle-bucket eviction (Node, Python).
+- `rules/cache-adapter.md` — "Adapter failures": a failing `set` fails open (the result is returned, the write error is logged), a failing `get` fails closed (the error propagates and the wrapped function is not called), and a cache-key error is raised before the adapter or the wrapped function is touched.
+- `rules/topic-naming.md` — four sections: an event-name override does not change the auto topic; queue resolution (default queue, else the first registered queue; an unknown *named* queue fails closed); emission never changes the method's outcome (a throwing `transform`, emit or publish is logged and skipped); consumer delivery guarantees (at-least-once; a Kafka consumer rewinds to a failed offset after a retry backoff, default 1000 ms; a failed consumer run loop is logged, not restarted, and does not crash the process).
+- `rules/entity-spec-validation.md` — the shared RFC 3339 `date-time` shape every validator applies before its own parser (`DATETIME_PATTERN` / `DateTimePattern`); JSON booleans are rejected for `int`/`float` and numbers for `bool`; a `null` list element follows the item's own `nullable` flag; `min`/`max` on `str`/`ref` count Unicode code points; `\d \w \b` (and negations) in a `pattern` are ASCII in every validator; a validation case may carry an inline `spec`.
+- `rules/rest-conventions.md` — body validation counts string length in code points and applies the recursive include rule to nested members; a declared security requirement fails closed with `401`, including when no scope extractor was supplied; SSE `Last-Event-ID` replay is positional and replays the whole buffer for an unknown id; list `parameters` are sorted by name in code-point order.
+- `fixtures/trace-context.cases.json` (release 2.6) — shared `traceparent` verdicts, plus five cases here: a non-`00` version, a non-`00` version with all-zero ids, and upper-case hex in the trace id, span id and flags.
+- `fixtures/topic-naming.cases.json` — new. Four cases, run by Node and Python, pinning `eventName` and `metadata.topic` for auto topics and event-name overrides.
+- `fixtures/cache-key.examples.json` — `unicode-arg-stays-utf8`, `html-chars-not-escaped`, `control-and-separator-chars`.
+- `fixtures/entity-spec.cases.json` — cases for boolean/number coercion, the strict `date-time` shape, code-point string length (Thai and astral characters), ASCII `pattern` classes, nullable list items, the shared `uri` pattern and code-point parameter ordering.
+
+### Changed
+
+- `rules/cache-key.md` — string escaping is now specified as exactly JavaScript `JSON.stringify` (only `"`, `\` and C0 controls are escaped; non-ASCII, `<`, `>`, `&`, U+2028 and U+2029 are literal). The receiver (`self`/`cls`) is never part of `args`. NaN / Infinity MUST raise before the adapter or the wrapped function is touched (previously "should"). Node's mapping of `Date`, `Map`, `Set` and `toJSON()` objects is written down.
+
+### Compatibility
+
+No schema changed and the `QueueMessage` wire format is untouched, so this is a minor bump.
+Four behaviour changes need attention when upgrading:
+
+- **Cache keys (Python and Go only).** Node's output is unchanged and is the reference. Python keys whose arguments contain non-ASCII text were previously `\uXXXX`-escaped and are now UTF-8; Go keys whose arguments contain `<`, `>`, `&`, U+2028 or U+2029 were previously escaped and are now literal. Entries cached under the old spelling are simply missed and re-computed; keys built from other arguments are byte-identical to before.
+- **Python auto topic.** A Python producer that sets `event_name` without an explicit `topic` now publishes to `ClassName.methodName` (it used the event name before, e.g. `order.created` → `OrderService.create`). Consumers and broker bindings on the old topic must be updated, or the producer must pin `topic=`.
+- **`traceparent`.** Carriers that Node used to accept after lower-casing, and non-`00` versions that Python and Go used to accept, are now invalid and start a new trace.
+- **Kafka consumers.** A permanently failing record now blocks its partition (redelivered after the backoff) instead of being skipped.
+
 ## [1.2.0] — 2026-08-16 / entity-spec descriptions, tags and security (F-004)
 
 ### Added
