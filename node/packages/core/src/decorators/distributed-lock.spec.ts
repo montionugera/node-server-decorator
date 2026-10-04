@@ -3,6 +3,7 @@ import {
   configureDistributedLock,
   clearGlobalDistributedLockAdapter,
   LockAcquisitionError,
+  LockLostError,
   RedisLockAdapter,
   RELEASE_LOCK_LUA,
   RENEW_LOCK_LUA,
@@ -217,6 +218,82 @@ describe('@distributedLock Decorator', () => {
 
     expect(result).toBe('completed');
     expect(adapter.store.has('lock:long')).toBe(false); // Released at end
+  });
+
+  it('rejects with LockLostError when the lease is taken over mid-section', async () => {
+    class OrderService {
+      @distributedLock({ key: 'lock:lost', ttlMs: 60, adapter })
+      async run() {
+        // Another instance takes the key over (failover / expiry) while we are still running.
+        adapter.store.set('lock:lost', { token: 'other-owner', expiresAt: Date.now() + 5000 });
+        await new Promise((r) => setTimeout(r, 80));
+        return 'completed';
+      }
+    }
+
+    await expect(new OrderService().run()).rejects.toThrow(LockLostError);
+    // Safe release: the new owner's key must be left alone.
+    expect(adapter.store.get('lock:lost')?.token).toBe('other-owner');
+  });
+
+  it('keeps the method error as the cause when the lock was also lost', async () => {
+    const boom = new Error('boom');
+
+    class OrderService {
+      @distributedLock({ key: 'lock:lost-cause', ttlMs: 60, adapter })
+      async run() {
+        adapter.store.set('lock:lost-cause', { token: 'other-owner', expiresAt: Date.now() + 5000 });
+        await new Promise((r) => setTimeout(r, 80));
+        throw boom;
+      }
+    }
+
+    const err: any = await new OrderService().run().catch((e) => e);
+    expect(err).toBeInstanceOf(LockLostError);
+    expect(err.cause).toBe(boom);
+  });
+
+  it('still releases the lock after one transient renewal error', async () => {
+    const realEval = adapter.evalLua.bind(adapter);
+    let renewCalls = 0;
+    adapter.evalLua = async (script, keys, args) => {
+      if (script === RENEW_LOCK_LUA && ++renewCalls === 1) {
+        throw new Error('ECONNRESET');
+      }
+      return realEval(script, keys, args);
+    };
+
+    class BlipService {
+      @distributedLock({ key: 'lock:blip', ttlMs: 90, adapter })
+      async run() {
+        await new Promise((r) => setTimeout(r, 150));
+        return 'completed';
+      }
+    }
+
+    await expect(new BlipService().run()).resolves.toBe('completed');
+    expect(renewCalls).toBeGreaterThan(1); // kept renewing after the failed tick
+    expect(adapter.store.has('lock:blip')).toBe(false); // and released at the end
+  });
+
+  it('fails closed with LockLostError when renewals keep failing past the TTL', async () => {
+    const realEval = adapter.evalLua.bind(adapter);
+    adapter.evalLua = async (script, keys, args) => {
+      if (script === RENEW_LOCK_LUA) {
+        throw new Error('redis down');
+      }
+      return realEval(script, keys, args);
+    };
+
+    class OutageService {
+      @distributedLock({ key: 'lock:outage', ttlMs: 60, adapter })
+      async run() {
+        await new Promise((r) => setTimeout(r, 150));
+        return 'completed';
+      }
+    }
+
+    await expect(new OutageService().run()).rejects.toThrow(LockLostError);
   });
 
   it('uses globally configured adapter when not passed in options', async () => {

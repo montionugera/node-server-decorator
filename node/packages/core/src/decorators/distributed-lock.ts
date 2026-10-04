@@ -28,6 +28,20 @@ export class LockAcquisitionError extends Error {
   }
 }
 
+/**
+ * Thrown after the protected method settles when the lock lease was lost while it was running
+ * (a renewal returned 0, or renewals kept failing for a full TTL). The method's own result must
+ * be treated as unsafe: another instance may have been inside the same critical section.
+ */
+export class LockLostError extends Error {
+  cause?: unknown;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'LockLostError';
+  }
+}
+
 export interface DistributedLockOptions {
   /**
    * Lock key string or dynamic key generator function based on invocation arguments.
@@ -104,9 +118,12 @@ export function distributedLock(options: DistributedLockOptions) {
 
       const startTime = Date.now();
       let acquired = false;
+      // Last instant the lease was known to be ours (taken before the call that confirmed it).
+      let lastConfirmedAt = startTime;
 
       // Acquisition loop
       while (!acquired) {
+        lastConfirmedAt = Date.now();
         acquired = await adapter.setNxPx(lockKey, token, ttlMs);
         if (acquired) break;
 
@@ -136,18 +153,28 @@ export function distributedLock(options: DistributedLockOptions) {
 
       if (autoRenew) {
         const renewPeriodMs = Math.max(20, Math.floor(ttlMs / 3));
+        const markLost = () => {
+          lockLost = true;
+          if (watchdogTimer) {
+            clearInterval(watchdogTimer);
+            watchdogTimer = null;
+          }
+        };
         watchdogTimer = setInterval(async () => {
+          const sentAt = Date.now();
           try {
             const renewed = await adapter.evalLua(RENEW_LOCK_LUA, [lockKey], [token, ttlMs]);
             if (!renewed || renewed === 0) {
-              lockLost = true;
-              if (watchdogTimer) {
-                clearInterval(watchdogTimer);
-                watchdogTimer = null;
-              }
+              markLost();
+            } else {
+              lastConfirmedAt = Math.max(lastConfirmedAt, sentAt);
             }
           } catch {
-            lockLost = true;
+            // A thrown renewal is "unknown", not "lost": retry on the next tick. Only once a
+            // full TTL has passed without a confirmed renewal has the lease certainly expired.
+            if (Date.now() - lastConfirmedAt >= ttlMs) {
+              markLost();
+            }
           }
         }, renewPeriodMs);
 
@@ -156,23 +183,38 @@ export function distributedLock(options: DistributedLockOptions) {
         }
       }
 
+      let result: any;
+      let methodError: unknown;
+      let methodFailed = false;
       try {
-        return await originalMethod.apply(this, args);
-      } finally {
-        if (watchdogTimer) {
-          clearInterval(watchdogTimer);
-          watchdogTimer = null;
-        }
-
-        // Release lock only if we haven't lost it
-        if (!lockLost) {
-          try {
-            await adapter.evalLua(RELEASE_LOCK_LUA, [lockKey], [token]);
-          } catch {
-            // Ignore release errors on shutdown
-          }
-        }
+        result = await originalMethod.apply(this, args);
+      } catch (err) {
+        methodFailed = true;
+        methodError = err;
       }
+
+      if (watchdogTimer) {
+        clearInterval(watchdogTimer);
+        watchdogTimer = null;
+      }
+
+      // Always attempt the release: the script is token-guarded, so it is a no-op when the
+      // lease is no longer ours and frees the key immediately when it still is.
+      try {
+        await adapter.evalLua(RELEASE_LOCK_LUA, [lockKey], [token]);
+      } catch {
+        // Ignore release errors on shutdown
+      }
+
+      if (lockLost) {
+        const lost = new LockLostError(
+          `Distributed lock for key "${lockKey}" was lost while "${propertyKey}" was running`
+        );
+        if (methodFailed) lost.cause = methodError;
+        throw lost;
+      }
+      if (methodFailed) throw methodError;
+      return result;
     };
 
     return descriptor;

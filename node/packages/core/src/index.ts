@@ -110,6 +110,7 @@ export {
   getGlobalDistributedLockAdapter,
   clearGlobalDistributedLockAdapter,
   LockAcquisitionError,
+  LockLostError,
   RELEASE_LOCK_LUA,
   RENEW_LOCK_LUA,
   type DistributedLockOptions,

@@ -41,6 +41,15 @@ class LockAcquisitionError(Exception):
     """Raised when a distributed lock cannot be acquired within wait_timeout."""
 
 
+class LockLostError(Exception):
+    """Raised after the wrapped coroutine settles when the lease was lost while it ran.
+
+    The lease is lost when a renewal returns 0, or when renewals keep failing for a
+    full TTL. The coroutine's own result must be treated as unsafe: another instance
+    may have been inside the same critical section.
+    """
+
+
 class RedisLockAdapter(Protocol):
     """Dependency-free protocol for Redis lock operations."""
 
@@ -104,9 +113,12 @@ def distributed_lock(
             token = str(uuid.uuid4())
             start_time = time.monotonic()
             acquired = False
+            # Last instant the lease was known to be ours (taken before the confirming call).
+            last_confirmed = start_time
 
             # Contention acquisition loop
             while not acquired:
+                last_confirmed = time.monotonic()
                 acquired = await active_adapter.set_nx_px(lock_key, token, ttl_ms)
                 if acquired:
                     break
@@ -137,41 +149,61 @@ def distributed_lock(
             lock_lost = False
 
             async def _heartbeat() -> None:
-                nonlocal lock_lost
+                nonlocal lock_lost, last_confirmed
                 renew_period = max(0.02, ttl_seconds / 3.0)
-                try:
-                    while True:
-                        await asyncio.sleep(renew_period)
+                while True:
+                    await asyncio.sleep(renew_period)
+                    sent_at = time.monotonic()
+                    try:
                         res = await active_adapter.eval_lua(
                             RENEW_LOCK_LUA, [lock_key], [token, ttl_ms]
                         )
-                        if not res or res == 0:
+                    except Exception:
+                        # A raised renewal is "unknown", not "lost": retry on the next
+                        # tick. Only once a full TTL has passed without a confirmed
+                        # renewal has the lease certainly expired.
+                        if time.monotonic() - last_confirmed >= ttl_seconds:
                             lock_lost = True
                             break
-                except asyncio.CancelledError:
-                    pass
-                except Exception:
-                    lock_lost = True
+                        continue
+                    if not res or res == 0:
+                        lock_lost = True
+                        break
+                    last_confirmed = sent_at
 
             if auto_renew:
                 watchdog_task = asyncio.create_task(_heartbeat())
 
+            # The wrapper's own outcome. sys.exc_info() would also report an exception
+            # being handled in the caller's frame, hiding a lost lease from a caller
+            # that awaits us inside an `except BaseException` block.
+            failure: BaseException | None = None
             try:
-                return await fn(*args, **kwargs)
+                result = await fn(*args, **kwargs)
+            except BaseException as exc:
+                failure = exc
+                raise
             finally:
-                if watchdog_task is not None and not watchdog_task.done():
-                    watchdog_task.cancel()
-                    try:
-                        await watchdog_task
-                    except asyncio.CancelledError:
-                        pass
-
-                # Safe release
-                if not lock_lost:
+                try:
+                    if watchdog_task is not None:
+                        watchdog_task.cancel()
+                        # gather absorbs only the watchdog's own outcome; a cancellation
+                        # aimed at this task still propagates.
+                        await asyncio.gather(watchdog_task, return_exceptions=True)
+                finally:
+                    # Always attempt the release: the script is token-guarded, so it is a
+                    # no-op when the lease is no longer ours.
                     try:
                         await active_adapter.eval_lua(RELEASE_LOCK_LUA, [lock_key], [token])
                     except Exception:
                         pass
+
+                # Fail closed on a lost lease, but never mask a cancellation in flight.
+                if lock_lost and (failure is None or isinstance(failure, Exception)):
+                    raise LockLostError(
+                        f"Lock for '{lock_key}' was lost while '{fn.__name__}' was running"
+                    )
+            return result
 
         _mark_wrapped(async_wrapper, "distributed_lock")
         return async_wrapper  # type: ignore[return-value]
@@ -197,6 +229,8 @@ def distributed_lock_class(
 
     def decorator(cls: type[T]) -> type[T]:
         def method_dec(fn: Callable[..., Any]) -> Callable[..., Any]:
+            if not inspect.iscoroutinefunction(fn):
+                return fn  # sync methods / property accessors are skipped, not rejected
             method_key = f"{key_prefix}:{cls.__name__}:{fn.__name__}"
             return distributed_lock(
                 method_key,
