@@ -1,3 +1,5 @@
+import { performance } from 'perf_hooks';
+
 export class RateLimitExceededError extends Error {
   readonly limitKey: string;
   constructor(limitKey: string, message?: string) {
@@ -24,12 +26,12 @@ export class TokenBucket {
     this.capacity = capacity;
     this.refillRate = refillRate;
     this.tokens = capacity;
-    this.lastRefill = Date.now();
+    this.lastRefill = performance.now();
   }
 
   allow(cost: number = 1): boolean {
-    const now = Date.now();
-    const elapsed = (now - this.lastRefill) / 1000;
+    const now = performance.now();
+    const elapsed = Math.max(0, now - this.lastRefill) / 1000;
     this.lastRefill = now;
     this.tokens = Math.min(this.capacity, this.tokens + elapsed * this.refillRate);
 
@@ -41,16 +43,30 @@ export class TokenBucket {
   }
 
   availableTokens(): number {
-    const now = Date.now();
-    const elapsed = (now - this.lastRefill) / 1000;
+    const elapsed = Math.max(0, performance.now() - this.lastRefill) / 1000;
     return Math.min(this.capacity, this.tokens + elapsed * this.refillRate);
   }
 }
 
 export const rateLimitRegistry = new Map<string, TokenBucket>();
 
+// Idle-bucket eviction (contracts/rules/resilience.md): a bucket that has refilled to
+// capacity is indistinguishable from a fresh one, so dropping it loses no state.
+const EVICTION_SWEEP_MIN_SIZE = 1024;
+let nextSweepSize = EVICTION_SWEEP_MIN_SIZE;
+
+function evictIdleBuckets(): void {
+  for (const [key, bucket] of rateLimitRegistry) {
+    if (bucket.availableTokens() >= bucket.capacity) {
+      rateLimitRegistry.delete(key);
+    }
+  }
+  nextSweepSize = Math.max(EVICTION_SWEEP_MIN_SIZE, rateLimitRegistry.size * 2);
+}
+
 export function clearRateLimitRegistry(): void {
   rateLimitRegistry.clear();
+  nextSweepSize = EVICTION_SWEEP_MIN_SIZE;
 }
 
 const isThenable = (v: unknown): v is PromiseLike<unknown> =>
@@ -66,13 +82,18 @@ export function rateLimit(options: RateLimitOptions = {}) {
 
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
-    const baseKey = `${target.constructor.name}.${propertyKey}`;
+    // For a static method `target` is the constructor itself.
+    const className = typeof target === 'function' ? target.name : target.constructor.name;
+    const baseKey = `${className}.${propertyKey}`;
 
     descriptor.value = async function (...args: unknown[]) {
       const key = options.keyExtractor ? `${baseKey}:${options.keyExtractor(...args)}` : baseKey;
 
       let bucket = rateLimitRegistry.get(key);
       if (!bucket) {
+        if (rateLimitRegistry.size >= nextSweepSize) {
+          evictIdleBuckets();
+        }
         bucket = new TokenBucket(capacity, refillRate);
         rateLimitRegistry.set(key, bucket);
       }

@@ -1,3 +1,6 @@
+import { performance } from 'perf_hooks';
+import { globalLogger } from '../logger';
+
 export enum CircuitState {
   CLOSED = 'closed',
   OPEN = 'open',
@@ -21,6 +24,12 @@ export interface CircuitBreakerOptions {
   fallback?: (error: Error, ...args: unknown[]) => unknown | Promise<unknown>;
 }
 
+const resolveThresholds = (options: CircuitBreakerOptions) => ({
+  failureThreshold: options.failureThreshold ?? 5,
+  recoveryTimeoutMs: options.recoveryTimeoutMs ?? 5000,
+  halfOpenSuccessThreshold: options.halfOpenSuccessThreshold ?? 2,
+});
+
 export class CircuitBreaker {
   readonly name: string;
   readonly failureThreshold: number;
@@ -30,67 +39,107 @@ export class CircuitBreaker {
   private _state: CircuitState = CircuitState.CLOSED;
   private failureCount: number = 0;
   private consecutiveSuccessCount: number = 0;
-  private lastStateChange: number = Date.now();
+  // Monotonic clock: wall-clock steps must not stretch or shorten the recovery timeout.
+  private lastStateChange: number = performance.now();
+  // Probes admitted in HALF_OPEN whose result has not been recorded yet.
+  private halfOpenInFlight: number = 0;
+  // Bumped on every state transition; a result recorded with an older epoch is stale.
+  private epoch: number = 0;
 
   constructor(options: CircuitBreakerOptions = {}) {
     this.name = options.name ?? 'default';
-    this.failureThreshold = options.failureThreshold ?? 5;
-    this.recoveryTimeoutMs = options.recoveryTimeoutMs ?? 5000;
-    this.halfOpenSuccessThreshold = options.halfOpenSuccessThreshold ?? 2;
+    const thresholds = resolveThresholds(options);
+    this.failureThreshold = thresholds.failureThreshold;
+    this.recoveryTimeoutMs = thresholds.recoveryTimeoutMs;
+    this.halfOpenSuccessThreshold = thresholds.halfOpenSuccessThreshold;
+  }
+
+  private transition(to: CircuitState): void {
+    this._state = to;
+    this.epoch++;
+    this.halfOpenInFlight = 0;
+    this.consecutiveSuccessCount = 0;
+    this.lastStateChange = performance.now();
   }
 
   get state(): CircuitState {
     if (
       this._state === CircuitState.OPEN &&
-      Date.now() - this.lastStateChange >= this.recoveryTimeoutMs
+      performance.now() - this.lastStateChange >= this.recoveryTimeoutMs
     ) {
-      this._state = CircuitState.HALF_OPEN;
-      this.consecutiveSuccessCount = 0;
+      this.transition(CircuitState.HALF_OPEN);
       this.failureCount = 0;
-      this.lastStateChange = Date.now();
     }
     return this._state;
   }
 
-  allowRequest(): boolean {
+  /**
+   * Admit a call. Returns the admission epoch to hand back to recordSuccess/recordFailure,
+   * or null when the call must be rejected. In HALF_OPEN at most halfOpenSuccessThreshold
+   * probes are in flight at once.
+   */
+  acquire(): number | null {
     const s = this.state;
-    return s === CircuitState.CLOSED || s === CircuitState.HALF_OPEN;
+    if (s === CircuitState.OPEN) {
+      return null;
+    }
+    if (s === CircuitState.HALF_OPEN) {
+      if (this.halfOpenInFlight >= this.halfOpenSuccessThreshold) {
+        const now = performance.now();
+        if (now - this.lastStateChange < this.recoveryTimeoutMs) {
+          return null;
+        }
+        // Probes that never reported back are treated as abandoned; the epoch bump makes any
+        // late result from them stale instead of counting it against the new probes.
+        this.epoch++;
+        this.halfOpenInFlight = 0;
+        this.lastStateChange = now;
+      }
+      this.halfOpenInFlight++;
+    }
+    return this.epoch;
   }
 
-  recordSuccess(): void {
-    if (this.state === CircuitState.HALF_OPEN) {
+  allowRequest(): boolean {
+    return this.acquire() !== null;
+  }
+
+  recordSuccess(epoch?: number): void {
+    const s = this.state;
+    if (epoch !== undefined && epoch !== this.epoch) {
+      return;
+    }
+    if (s === CircuitState.HALF_OPEN) {
+      if (this.halfOpenInFlight > 0) this.halfOpenInFlight--;
       this.consecutiveSuccessCount++;
       if (this.consecutiveSuccessCount >= this.halfOpenSuccessThreshold) {
-        this._state = CircuitState.CLOSED;
+        this.transition(CircuitState.CLOSED);
         this.failureCount = 0;
-        this.consecutiveSuccessCount = 0;
-        this.lastStateChange = Date.now();
       }
-    } else if (this.state === CircuitState.CLOSED) {
+    } else if (s === CircuitState.CLOSED) {
       this.failureCount = 0;
     }
   }
 
-  recordFailure(): void {
-    if (this.state === CircuitState.HALF_OPEN) {
-      this._state = CircuitState.OPEN;
+  recordFailure(epoch?: number): void {
+    const s = this.state;
+    if (epoch !== undefined && epoch !== this.epoch) {
+      return;
+    }
+    if (s === CircuitState.HALF_OPEN) {
+      this.transition(CircuitState.OPEN);
       this.failureCount++;
-      this.consecutiveSuccessCount = 0;
-      this.lastStateChange = Date.now();
-    } else if (this.state === CircuitState.CLOSED) {
+    } else if (s === CircuitState.CLOSED) {
       this.failureCount++;
       if (this.failureCount >= this.failureThreshold) {
-        this._state = CircuitState.OPEN;
-        this.lastStateChange = Date.now();
+        this.transition(CircuitState.OPEN);
       }
     }
   }
 
   reset(): void {
-    this._state = CircuitState.CLOSED;
+    this.transition(CircuitState.CLOSED);
     this.failureCount = 0;
-    this.consecutiveSuccessCount = 0;
-    this.lastStateChange = Date.now();
   }
 }
 
@@ -118,11 +167,31 @@ const isThenable = (v: unknown): v is PromiseLike<unknown> =>
 export function circuitBreaker(options: CircuitBreakerOptions = {}) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
-    const breakerName = options.name ?? `${target.constructor.name}.${propertyKey}`;
-    const cb = getCircuitBreaker(breakerName, { ...options, name: breakerName });
+    // For a static method `target` is the constructor itself.
+    const className = typeof target === 'function' ? target.name : target.constructor.name;
+    const breakerName = options.name ?? `${className}.${propertyKey}`;
+    const breakerOptions = { ...options, name: breakerName };
+
+    const existing = circuitBreakerRegistry.get(breakerName);
+    const wanted = resolveThresholds(options);
+    if (
+      existing &&
+      (existing.failureThreshold !== wanted.failureThreshold ||
+        existing.recoveryTimeoutMs !== wanted.recoveryTimeoutMs ||
+        existing.halfOpenSuccessThreshold !== wanted.halfOpenSuccessThreshold)
+    ) {
+      globalLogger.warn(
+        `@circuitBreaker: breaker '${breakerName}' is already registered with different options; ` +
+          `${className}.${propertyKey} shares it and its own thresholds are ignored`,
+      );
+    }
+    getCircuitBreaker(breakerName, breakerOptions);
 
     descriptor.value = async function (...args: unknown[]) {
-      if (!cb.allowRequest()) {
+      // Resolved per call so a registry clear/replace is honoured by decorated methods.
+      const cb = getCircuitBreaker(breakerName, breakerOptions);
+      const epoch = cb.acquire();
+      if (epoch === null) {
         const err = new CircuitBreakerOpenError(breakerName);
         if (options.fallback) {
           return options.fallback(err, ...args);
@@ -133,10 +202,10 @@ export function circuitBreaker(options: CircuitBreakerOptions = {}) {
       try {
         const res = originalMethod.apply(this, args);
         const resolved = isThenable(res) ? await res : res;
-        cb.recordSuccess();
+        cb.recordSuccess(epoch);
         return resolved;
       } catch (err) {
-        cb.recordFailure();
+        cb.recordFailure(epoch);
         if (options.fallback) {
           return options.fallback(err as Error, ...args);
         }

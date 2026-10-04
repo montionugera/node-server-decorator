@@ -10,6 +10,7 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
+from server_decorator import logger as _logger_mod
 from server_decorator.decorators._class_apply import _mark_wrapped, apply_to_class
 from server_decorator.decorators._qualname import shorten_qualname
 
@@ -47,53 +48,83 @@ class CircuitBreaker:
         self._consecutive_successes = 0
         self._last_state_change = time.monotonic()
         self._lock = threading.Lock()
+        # Probes admitted in HALF_OPEN whose result has not been recorded yet.
+        self._half_open_in_flight = 0
+        # Bumped on every state transition; a result recorded with an older epoch is stale.
+        self._epoch = 0
+
+    def _transition_locked(self, to: CircuitState) -> None:
+        self._state = to
+        self._epoch += 1
+        self._half_open_in_flight = 0
+        self._consecutive_successes = 0
+        self._last_state_change = time.monotonic()
+
+    def _refresh_locked(self) -> CircuitState:
+        elapsed_ms = (time.monotonic() - self._last_state_change) * 1000.0
+        if self._state == CircuitState.OPEN and elapsed_ms >= self.recovery_timeout_ms:
+            self._transition_locked(CircuitState.HALF_OPEN)
+            self._consecutive_failures = 0
+        return self._state
 
     @property
     def state(self) -> CircuitState:
         with self._lock:
-            elapsed_ms = (time.monotonic() - self._last_state_change) * 1000.0
-            if self._state == CircuitState.OPEN and elapsed_ms >= self.recovery_timeout_ms:
-                self._state = CircuitState.HALF_OPEN
-                self._consecutive_failures = 0
-                self._consecutive_successes = 0
-                self._last_state_change = time.monotonic()
-            return self._state
+            return self._refresh_locked()
+
+    def acquire(self) -> int | None:
+        """Admit a call: the admission epoch to pass back to record_*, or None to reject.
+
+        In HALF_OPEN at most ``half_open_success_threshold`` probes are in flight at once.
+        """
+        with self._lock:
+            s = self._refresh_locked()
+            if s == CircuitState.OPEN:
+                return None
+            if s == CircuitState.HALF_OPEN:
+                if self._half_open_in_flight >= self.half_open_success_threshold:
+                    now = time.monotonic()
+                    if (now - self._last_state_change) * 1000.0 < self.recovery_timeout_ms:
+                        return None
+                    # Probes that never reported back are treated as abandoned.
+                    self._half_open_in_flight = 0
+                    self._last_state_change = now
+                self._half_open_in_flight += 1
+            return self._epoch
 
     def allow_request(self) -> bool:
-        s = self.state
-        return s in (CircuitState.CLOSED, CircuitState.HALF_OPEN)
+        return self.acquire() is not None
 
-    def record_success(self) -> None:
+    def record_success(self, epoch: int | None = None) -> None:
         with self._lock:
+            if epoch is not None and epoch != self._epoch:
+                return
             if self._state == CircuitState.HALF_OPEN:
+                if self._half_open_in_flight > 0:
+                    self._half_open_in_flight -= 1
                 self._consecutive_successes += 1
                 if self._consecutive_successes >= self.half_open_success_threshold:
-                    self._state = CircuitState.CLOSED
+                    self._transition_locked(CircuitState.CLOSED)
                     self._consecutive_failures = 0
-                    self._consecutive_successes = 0
-                    self._last_state_change = time.monotonic()
             elif self._state == CircuitState.CLOSED:
                 self._consecutive_failures = 0
 
-    def record_failure(self) -> None:
+    def record_failure(self, epoch: int | None = None) -> None:
         with self._lock:
+            if epoch is not None and epoch != self._epoch:
+                return
             if self._state == CircuitState.HALF_OPEN:
-                self._state = CircuitState.OPEN
+                self._transition_locked(CircuitState.OPEN)
                 self._consecutive_failures += 1
-                self._consecutive_successes = 0
-                self._last_state_change = time.monotonic()
             elif self._state == CircuitState.CLOSED:
                 self._consecutive_failures += 1
                 if self._consecutive_failures >= self.failure_threshold:
-                    self._state = CircuitState.OPEN
-                    self._last_state_change = time.monotonic()
+                    self._transition_locked(CircuitState.OPEN)
 
     def reset(self) -> None:
         with self._lock:
-            self._state = CircuitState.CLOSED
+            self._transition_locked(CircuitState.CLOSED)
             self._consecutive_failures = 0
-            self._consecutive_successes = 0
-            self._last_state_change = time.monotonic()
 
 
 _circuit_breakers: dict[str, CircuitBreaker] = {}
@@ -137,18 +168,35 @@ def circuit_breaker(
 
     def decorator(fn: F) -> F:
         breaker_name = name or shorten_qualname(fn.__qualname__)
-        cb = get_circuit_breaker(
-            breaker_name,
-            failure_threshold=failure_threshold,
-            recovery_timeout_ms=recovery_timeout_ms,
-            half_open_success_threshold=half_open_success_threshold,
-        )
+
+        def resolve() -> CircuitBreaker:
+            # Resolved per call so a registry clear is honoured by decorated methods.
+            return get_circuit_breaker(
+                breaker_name,
+                failure_threshold=failure_threshold,
+                recovery_timeout_ms=recovery_timeout_ms,
+                half_open_success_threshold=half_open_success_threshold,
+            )
+
+        registered = resolve()
+        if (
+            registered.failure_threshold != failure_threshold
+            or registered.recovery_timeout_ms != recovery_timeout_ms
+            or registered.half_open_success_threshold != half_open_success_threshold
+        ):
+            _logger_mod.global_logger.warn(
+                f"@circuit_breaker: breaker '{breaker_name}' is already registered with "
+                f"different options; {fn.__qualname__} shares it and its own thresholds "
+                "are ignored"
+            )
 
         if inspect.iscoroutinefunction(fn):
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                if not cb.allow_request():
+                cb = resolve()
+                epoch = cb.acquire()
+                if epoch is None:
                     err = CircuitBreakerOpenError(breaker_name)
                     if fallback is not None:
                         res = fallback(err, *args, **kwargs)
@@ -157,10 +205,10 @@ def circuit_breaker(
 
                 try:
                     result = await fn(*args, **kwargs)
-                    cb.record_success()
+                    cb.record_success(epoch)
                     return result
                 except Exception as e:
-                    cb.record_failure()
+                    cb.record_failure(epoch)
                     if fallback is not None:
                         res = fallback(e, *args, **kwargs)
                         return await res if inspect.isawaitable(res) else res
@@ -171,7 +219,9 @@ def circuit_breaker(
 
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            if not cb.allow_request():
+            cb = resolve()
+            epoch = cb.acquire()
+            if epoch is None:
                 err = CircuitBreakerOpenError(breaker_name)
                 if fallback is not None:
                     return fallback(err, *args, **kwargs)
@@ -179,10 +229,10 @@ def circuit_breaker(
 
             try:
                 result = fn(*args, **kwargs)
-                cb.record_success()
+                cb.record_success(epoch)
                 return result
             except Exception as e:
-                cb.record_failure()
+                cb.record_failure(epoch)
                 if fallback is not None:
                     return fallback(e, *args, **kwargs)
                 raise
