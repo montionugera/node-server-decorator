@@ -1,6 +1,6 @@
 {
   "name": "@montionugera/server-decorator",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "TypeScript decorators for server-side applications with caching, tracking, and queue support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
