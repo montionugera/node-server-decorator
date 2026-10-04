@@ -135,11 +135,25 @@ previous trace context is restored after dispatch.
   properties are left untouched.
 - **Tracing.** A `traceparent` must be version `00` with lower-case hex;
   anything else is ignored and a new trace starts. `@trace` on a generator or
-  async generator spans the whole iteration. Cancellation and other
+  async generator spans the whole iteration. A plain function (or callable object)
+  that returns a coroutine or an async-generator object keeps its span open until
+  that object is awaited / fully iterated, with the trace context active in the
+  body and failures recorded; if the returned object is never awaited no span is
+  exported. A returned `asyncio.Future`/`Task` or a plain generator object returned
+  from a non-generator function is not tracked (the span ends when the function
+  returns) - decorate the inner function instead. Cancellation and other
   `BaseException`s export the span as `ERROR` and are re-raised unchanged.
+- **Batch load receiver detection.**
+  - Name the receiver `self` or `cls`. Then it is always recognised.
+  - With another receiver name, the owner class is found by scanning the class for the decorated function through `__wrapped__` / `__func__`. A decorator stacked on top that sets neither hides it, and the instance is then treated as the key. The result is cached per class.
+  - A `@staticmethod` is never given a receiver.
 - **Cache.** A failing adapter `set` is logged and the result is still
-  returned; a failing `get` propagates. NaN / Infinity arguments raise
-  `ValueError`, and keys keep non-ASCII text as UTF-8 (matching Node).
+  returned; a failing `get` propagates. Non-finite numbers are rejected in
+  plain JSON values, dict/list/tuple/set/frozenset/deque, dataclass instances,
+  Decimal and complex; any OTHER object is keyed by `str(obj)` without being
+  inspected, so give such objects a stable `__str__` or pass a plain value.
+  Set and frozenset arguments are keyed as a sorted list. Keys keep non-ASCII
+  text as UTF-8 (matching Node).
 
 ## Development
 
