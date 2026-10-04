@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import { randomBytes } from 'crypto';
+import { globalLogger } from '../logger';
 
 export interface TraceContext {
   traceId: string;
@@ -69,14 +70,15 @@ export function parseTraceparent(header?: string): {
   // Validate version: must be 00 (reject ff)
   if (version !== '00') return null;
 
+  // Hex is lower-case only (contracts/rules/trace-context.md): upper-case is rejected.
   // Validate traceId: 32 hex chars, not all zeroes
-  if (!/^[0-9a-f]{32}$/i.test(traceId) || /^0+$/.test(traceId)) return null;
+  if (!/^[0-9a-f]{32}$/.test(traceId) || /^0+$/.test(traceId)) return null;
 
   // Validate spanId: 16 hex chars, not all zeroes
-  if (!/^[0-9a-f]{16}$/i.test(spanId) || /^0+$/.test(spanId)) return null;
+  if (!/^[0-9a-f]{16}$/.test(spanId) || /^0+$/.test(spanId)) return null;
 
   // Validate flags: 2 hex chars
-  if (!/^[0-9a-f]{2}$/i.test(flags)) return null;
+  if (!/^[0-9a-f]{2}$/.test(flags)) return null;
 
   const sampled = (parseInt(flags, 16) & 0x01) === 1;
 
@@ -183,13 +185,18 @@ export function trace(options: TraceOptions = {}) {
 
       const span = new SpanImpl(spanName, traceId, spanId, parentSpanId);
 
-      // Extract static or dynamic attributes
+      // Extract static or dynamic attributes. Instrumentation must never fail the
+      // business call, so a throwing extractor is logged and skipped.
       if (options.attributes) {
-        const dynamicAttrs =
-          typeof options.attributes === 'function'
-            ? options.attributes(...args)
-            : options.attributes;
-        span.setAttributes(dynamicAttrs);
+        try {
+          const dynamicAttrs =
+            typeof options.attributes === 'function'
+              ? options.attributes(...args)
+              : options.attributes;
+          span.setAttributes(dynamicAttrs);
+        } catch (err) {
+          globalLogger.warn(`Failed to evaluate trace attributes: ${String(err)}`);
+        }
       }
 
       const currentContext: TraceContext = {
@@ -201,28 +208,64 @@ export function trace(options: TraceOptions = {}) {
         activeSpan: span,
       };
 
-      return traceStorage.run(currentContext, async () => {
-        try {
-          const result = await originalMethod.apply(this, args);
-          return result;
-        } catch (err: any) {
-          if (recordError && err instanceof Error) {
-            span.recordException(err);
-          }
-          throw err;
-        } finally {
-          span.end();
-          if (globalSpanExporter) {
-            try {
-              globalSpanExporter(span);
-            } catch {
-              // Non-blocking exporter failure
-            }
-          }
-        }
-      });
+      return runSpan(span, currentContext, recordError, () => originalMethod.apply(this, args));
     };
 
     return descriptor;
   };
+}
+
+/**
+ * Activates `context` for `fn`, then ends and exports `span`. Any thrown value
+ * marks the span ERROR (when `recordError`) and is rethrown unchanged.
+ */
+function runSpan<T>(
+  span: SpanImpl,
+  context: TraceContext,
+  recordError: boolean,
+  fn: () => T | Promise<T>
+): Promise<T> {
+  return traceStorage.run(context, async () => {
+    try {
+      return await fn();
+    } catch (err: any) {
+      if (recordError) {
+        if (err instanceof Error) span.recordException(err);
+        else span.status = 'ERROR';
+      }
+      throw err;
+    } finally {
+      span.end();
+      if (globalSpanExporter) {
+        try {
+          globalSpanExporter(span);
+        } catch {
+          // Non-blocking exporter failure
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Runs `fn` inside a new, exported child span of `parent` (e.g. the CONSUMER
+ * span around a queue handler, whose parent is the extracted producer span).
+ */
+export function runInChildSpan<T>(
+  name: string,
+  parent: Pick<TraceContext, 'traceId' | 'spanId' | 'sampled' | 'tracestate'>,
+  attributes: Record<string, any>,
+  fn: () => T | Promise<T>
+): Promise<T> {
+  const span = new SpanImpl(name, parent.traceId, generateSpanId(), parent.spanId);
+  span.setAttributes(attributes);
+  const context: TraceContext = {
+    traceId: span.traceId,
+    spanId: span.spanId,
+    parentSpanId: span.parentSpanId,
+    sampled: parent.sampled,
+    tracestate: parent.tracestate,
+    activeSpan: span,
+  };
+  return runSpan(span, context, true, fn);
 }

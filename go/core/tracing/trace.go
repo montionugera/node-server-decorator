@@ -80,16 +80,14 @@ func ParseTraceparent(header string) (*TraceContext, error) {
 	spanID := matches[3]
 	flags := matches[4]
 
-	// Version '00' forbids all-zeros trace_id or span_id
-	if version == "00" {
-		if traceID == strings.Repeat("0", 32) || spanID == strings.Repeat("0", 16) {
-			return nil, fmt.Errorf("invalid traceparent: trace_id and span_id must not be all zeros")
-		}
+	// contracts/rules/trace-context.md: version must be exactly 00.
+	if version != "00" {
+		return nil, fmt.Errorf("invalid traceparent version %s", version)
 	}
 
-	// Version 'ff' is explicitly invalid in W3C
-	if version == "ff" {
-		return nil, fmt.Errorf("invalid traceparent version ff")
+	// All-zeros trace_id or span_id is always invalid.
+	if traceID == strings.Repeat("0", 32) || spanID == strings.Repeat("0", 16) {
+		return nil, fmt.Errorf("invalid traceparent: trace_id and span_id must not be all zeros")
 	}
 
 	var flagByte byte
@@ -222,10 +220,17 @@ func Trace[In, Out any](
 	fn func(context.Context, In) (Out, error),
 	opts ...SpanOption,
 ) func(context.Context, In) (Out, error) {
-	return func(ctx context.Context, in In) (Out, error) {
+	return func(ctx context.Context, in In) (out Out, err error) {
 		spanCtx, end := StartSpan(ctx, name, opts...)
-		out, err := fn(spanCtx, in)
-		end(err)
-		return out, err
+		// Deferred so a panic in fn still ends and exports the span (as ERROR)
+		// before the panic continues to unwind.
+		defer func() {
+			if r := recover(); r != nil {
+				end(fmt.Errorf("panic: %v", r))
+				panic(r)
+			}
+			end(err)
+		}()
+		return fn(spanCtx, in)
 	}
 }

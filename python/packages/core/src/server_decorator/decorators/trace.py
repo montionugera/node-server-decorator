@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import functools
 import inspect
 import os
 import re
 import time
-from collections.abc import Callable
+import traceback
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, TypeVar, cast
 
@@ -78,13 +80,12 @@ def parse_traceparent(header: str | None) -> TraceContext | None:
 
     version, trace_id, span_id, flags = match.groups()
 
-    # W3C spec: version 00 forbids all-zeros trace_id or span_id
-    if version == "00":
-        if trace_id == "0" * 32 or span_id == "0" * 16:
-            return None
+    # contracts/rules/trace-context.md: version must be exactly 00.
+    if version != "00":
+        return None
 
-    # Version 'ff' is invalid in W3C
-    if version == "ff":
+    # All-zeros trace_id or span_id is always invalid.
+    if trace_id == "0" * 32 or span_id == "0" * 16:
         return None
 
     sampled = (int(flags, 16) & 0x01) == 1
@@ -104,6 +105,78 @@ def format_traceparent(trace_id: str, span_id: str, sampled: bool = True) -> str
 
 def _generate_random_hex(byte_length: int) -> str:
     return os.urandom(byte_length).hex()
+
+
+@contextlib.contextmanager
+def _span_scope(
+    name: str,
+    attributes: dict[str, Any],
+    *,
+    parent: TraceContext | None = None,
+    activate: bool = True,
+) -> Iterator[TraceContext]:
+    """Run the ``with`` body inside a new span and export it on exit.
+
+    The span is a child of ``parent`` (default: the active context) or a new root.
+    With ``activate`` the span's context is active for the whole body; generator
+    wrappers pass ``activate=False`` and activate it around each resume instead.
+    Any ``BaseException`` (including cancellation) marks the span ERROR and is
+    re-raised; ``GeneratorExit`` is an early close, not a failure.
+    """
+    parent_ctx = parent if parent is not None else get_active_trace_context()
+    trace_id = parent_ctx.trace_id if parent_ctx else _generate_random_hex(16)
+    parent_span_id = parent_ctx.span_id if parent_ctx else None
+    span_id = _generate_random_hex(8)
+    sampled = parent_ctx.sampled if parent_ctx else True
+
+    current_ctx = TraceContext(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        sampled=sampled,
+        tracestate=parent_ctx.tracestate if parent_ctx else None,
+    )
+
+    start_time_ms = int(time.time() * 1000)
+    start_hr = time.perf_counter()
+
+    token = _ACTIVE_TRACE_CONTEXT.set(current_ctx) if activate else None
+    status = "OK"
+    try:
+        yield current_ctx
+    except GeneratorExit:
+        raise
+    except BaseException as err:
+        status = "ERROR"
+        attributes["exception.type"] = type(err).__name__
+        attributes["exception.message"] = str(err)
+        attributes["exception.stacktrace"] = "".join(
+            traceback.format_exception(type(err), err, err.__traceback__)
+        )
+        raise
+    finally:
+        duration_ms = (time.perf_counter() - start_hr) * 1000
+        end_time_ms = int(time.time() * 1000)
+        if token is not None:
+            _ACTIVE_TRACE_CONTEXT.reset(token)
+
+        if _SPAN_EXPORTER:
+            span = TraceSpan(
+                name=name,
+                trace_id=trace_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
+                sampled=sampled,
+                attributes=attributes,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+                duration_ms=duration_ms,
+                status=status,
+            )
+            try:
+                _SPAN_EXPORTER(span)
+            except Exception as exp_err:
+                global_logger.warn(f"Trace span exporter error: {exp_err}")
 
 
 def trace(
@@ -149,122 +222,96 @@ def trace(
                     resolved.update(attrs_config)
             return resolved
 
+        resolved_name = span_name or qualname
+
+        if inspect.isasyncgenfunction(fn):
+
+            @functools.wraps(fn)
+            async def asyncgen_wrapper(*args: Any, **kwargs: Any) -> Any:
+                # The span covers the whole iteration; its context is active only
+                # while the body runs (around each resume), never in the consumer.
+                with _span_scope(
+                    resolved_name, _resolve_attributes(args, kwargs), activate=False
+                ) as ctx:
+                    agen = fn(*args, **kwargs)
+                    resume: Callable[[Any], Any] = agen.asend
+                    value: Any = None
+                    try:
+                        while True:
+                            token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+                            try:
+                                item = await resume(value)
+                            except StopAsyncIteration:
+                                return
+                            finally:
+                                _ACTIVE_TRACE_CONTEXT.reset(token)
+                            try:
+                                value = yield item
+                                resume = agen.asend
+                            except GeneratorExit:
+                                raise
+                            except BaseException as thrown:
+                                resume, value = agen.athrow, thrown
+                    finally:
+                        token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+                        try:
+                            await agen.aclose()
+                        finally:
+                            _ACTIVE_TRACE_CONTEXT.reset(token)
+
+            _mark_wrapped(asyncgen_wrapper, "trace")
+            return cast(F, asyncgen_wrapper)
+
+        if inspect.isgeneratorfunction(fn):
+
+            @functools.wraps(fn)
+            def gen_wrapper(*args: Any, **kwargs: Any) -> Any:
+                with _span_scope(
+                    resolved_name, _resolve_attributes(args, kwargs), activate=False
+                ) as ctx:
+                    gen = fn(*args, **kwargs)
+                    resume: Callable[[Any], Any] = gen.send
+                    value: Any = None
+                    try:
+                        while True:
+                            token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+                            try:
+                                item = resume(value)
+                            except StopIteration as stop:
+                                return stop.value
+                            finally:
+                                _ACTIVE_TRACE_CONTEXT.reset(token)
+                            try:
+                                value = yield item
+                                resume = gen.send
+                            except GeneratorExit:
+                                raise
+                            except BaseException as thrown:
+                                resume, value = gen.throw, thrown
+                    finally:
+                        token = _ACTIVE_TRACE_CONTEXT.set(ctx)
+                        try:
+                            gen.close()
+                        finally:
+                            _ACTIVE_TRACE_CONTEXT.reset(token)
+
+            _mark_wrapped(gen_wrapper, "trace")
+            return cast(F, gen_wrapper)
+
         if inspect.iscoroutinefunction(fn):
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                parent_ctx = get_active_trace_context()
-                trace_id = parent_ctx.trace_id if parent_ctx else _generate_random_hex(16)
-                parent_span_id = parent_ctx.span_id if parent_ctx else None
-                span_id = _generate_random_hex(8)
-                sampled = parent_ctx.sampled if parent_ctx else True
-
-                current_ctx = TraceContext(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    parent_span_id=parent_span_id,
-                    sampled=sampled,
-                    tracestate=parent_ctx.tracestate if parent_ctx else None,
-                )
-
-                resolved_name = span_name or qualname
-                span_attrs = _resolve_attributes(args, kwargs)
-                start_time_ms = int(time.time() * 1000)
-                start_hr = time.perf_counter()
-
-                token = _ACTIVE_TRACE_CONTEXT.set(current_ctx)
-                status = "OK"
-                try:
+                with _span_scope(resolved_name, _resolve_attributes(args, kwargs)):
                     return await fn(*args, **kwargs)
-                except Exception as err:
-                    status = "ERROR"
-                    span_attrs["exception.type"] = type(err).__name__
-                    span_attrs["exception.message"] = str(err)
-                    import traceback
-
-                    span_attrs["exception.stacktrace"] = traceback.format_exc()
-                    raise
-                finally:
-                    duration_ms = (time.perf_counter() - start_hr) * 1000
-                    end_time_ms = int(time.time() * 1000)
-                    _ACTIVE_TRACE_CONTEXT.reset(token)
-
-                    if _SPAN_EXPORTER:
-                        span = TraceSpan(
-                            name=resolved_name,
-                            trace_id=trace_id,
-                            span_id=span_id,
-                            parent_span_id=parent_span_id,
-                            sampled=sampled,
-                            attributes=span_attrs,
-                            start_time_ms=start_time_ms,
-                            end_time_ms=end_time_ms,
-                            duration_ms=duration_ms,
-                            status=status,
-                        )
-                        try:
-                            _SPAN_EXPORTER(span)
-                        except Exception as exp_err:
-                            global_logger.warn(f"Trace span exporter error: {exp_err}")
 
             _mark_wrapped(async_wrapper, "trace")
             return cast(F, async_wrapper)
 
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            parent_ctx = get_active_trace_context()
-            trace_id = parent_ctx.trace_id if parent_ctx else _generate_random_hex(16)
-            parent_span_id = parent_ctx.span_id if parent_ctx else None
-            span_id = _generate_random_hex(8)
-            sampled = parent_ctx.sampled if parent_ctx else True
-
-            current_ctx = TraceContext(
-                trace_id=trace_id,
-                span_id=span_id,
-                parent_span_id=parent_span_id,
-                sampled=sampled,
-                tracestate=parent_ctx.tracestate if parent_ctx else None,
-            )
-
-            resolved_name = span_name or qualname
-            span_attrs = _resolve_attributes(args, kwargs)
-            start_time_ms = int(time.time() * 1000)
-            start_hr = time.perf_counter()
-
-            token = _ACTIVE_TRACE_CONTEXT.set(current_ctx)
-            status = "OK"
-            try:
+            with _span_scope(resolved_name, _resolve_attributes(args, kwargs)):
                 return fn(*args, **kwargs)
-            except Exception as err:
-                status = "ERROR"
-                span_attrs["exception.type"] = type(err).__name__
-                span_attrs["exception.message"] = str(err)
-                import traceback
-
-                span_attrs["exception.stacktrace"] = traceback.format_exc()
-                raise
-            finally:
-                duration_ms = (time.perf_counter() - start_hr) * 1000
-                end_time_ms = int(time.time() * 1000)
-                _ACTIVE_TRACE_CONTEXT.reset(token)
-
-                if _SPAN_EXPORTER:
-                    span = TraceSpan(
-                        name=resolved_name,
-                        trace_id=trace_id,
-                        span_id=span_id,
-                        parent_span_id=parent_span_id,
-                        sampled=sampled,
-                        attributes=span_attrs,
-                        start_time_ms=start_time_ms,
-                        end_time_ms=end_time_ms,
-                        duration_ms=duration_ms,
-                        status=status,
-                    )
-                    try:
-                        _SPAN_EXPORTER(span)
-                    except Exception as exp_err:
-                        global_logger.warn(f"Trace span exporter error: {exp_err}")
 
         _mark_wrapped(sync_wrapper, "trace")
         return cast(F, sync_wrapper)
