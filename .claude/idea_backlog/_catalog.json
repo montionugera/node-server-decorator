@@ -142,5 +142,11 @@
     "title": "GraphQL DataLoader adapter: seamless batchLoad bridge for Apollo Server, Strawberry, and GraphQL-Go",
     "created_at": "2026-09-20T17:56:15.721175+00:00",
     "promoted_to": "F-021"
+  },
+  {
+    "id": "I-025",
+    "title": "Library hardening: coverage gates, 54 bug fixes, cache-key contract 1.3.0",
+    "created_at": "2026-10-04T15:56:36.006270+00:00",
+    "promoted_to": null
   }
 ]
