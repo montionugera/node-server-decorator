@@ -455,6 +455,30 @@ class BatchQueue(Generic[K, V]):
         return {}
 
 
+async def _await_shared(shared: asyncio.Future[Any]) -> Any:
+    if shared.done():
+        return shared.result()
+    loop = asyncio.get_running_loop()
+    waiter: asyncio.Future[Any] = loop.create_future()
+
+    def _on_shared_done(fut: asyncio.Future[Any]) -> None:
+        if waiter.done():
+            if not fut.cancelled():
+                fut.exception()
+            return
+        if fut.cancelled():
+            waiter.cancel()
+        else:
+            exc = fut.exception()
+            if exc is not None:
+                waiter.set_exception(exc)
+            else:
+                waiter.set_result(fut.result())
+
+    shared.add_done_callback(_on_shared_done)
+    return await waiter
+
+
 def batch_load(
     batch_fn: Callable[[list[Any]], Awaitable[Any]] | None = None,
     *,
@@ -497,12 +521,72 @@ def batch_load(
         strong_queues: OrderedDict[Any, BatchQueue[Any, Any]] = OrderedDict()
         all_queues: weakref.WeakSet[BatchQueue[Any, Any]] = weakref.WeakSet()
 
-        # Bound-vs-free and the key parameter are decided from the signature, never guessed
-        # from the runtime type of the first argument (a UUID key is not a ``self``).
-        params = list(inspect.signature(fn).parameters)
-        has_self_param = bool(params) and params[0] in ("self", "cls")
-        key_index = 1 if has_self_param else 0
-        key_name = params[key_index] if len(params) > key_index else None
+        owner_cache: weakref.WeakKeyDictionary[type, bool] = weakref.WeakKeyDictionary()
+
+        def _unwraps_to_wrapper(val: Any, target: Any) -> bool:
+            cur = val
+            for _ in range(10):
+                if cur is target:
+                    return True
+                try:
+                    # Foreign class attribute raising non-AttributeError must not break.
+                    if hasattr(cur, "__func__"):
+                        cur = cur.__func__
+                    elif hasattr(cur, "__wrapped__"):
+                        cur = cur.__wrapped__
+                    else:
+                        break
+                except Exception:
+                    break
+            return cur is target
+
+        def _first_arg_is_receiver(first_arg: Any) -> bool:
+            target_type: type = first_arg if isinstance(first_arg, type) else type(first_arg)
+            cached = owner_cache.get(target_type)
+            if cached is not None:
+                return cached
+            mros: list[type] = []
+            if isinstance(first_arg, type):
+                mros.extend(getattr(first_arg, "__mro__", ()))
+            mros.extend(getattr(type(first_arg), "__mro__", ()))
+            seen_classes: set[type] = set()
+            for cls_obj in mros:
+                if cls_obj in seen_classes:
+                    continue
+                seen_classes.add(cls_obj)
+                cls_vars = vars(cls_obj)
+                for val in cls_vars.values():
+                    if isinstance(val, staticmethod):
+                        continue
+                    if _unwraps_to_wrapper(val, async_wrapper):
+                        owner_cache[target_type] = True
+                        return True
+            owner_cache[target_type] = False
+            return False
+
+        sig = inspect.signature(fn)
+        pos_params = [
+            p.name
+            for p in sig.parameters.values()
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        qualname_parts = getattr(fn, "__qualname__", "").split(".")
+        in_class_body = len(qualname_parts) >= 2 and qualname_parts[-2] != "<locals>"
+
+        if (
+            pos_params
+            and pos_params[0] in ("self", "cls")
+            and (len(pos_params) >= 2 or in_class_body)
+        ):
+            receiver_mode = "always"
+        elif len(pos_params) >= 2 and in_class_body:
+            receiver_mode = "ambiguous"
+        else:
+            receiver_mode = "never"
 
         def _get_or_create_queue(instance: Any) -> BatchQueue[Any, Any] | None:
             resolved_batch_fn = batch_fn
@@ -564,7 +648,16 @@ def batch_load(
         @functools.wraps(fn)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             # Determine scope and key
-            instance = args[0] if has_self_param and args else None
+            if receiver_mode == "always":
+                has_receiver = True
+            elif receiver_mode == "never" or not args:
+                has_receiver = False
+            else:
+                has_receiver = _first_arg_is_receiver(args[0])
+
+            instance = args[0] if has_receiver and args else None
+            key_index = 1 if has_receiver else 0
+            key_name = pos_params[key_index] if len(pos_params) > key_index else None
 
             if len(args) > key_index:
                 key = args[key_index]
@@ -577,9 +670,9 @@ def batch_load(
             if queue is None:
                 return await fn(*args, **kwargs)
 
-            # The future may be shared with other callers of the same key: shield it so that
-            # cancelling this caller (disconnect, timeout) never cancels theirs.
-            return await asyncio.shield(queue.load(key))
+            # Waiter future avoids asyncio.shield log noise while ensuring cancelling
+            # this caller never cancels the shared load or other waiters.
+            return await _await_shared(queue.load(key))
 
         def _prime(key: Any, val: Any, instance: Any = None) -> None:
             queue = _get_or_create_queue(instance)

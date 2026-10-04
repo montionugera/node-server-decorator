@@ -120,13 +120,18 @@ export function graphqlLoader<TParent = any, TKey = any, TResult = any>(
 
   // A pre-built instance (or anything already exposing the method) is used as-is; a class whose
   // prototype has the method is instantiated; any other function is a factory.
+  const isClass = typeof service === 'function' && /^class[\s{]/.test(Function.prototype.toString.call(service));
   const isInstance = !service || !method || typeof service !== 'function' || typeof service[method] === 'function';
   const buildService = (): any => {
     if (isInstance) return service;
+    if (isClass) return new service();
     return typeof service.prototype?.[method!] === 'function' ? new service() : service();
   };
   if (!loader && service && method && isInstance && typeof service[method] !== 'function') {
     throw missingMethod(service);
+  }
+  if (!loader && service && method && isClass && !isInstance && typeof service.prototype?.[method] !== 'function') {
+    throw new Error(`Method '${method}' not found on service ${service.name}`);
   }
 
   return async function graphqlFieldResolver(

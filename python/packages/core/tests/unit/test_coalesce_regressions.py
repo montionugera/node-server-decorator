@@ -409,3 +409,212 @@ async def test_dedup_survives_the_invalidated_flight_settling() -> None:
     store.gates[1].set()
     assert await second == "new"
     assert await third == "new"
+
+
+# --- residual defects: receiver binding and shield exception noise -----------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("param_name", ["self", "cls"])
+async def test_free_function_with_single_param_named_self_binds_the_key(
+    param_name: str,
+) -> None:
+    batches: list[list[int]] = []
+
+    async def fetch(keys: list[int]) -> dict[int, str]:
+        batches.append(list(keys))
+        return {k: f"v{k}" for k in keys}
+
+    if param_name == "self":
+
+        @batch_load(fetch)
+        async def get_self(self: int) -> str | None:
+            return None
+
+        fn = get_self
+    else:
+
+        @batch_load(fetch)
+        async def get_cls(cls: int) -> str | None:
+            return None
+
+        fn = get_cls
+
+    results = await asyncio.gather(fn(1), fn(2))
+    assert list(results) == ["v1", "v2"]
+    assert batches == [[1, 2]]
+
+
+@pytest.mark.asyncio
+async def test_method_with_unconventional_receiver_name_binds_the_instance() -> None:
+    class S:
+        def __init__(self) -> None:
+            self.batches: list[list[int]] = []
+
+        async def find_many(this, keys: list[int]) -> dict[int, str]:  # noqa: N805
+            this.batches.append(list(keys))
+            return {k: f"v{k}" for k in keys}
+
+        @batch_load(batch_method="find_many")
+        async def get(this, k: int) -> str | None:  # noqa: N805
+            return None
+
+    s = S()
+    results = await asyncio.gather(s.get(1), s.get(2))
+    assert list(results) == ["v1", "v2"]
+    assert s.batches == [[1, 2]]
+
+    assert await s.get(k=3) == "v3"
+    assert s.batches == [[1, 2], [3]]
+
+
+@pytest.mark.asyncio
+async def test_staticmethod_with_extra_parameter_is_not_treated_as_a_method() -> None:
+    batches: list[list[int]] = []
+
+    async def fetch(keys: list[int]) -> dict[int, str]:
+        batches.append(list(keys))
+        return {k: f"v{k}" for k in keys}
+
+    class S:
+        @staticmethod
+        @batch_load(fetch)
+        async def get(k: int, extra: Any = None) -> str | None:
+            return None
+
+    results = await asyncio.gather(S.get(1), S().get(2))
+    assert list(results) == ["v1", "v2"]
+    assert batches == [[1, 2]]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_caller_does_not_log_when_the_shared_load_fails() -> None:
+    gate = asyncio.Event()
+
+    async def failing_fetch(keys: list[int]) -> dict[int, str]:
+        await gate.wait()
+        raise RuntimeError("boom")
+
+    @batch_load(failing_fetch)
+    async def get(key: int) -> str | None:
+        return None
+
+    loop = asyncio.get_running_loop()
+    logs: list[dict[str, Any]] = []
+
+    def handler(_loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
+        logs.append(context)
+
+    old_handler = loop.get_exception_handler()
+    loop.set_exception_handler(handler)
+    try:
+        task1 = asyncio.create_task(get(1))
+        task2 = asyncio.create_task(get(1))
+        await asyncio.sleep(0.01)
+
+        task1.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task1
+
+        gate.set()
+        with pytest.raises(RuntimeError, match="boom"):
+            await task2
+
+        for _ in range(5):
+            await asyncio.sleep(0)
+        gc.collect()
+
+        assert logs == []
+    finally:
+        loop.set_exception_handler(old_handler)
+
+
+class _Raising:
+    def __getattr__(self, name: str) -> Any:
+        raise RuntimeError("boom from proxy")
+
+
+@pytest.mark.asyncio
+async def test_class_attribute_proxy_raising_does_not_break_call() -> None:
+    batches: list[list[int]] = []
+
+    async def batch(keys: list[int]) -> dict[int, str]:
+        batches.append(list(keys))
+        return {k: f"val-{k}" for k in keys}
+
+    class Service:
+        proxy = _Raising()
+
+        @batch_load(batch_fn=batch)
+        async def load(this: Any, key: int) -> str:  # noqa: N805
+            return ""
+
+    obj = Service()
+    res = await obj.load(1)
+    assert res == "val-1"
+    assert batches == [[1]]
+
+
+@pytest.mark.asyncio
+async def test_staticmethod_first_arg_instance_of_owning_class_treated_as_key() -> None:
+    batches: list[list[Any]] = []
+
+    async def batch(keys: list[Any]) -> dict[Any, str]:
+        batches.append(list(keys))
+        return {k: f"val-{id(k)}" for k in keys}
+
+    class Node:
+        @staticmethod
+        @batch_load(batch_fn=batch)
+        async def load(node: Any, depth: int = 0) -> str:
+            return ""
+
+    n = Node()
+    res = await Node.load(n)
+    assert res == f"val-{id(n)}"
+    assert batches == [[n]]
+
+
+def _foreign_decorator(f: Any) -> Any:
+    async def inner(*a: Any, **k: Any) -> Any:
+        return await f(*a, **k)
+
+    return inner
+
+
+@pytest.mark.asyncio
+async def test_batch_load_foreign_decorator_without_wrapped_hides_receiver() -> None:
+    batches_this: list[list[Any]] = []
+
+    async def batch_this(keys: list[Any]) -> dict[Any, str]:
+        batches_this.append(list(keys))
+        return {k: f"val-{id(k)}" for k in keys}
+
+    class SvcThis:
+        @_foreign_decorator
+        @batch_load(batch_fn=batch_this)
+        async def load(this: Any, key: int = 1) -> str:  # noqa: N805
+            return ""
+
+    obj_this = SvcThis()
+    res_this = await obj_this.load(1)
+    assert res_this == f"val-{id(obj_this)}"
+    assert batches_this == [[obj_this]]
+
+    # Positive counterpart: receiver named `self` is always recognised.
+    batches_self: list[list[int]] = []
+
+    async def batch_self(keys: list[int]) -> dict[int, str]:
+        batches_self.append(list(keys))
+        return {k: f"val-{k}" for k in keys}
+
+    class SvcSelf:
+        @_foreign_decorator
+        @batch_load(batch_fn=batch_self)
+        async def load(self: Any, key: int = 1) -> str:
+            return ""
+
+    obj_self = SvcSelf()
+    res_self = await obj_self.load(1)
+    assert res_self == "val-1"
+    assert batches_self == [[1]]

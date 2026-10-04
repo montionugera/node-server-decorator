@@ -47,6 +47,7 @@ type MultiTierLoader[K comparable, V any] struct {
 	l1          *LRU[K, multiTierHolder[V]]
 	sf          *Group[string, map[K]V]
 	mu          sync.Mutex
+	clearGen    uint64
 	activeBatch *multiTierBatch[K, V]
 	// flights holds every dispatched batch that has not finished yet (guarded by mu), so that
 	// Clear can mark keys a running batch may already have read.
@@ -68,6 +69,8 @@ type multiTierBatch[K comparable, V any] struct {
 	cancelBatch context.CancelFunc
 	callerCount int32
 	dispatched  bool
+	deadline    time.Time
+	unbounded   bool
 	// stale lists keys cleared while this batch was running (guarded by the loader's mu): the
 	// value the batch read for them may predate the invalidation and must not be cached.
 	stale map[K]bool
@@ -126,7 +129,7 @@ func (l *MultiTierLoader[K, V]) Load(ctx context.Context, key K) (V, error) {
 
 	b := l.activeBatch
 	if b == nil {
-		batchCtx, cancel := context.WithCancel(context.Background())
+		batchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 		b = &multiTierBatch[K, V]{
 			keyMap:      make(map[K]bool),
 			requests:    make(map[K][]*multiTierRequest[V]),
@@ -144,6 +147,11 @@ func (l *MultiTierLoader[K, V]) Load(ctx context.Context, key K) (V, error) {
 	}
 
 	atomic.AddInt32(&b.callerCount, 1)
+	if d, ok := ctx.Deadline(); !ok {
+		b.unbounded = true
+	} else if d.After(b.deadline) {
+		b.deadline = d
+	}
 	if !b.keyMap[key] {
 		b.keyMap[key] = true
 		b.keys = append(b.keys, key)
@@ -217,6 +225,18 @@ func (l *MultiTierLoader[K, V]) cacheL1(b *multiTierBatch[K, V], key K, holder m
 }
 
 func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
+	l.mu.Lock()
+	deadline := b.deadline
+	unbounded := b.unbounded
+	l.mu.Unlock()
+
+	ctx := b.ctx
+	if !unbounded && !deadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, deadline)
+		defer cancel()
+	}
+
 	keys := b.keys
 	reqs := b.requests
 	defer func() {
@@ -256,7 +276,7 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 			keyMap[s] = k
 		}
 
-		mgetRes, err := l.cfg.L2Cache.MGet(b.ctx, strKeys)
+		mgetRes, err := l.cfg.L2Cache.MGet(ctx, strKeys)
 		if err == nil && mgetRes != nil {
 			for strKey, rawBytes := range mgetRes {
 				origKey, exists := keyMap[strKey]
@@ -286,10 +306,24 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 	}
 
 	// Phase C: L3 Batch DB Query (via SingleFlight)
-	sfKey := fmt.Sprintf("batch:%v", l2Misses)
-	resMap, err := l.sf.Do(sfKey, func() (map[K]V, error) {
-		return l.cfg.BatchFn(b.ctx, l2Misses)
-	})
+	l.mu.Lock()
+	gen := l.clearGen
+	l.mu.Unlock()
+
+	sfKey := fmt.Sprintf("batch:%d:%v", gen, l2Misses)
+	var resMap map[K]V
+	var err error
+	for {
+		var ranClosure bool
+		resMap, err = l.sf.Do(sfKey, func() (map[K]V, error) {
+			ranClosure = true
+			return l.cfg.BatchFn(ctx, l2Misses)
+		})
+		if !ranClosure && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && ctx.Err() == nil {
+			continue
+		}
+		break
+	}
 
 	if err != nil {
 		for _, k := range l2Misses {
@@ -334,7 +368,7 @@ func (l *MultiTierLoader[K, V]) dispatchBatch(b *multiTierBatch[K, V]) {
 	l.mu.Unlock()
 
 	if len(l2SetItems) > 0 && l.cfg.L2Cache != nil {
-		_ = l.cfg.L2Cache.SetMany(b.ctx, l2SetItems, l.cfg.L2TTL)
+		_ = l.cfg.L2Cache.SetMany(ctx, l2SetItems, l.cfg.L2TTL)
 	}
 
 	// Trigger PrefetchHooks asynchronously with detached context
@@ -417,6 +451,7 @@ func (l *MultiTierLoader[K, V]) Prefetch(ctx context.Context, keys []K) {
 // back to L1/L2; loads issued after Clear always go to a new batch.
 func (l *MultiTierLoader[K, V]) Clear(ctx context.Context, key K) error {
 	l.mu.Lock()
+	l.clearGen++
 	for b := range l.flights {
 		if b.keyMap[key] {
 			if b.stale == nil {

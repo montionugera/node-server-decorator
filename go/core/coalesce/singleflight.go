@@ -9,6 +9,8 @@ type call[V any] struct {
 	wg  sync.WaitGroup
 	val V
 	err error
+	// dups counts the callers that joined this call instead of starting it (guarded by Group.mu).
+	dups int
 }
 
 // Group provides in-flight deduplication for identical keys.
@@ -29,6 +31,7 @@ func NewGroup[K comparable, V any]() *Group[K, V] {
 func (g *Group[K, V]) Do(key K, fn func() (V, error)) (V, error) {
 	g.mu.Lock()
 	if c, ok := g.m[key]; ok {
+		c.dups++
 		g.mu.Unlock()
 		c.wg.Wait()
 		return c.val, c.err
@@ -40,11 +43,13 @@ func (g *Group[K, V]) Do(key K, fn func() (V, error)) (V, error) {
 	g.mu.Unlock()
 
 	c.val, c.err = fn()
-	c.wg.Done()
 
+	// Drop the key before waking the waiters: one that retries at once must start a fresh call,
+	// not find this finished one still in the map and be handed its result again.
 	g.mu.Lock()
 	delete(g.m, key)
 	g.mu.Unlock()
+	c.wg.Done()
 
 	return c.val, c.err
 }

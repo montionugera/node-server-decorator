@@ -361,4 +361,52 @@ describe('GraphQL DataLoader Adapter — service resolution regressions', () => 
     const ctx = createGraphQLLoaderContext();
     await expect(resolver({ id: '1' }, {}, ctx, {})).rejects.toThrow(/Method 'get' not found/);
   });
+
+  it('fails at definition time when the method does not exist on a service class', () => {
+    class Svc {
+      async get(id: string) {
+        return id;
+      }
+    }
+    expect(() =>
+      graphqlLoader({ key: (p: any) => p.id, service: Svc as any, method: 'gett' })
+    ).toThrow("Method 'gett' not found on service Svc");
+  });
+
+  it('never calls a service class without new', async () => {
+    let instances = 0;
+    class Svc {
+      constructor() {
+        instances++;
+      }
+      async get(id: string) {
+        return id;
+      }
+    }
+    const resolver = graphqlLoader({ key: (p: any) => p.id, service: Svc as any, method: 'get' });
+    const ctx = createGraphQLLoaderContext();
+    const result = await resolver({ id: '1' }, {}, ctx, {});
+    await ctx.cleanupLoaders();
+
+    expect(result).toBe('1');
+    expect(instances).toBe(1);
+  });
+
+  it('still treats a plain function without the method as a factory', async () => {
+    class Svc {
+      async get(id: string) {
+        return id;
+      }
+    }
+    const resolver = graphqlLoader({
+      key: (p: any) => p.id,
+      service: () => new Svc(),
+      method: 'get',
+    });
+    const ctx = createGraphQLLoaderContext();
+    const result = await resolver({ id: '1' }, {}, ctx, {});
+    await ctx.cleanupLoaders();
+
+    expect(result).toBe('1');
+  });
 });

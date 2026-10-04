@@ -217,6 +217,19 @@ describe('@batchLoad regressions', () => {
     const gc: () => void = runInNewContext('gc');
     const WeakRefCtor: any = (globalThis as any).WeakRef;
 
+    /** Runs GC rounds until at most `threshold` refs are still alive, or the deadline passes. Returns the live count. */
+    async function collectUntil(refs: any[], threshold: number, deadlineMs = 2000): Promise<number> {
+      const alive = () => refs.filter((ref) => ref.deref() !== undefined).length;
+      const deadline = Date.now() + deadlineMs;
+      for (;;) {
+        await tick(1);
+        await new Promise((r) => setImmediate(r));
+        gc();
+        const count = alive();
+        if (count < threshold || Date.now() >= deadline) return count;
+      }
+    }
+
     it('does not retain a finished request scope (queue + L1 values) and clears L2 once', async () => {
       const als = new AsyncLocalStorage<object>();
       const l2 = makeL2();
@@ -227,29 +240,40 @@ describe('@batchLoad regressions', () => {
           );
         }
 
-        @batchLoad({ batchMethod: 'findMany', contextStorage: als, cache: { l2: { adapter: l2.adapter } } })
-        async find(_id: string): Promise<{ id: string } | undefined> {
+        @batchLoad({
+          batchMethod: 'findMany',
+          contextStorage: als,
+          cache: { l2: { adapter: l2.adapter } },
+        })
+        async find(_id: string): Promise<{ id: string; blob: number[] } | undefined> {
           return undefined;
         }
       }
       const svc = new Svc();
 
+      async function runRequest(key: string) {
+        let scopeRef: any;
+        let valueRef: any;
+        await als.run({}, async () => {
+          scopeRef = new WeakRefCtor(als.getStore()!);
+          const val = await svc.find(key);
+          valueRef = new WeakRefCtor(val);
+        });
+        return { scopeRef, valueRef };
+      }
+
       const N = 200;
       const scopes: any[] = [];
+      const values: any[] = [];
       for (let i = 0; i < N; i++) {
-        await als.run({}, async () => {
-          scopes.push(new WeakRefCtor(als.getStore()!));
-          await svc.find(`k${i}`);
-        });
+        const { scopeRef, valueRef } = await runRequest(`k${i}`);
+        scopes.push(scopeRef);
+        values.push(valueRef);
       }
       l2.store.clear(); // L2 holds the values strongly; it is not what is under test
 
-      for (let i = 0; i < 5; i++) {
-        await tick(1);
-        gc();
-      }
-      const alive = scopes.filter((ref) => ref.deref() !== undefined).length;
-      expect(alive).toBeLessThan(N / 10);
+      expect(await collectUntil(scopes, N / 10)).toBeLessThan(N / 10);
+      expect(await collectUntil(values, N / 10)).toBeLessThan(N / 10);
 
       // Invalidation cost must not grow with the number of requests served.
       l2.calls.del = 0;
@@ -258,6 +282,41 @@ describe('@batchLoad regressions', () => {
         await (svc.find as any).clear('live');
       });
       expect(l2.calls.del).toBe(1);
+    });
+
+    it('does not retain transient service instances (queue + L1 values)', async () => {
+      class TransientSvc {
+        async findMany(ids: string[]): Promise<Map<string, { id: string; blob: number[] }>> {
+          return new Map(
+            ids.map((id) => [id, { id, blob: new Array(1024).fill(1) }] as [string, any])
+          );
+        }
+
+        @batchLoad({ batchMethod: 'findMany' })
+        async find(_id: string): Promise<{ id: string; blob: number[] } | undefined> {
+          return undefined;
+        }
+      }
+
+      async function createAndLoad(key: string) {
+        const instance = new TransientSvc();
+        const instanceRef = new WeakRefCtor(instance);
+        const val = await instance.find(key);
+        const valueRef = new WeakRefCtor(val);
+        return { instanceRef, valueRef };
+      }
+
+      const N = 200;
+      const instances: any[] = [];
+      const values: any[] = [];
+      for (let i = 0; i < N; i++) {
+        const { instanceRef, valueRef } = await createAndLoad(`k${i}`);
+        instances.push(instanceRef);
+        values.push(valueRef);
+      }
+
+      expect(await collectUntil(instances, N / 10)).toBeLessThan(N / 10);
+      expect(await collectUntil(values, N / 10)).toBeLessThan(N / 10);
     });
 
     it('clear() without an instance still invalidates every live scope', async () => {

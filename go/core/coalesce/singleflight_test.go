@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -95,5 +97,65 @@ func TestLoader_SingleFlightBatchOutlivesItsCallersWithoutDeadline(t *testing.T)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("BatchFn did not finish")
+	}
+}
+
+// awaitDups blocks until n callers have joined the in-flight call for key.
+func awaitDups[K comparable, V any](t *testing.T, g *Group[K, V], key K, n int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		g.mu.Lock()
+		c, ok := g.m[key]
+		joined := ok && c.dups >= n
+		g.mu.Unlock()
+		if joined {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %d callers to join the flight for %v", n, key)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// A waiter that calls Do again the moment it is woken must get a fresh call, never the
+// finished one it was just handed: Do has to drop the key before it releases its waiters.
+func TestGroup_DoDropsTheKeyBeforeWakingWaiters(t *testing.T) {
+	const waiters = 8
+	errLeader := errors.New("leader failed")
+
+	for i := 0; i < 500; i++ {
+		g := NewGroup[string, int]()
+		release := make(chan struct{})
+		leaderIn := make(chan struct{})
+		go func() {
+			_, _ = g.Do("k", func() (int, error) {
+				close(leaderIn)
+				<-release
+				return 0, errLeader
+			})
+		}()
+		<-leaderIn
+
+		var stale int32
+		var wg sync.WaitGroup
+		for w := 0; w < waiters; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, _ = g.Do("k", func() (int, error) { return 0, nil })
+				if _, err := g.Do("k", func() (int, error) { return 1, nil }); errors.Is(err, errLeader) {
+					atomic.AddInt32(&stale, 1)
+				}
+			}()
+		}
+		awaitDups(t, g, "k", waiters)
+		close(release)
+		wg.Wait()
+
+		if n := atomic.LoadInt32(&stale); n != 0 {
+			t.Fatalf("iteration %d: %d retrying waiter(s) were handed the finished call again", i, n)
+		}
 	}
 }
