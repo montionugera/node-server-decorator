@@ -402,7 +402,21 @@ func TestAstCoverage_IsKnownFlag(t *testing.T) {
 }
 
 func TestAstCoverage_LowerFirst(t *testing.T) {
-	cases := map[string]string{"": "", "Name": "name", "name": "name", "X": "x", "Élan": "élan", "9lives": "9lives"}
+	cases := map[string]string{
+		"":           "",
+		"Name":       "name",
+		"name":       "name",
+		"X":          "x",
+		"Élan":       "élan",
+		"9lives":     "9lives",
+		"ID":         "id",
+		"URL":        "url",
+		"HTTPServer": "httpServer",
+		"UserID":     "userID",
+		"ID2":        "id2",
+		"APIKey":     "apiKey",
+		"IDs":        "iDs",
+	}
 	for in, want := range cases {
 		if got := lowerFirst(in); got != want {
 			t.Errorf("lowerFirst(%q) = %q, want %q", in, got, want)

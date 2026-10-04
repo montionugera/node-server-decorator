@@ -89,8 +89,14 @@ func writeStruct(out *bytes.Buffer, structName string, fields []entity.Field, in
 		prefix string
 	}
 
+	seenFields := make(map[string]string, len(filtered))
 	for _, f := range filtered {
 		goFieldName := Capitalize(f.Name)
+		if prevWire, exists := seenFields[goFieldName]; exists {
+			return fmt.Errorf("struct %s has duplicate Go field name %s from fields %s and %s", structName, goFieldName, prevWire, f.Name)
+		}
+		seenFields[goFieldName] = f.Name
+
 		isOptional := forceOptional || f.Optional
 
 		goType, nested := goTypeForField(f, isOptional, include, prefix+goFieldName)
@@ -123,10 +129,10 @@ func writeStruct(out *bytes.Buffer, structName string, fields []entity.Field, in
 		if prev != buf.String() {
 			return fmt.Errorf("generated struct name %s is produced by two different shapes; rename one of the fields or actions that map to it", structName)
 		}
-		return nil
+	} else {
+		definedStructs[structName] = buf.String()
+		out.Write(buf.Bytes())
 	}
-	definedStructs[structName] = buf.String()
-	out.Write(buf.Bytes())
 
 	for _, ns := range nestedStructs {
 		if err := writeStruct(out, ns.name, ns.fields, include, false, ns.prefix, definedStructs); err != nil {

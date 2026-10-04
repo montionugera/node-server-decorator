@@ -75,3 +75,38 @@ func TestParseStructRejectsInvalidIR(t *testing.T) {
 		})
 	}
 }
+
+func TestParseStructLowersLeadingInitialism(t *testing.T) {
+	src := `package p
+type Link struct {
+	ID         string
+	URL        string
+	HTTPServer string
+	UserID     string
+	APIKey     string
+}
+`
+	spec, err := ParseStruct(src, "Link")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"id", "url", "httpServer", "userID", "apiKey"}
+	if len(spec.Fields) != len(want) {
+		t.Fatalf("got %d fields, want %d", len(spec.Fields), len(want))
+	}
+	for i, w := range want {
+		if spec.Fields[i].Name != w {
+			t.Errorf("field %d: got %q, want %q", i, spec.Fields[i].Name, w)
+		}
+	}
+
+	// Sub-check that an explicit name still wins
+	explicitSrc := "package p\ntype Tagged struct {\n\tID string `entity:\"id,readonly,role=id\"`\n}"
+	explicitSpec, err := ParseStruct(explicitSrc, "Tagged")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(explicitSpec.Fields) != 1 || explicitSpec.Fields[0].Name != "id" {
+		t.Fatalf("expected explicit field name %q, got %+v", "id", explicitSpec.Fields)
+	}
+}

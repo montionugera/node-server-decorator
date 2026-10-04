@@ -264,3 +264,19 @@ generator, not from this check) — it only rejects the two known-non-portable c
 `gen-pydantic` additionally wraps its model-build call and re-raises any pattern-compile failure
 as a `ValueError` naming the offending field(s)/pattern(s) as defense-in-depth, in case IR reaches
 it from something other than these two entity packages' decorators.
+
+## Go lane: default wire names and generated struct names
+
+`entity.ParseStruct` derives a field's wire name from the Go field name only when neither an
+`entity` tag name nor a `json` tag supplies one. The derivation lowercases the whole leading run of
+upper-case letters, keeping the last letter of that run when the run is longer than one and a
+lower-case letter follows it: `ID` → `id`, `URL` → `url`, `HTTPServer` → `httpServer`,
+`APIKey` → `apiKey`, `UserID` → `userID`. This matches the name a Node or Python entity would use
+for the same attribute. The rule has no initialism dictionary, so a plural such as `IDs` becomes
+`iDs`; give such a field an explicit name in its `entity` tag.
+
+`dto.GenerateGoStructs` fails closed instead of emitting a file that drops members or does not
+compile. It returns an error when two fields of one struct capitalize to the same Go field name
+(`name` and `Name`), and when two paths produce the same nested struct name with a different shape
+at any depth (`x.y.z` and `xY.z`). Two paths that produce the same name with an identical shape at
+every depth are emitted once.

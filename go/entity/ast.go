@@ -352,12 +352,28 @@ func exprTypeName(expr ast.Expr) string {
 	}
 }
 
+// lowerFirst lowercases the leading run of uppercase runes. When the run is longer
+// than one rune and immediately followed by a lowercase rune, the last uppercase
+// rune is kept to start the next word (e.g. "IDs" -> "iDs", requiring an explicit entity tag).
 func lowerFirst(s string) string {
 	if len(s) == 0 {
 		return ""
 	}
 	r := []rune(s)
-	r[0] = unicode.ToLower(r[0])
+	n := 0
+	for n < len(r) && unicode.IsUpper(r[n]) {
+		n++
+	}
+	if n == 0 {
+		return s
+	}
+	limit := n
+	if n > 1 && n < len(r) && unicode.IsLower(r[n]) {
+		limit = n - 1
+	}
+	for i := 0; i < limit; i++ {
+		r[i] = unicode.ToLower(r[i])
+	}
 	return string(r)
 }
 

@@ -145,3 +145,80 @@ func TestGenerateGoStructsRejectsNestedNameCollision(t *testing.T) {
 		t.Fatalf("expected a name-collision error naming TCreateXY, got %v", err)
 	}
 }
+
+func TestGenerateGoStructsRejectsDeepNestedNameCollision(t *testing.T) {
+	spec := entity.Spec{Entity: "T", Fields: []entity.Field{
+		{Name: "x", Type: "obj", Fields: []entity.Field{
+			{Name: "y", Type: "obj", Fields: []entity.Field{
+				{Name: "z", Type: "obj", Fields: []entity.Field{{Name: "a", Type: "str"}}},
+			}},
+		}},
+		{Name: "xY", Type: "obj", Fields: []entity.Field{
+			{Name: "z", Type: "obj", Fields: []entity.Field{{Name: "b", Type: "int"}}},
+		}},
+	}}
+	if _, err := dto.GenerateGoStructs(spec, "dto"); err == nil {
+		t.Fatalf("expected error for deep nested name collision, got nil")
+	}
+}
+
+func TestGenerateGoStructsAllowsIdenticalDeepDuplicate(t *testing.T) {
+	spec := entity.Spec{Entity: "T", Fields: []entity.Field{
+		{Name: "x", Type: "obj", Fields: []entity.Field{
+			{Name: "y", Type: "obj", Fields: []entity.Field{
+				{Name: "z", Type: "obj", Fields: []entity.Field{{Name: "a", Type: "str"}}},
+			}},
+		}},
+		{Name: "xY", Type: "obj", Fields: []entity.Field{
+			{Name: "z", Type: "obj", Fields: []entity.Field{{Name: "a", Type: "str"}}},
+		}},
+	}}
+	codeBytes, err := dto.GenerateGoStructs(spec, "dto")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	typeCheck(t, codeBytes)
+	count := strings.Count(string(codeBytes), "type TCreateXYZ struct")
+	if count != 1 {
+		t.Fatalf("expected exactly one 'type TCreateXYZ struct', got %d in:\n%s", count, string(codeBytes))
+	}
+}
+
+func TestGenerateGoStructsRejectsDuplicateGoFieldName(t *testing.T) {
+	t.Run("top-level fields", func(t *testing.T) {
+		spec := entity.Spec{Entity: "T", Fields: []entity.Field{
+			{Name: "name", Type: "str"},
+			{Name: "Name", Type: "str"},
+		}}
+		if _, err := dto.GenerateGoStructs(spec, "dto"); err == nil {
+			t.Fatalf("expected error for duplicate Go field name in top-level fields, got nil")
+		}
+	})
+
+	t.Run("nested obj", func(t *testing.T) {
+		spec := entity.Spec{Entity: "T", Fields: []entity.Field{
+			{Name: "profile", Type: "obj", Fields: []entity.Field{
+				{Name: "foo", Type: "str"},
+				{Name: "Foo", Type: "int"},
+			}},
+		}}
+		if _, err := dto.GenerateGoStructs(spec, "dto"); err == nil {
+			t.Fatalf("expected error for duplicate Go field name in nested obj, got nil")
+		}
+	})
+
+	t.Run("action input", func(t *testing.T) {
+		spec := entity.Spec{Entity: "T", Actions: []entity.Action{
+			{
+				Name: "doSomething",
+				Input: []entity.Field{
+					{Name: "foo", Type: "str"},
+					{Name: "Foo", Type: "str"},
+				},
+			},
+		}}
+		if _, err := dto.GenerateGoStructs(spec, "dto"); err == nil {
+			t.Fatalf("expected error for duplicate Go field name in action input, got nil")
+		}
+	})
+}
