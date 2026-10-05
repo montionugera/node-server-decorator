@@ -19,6 +19,11 @@
 # run, without a coverage gate, in ci-go.yml and scripts/contributor-check.sh
 # (`cd go/adapter/gin && go test ./...`).
 #
+# go/adapter/pgxlock is a separate module too, for the same reason: NO coverage
+# threshold and no entry in the table below. Its unit tests run in
+# scripts/contributor-check.sh (`cd go/adapter/pgxlock && go test ./...`); its
+# real-Postgres test is local only, behind the `integration` build tag.
+#
 # Env:
 #   GO_COVERAGE_TEST_FLAGS  extra `go test` flags. Unset, it defaults to nothing,
 #                           except on macOS with a Go toolchain older than
