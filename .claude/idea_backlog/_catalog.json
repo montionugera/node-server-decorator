@@ -167,7 +167,7 @@
     "id": "I-028",
     "title": "Go lock manager interface with pgx advisory-lock adapter in a nested module",
     "created_at": "2026-10-05T00:23:22.389866+00:00",
-    "promoted_to": null,
+    "promoted_to": "F-025",
     "epic": "E-001"
   }
 ]
