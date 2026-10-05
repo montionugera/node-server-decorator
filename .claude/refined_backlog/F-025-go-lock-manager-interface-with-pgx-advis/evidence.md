@@ -108,23 +108,30 @@ PGXLOCK_TEST_DATABASE_URL='postgres://postgres:...@127.0.0.1:55433/postgres?sslm
 pgx v5.11.0 raised the scratch `go.mod` to `go 1.25.0` and `require github.com/jackc/pgx/v5
 v5.11.0`, so it needs the Go 1.25 toolchain (the committed module builds with Go 1.22).
 
-Output (exit code 0; 25 `--- PASS` lines including subtests, 0 `--- FAIL`, 0 `--- SKIP`):
+Result: exit code 0. 24 top-level tests ran and passed (17 unit, 7 integration), plus 5
+subtests (29 `--- PASS` lines in total), 0 `--- FAIL`, 0 `--- SKIP`. The block below is
+filtered to the 7 integration results and the final two lines of the output:
 
 ```text
---- PASS: TestIntegrationHeldLockKeepsOneConnection (0.06s)
---- PASS: TestIntegrationKeyMatchesServiceSQL (0.06s)
---- PASS: TestIntegrationServiceHolderExcludesLibrary (0.05s)
---- PASS: TestIntegrationAnotherPoolCanLockAfterRelease (0.05s)
---- PASS: TestIntegrationCancelDoesNotFreeButReleaseDoes (0.05s)
+--- PASS: TestIntegrationHeldLockKeepsOneConnection (0.05s)
+--- PASS: TestIntegrationKeyMatchesServiceSQL (0.04s)
+--- PASS: TestIntegrationServiceHolderExcludesLibrary (0.04s)
+--- PASS: TestIntegrationAnotherPoolCanLockAfterRelease (0.04s)
+--- PASS: TestIntegrationCancelDoesNotFreeButReleaseDoes (0.04s)
 --- PASS: TestIntegrationCustomPrefixIsADifferentLock (0.04s)
---- PASS: TestIntegrationFailedUnlockDropsTheConnection (0.07s)
+--- PASS: TestIntegrationFailedUnlockDropsTheConnection (0.08s)
 PASS
-ok  	github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock	2.736s
+ok  	github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock	2.559s
 ```
 
 This run includes the panic guards, the ignored non-positive timeouts and the deferred
 release in `closeAndRelease`. An earlier v5.11.0 run predated those changes and is
 superseded by this one.
+
+Correction: a first attempt at this run on the same day was accidentally made in a stale
+scratch copy holding older code (13 unit tests) and was recorded here as 25 pass lines.
+That result is discarded. The figures above come from a copy whose `pgxlock.go` was
+confirmed identical to the source at `9b493c0` (`diff -q`) before the run.
 
 ## Unit-only coverage (no Postgres)
 
