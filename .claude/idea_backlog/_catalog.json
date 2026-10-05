@@ -160,7 +160,7 @@
     "id": "I-027",
     "title": "Python single_flight and Node createLimiter plus keyedSerializer helpers",
     "created_at": "2026-10-05T00:23:22.389210+00:00",
-    "promoted_to": null,
+    "promoted_to": "F-024",
     "epic": "E-001"
   },
   {
