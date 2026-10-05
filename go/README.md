@@ -15,12 +15,13 @@ Module: `github.com/montionugera/node-server-decorator/v2` · Go 1.22+ · Zero e
 | **`dto`** | `go/dto` | Runtime DTO validation engine (`create`, `update`, `read`, `action`) & Go struct code generator |
 | **`core`** | `go/core` | Deterministic cache key algorithm, generic `Cache[In, Out]`, `EmitOnSuccess[In, Out]`, `Retry`, `CircuitBreakerWrapper` and `RateLimit` wrappers |
 | **`coalesce`** | `go/core/coalesce` | Batch `Loader` and `MultiTierLoader` (L1 LRU, L2 `MGetCache`, L3 batch function) |
-| **`distlock`** | `go/core/distlock` | Redis distributed lock with a heartbeat watchdog (`Locker.Acquire`, `Locker.Do`) |
+| **`distlock`** | `go/core/distlock` | Redis distributed lock with a heartbeat watchdog (`Locker.Acquire`, `Locker.Do`), plus the try-or-skip `Manager` interface with in-memory and no-op managers |
 | **`tracing`** | `go/core/tracing` | W3C `traceparent` parsing/formatting, `StartSpan`, generic `Trace[In, Out]` |
 | **`httpserver`** | `go/http` | REST route mounting on standard Go 1.22+ `http.ServeMux`, RFC 9457 Problem Details, scope auth |
 | **`sse`** | `go/sse` | Generic `Broadcaster[T]` with history, `Last-Event-ID` replay and keyed channels |
 | **`gqlloader`** | `go/adapter/gqlloader` | Request-scoped GraphQL loader registry over `coalesce` |
 | **`gin`** | `go/adapter/gin` | Gin router adapter. A **separate module** with its own `go.mod`; the root module stays dependency-free |
+| **`pgxlock`** | `go/adapter/pgxlock` | PostgreSQL advisory-lock `Manager` for pgx v5 pools. A **separate module** with its own `go.mod` (it does not import the root module) |
 
 ---
 
@@ -222,6 +223,57 @@ err := locker.Do(ctx, "invoice:42", func(ctx context.Context) error {
 - `Lock.Lost()` is closed when the lease is lost, and `Release` / `Do` then return `distlock.ErrLockLost`.
 - `Release` is retryable: if the release script could not run, the call returns a wrapped error and a later call retries. `Do` returns the release error, joined with `fn`'s error when both fail.
 
+#### Try-or-skip lock manager
+
+`distlock.Manager` is for "run this job on one replica, the others skip it". It never waits: `AcquireLock` returns at once with `acquired == false` and a nil error when another holder has the lock. `release` is never nil, is idempotent and is safe to defer.
+
+```go
+import (
+	"github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock"
+	"github.com/montionugera/node-server-decorator/v2/go/core/distlock"
+)
+
+var locks distlock.Manager
+switch {
+case pool != nil:
+	locks = pgxlock.New(pool) // PostgreSQL session advisory lock, shared by all replicas
+case singleReplica:
+	locks = distlock.NewMemoryManager() // process-local
+default:
+	locks = distlock.NewNoopManager() // locking switched off: always acquired
+}
+
+release, acquired, err := locks.AcquireLock(ctx, jobID)
+if err != nil {
+	return err
+}
+if !acquired {
+	return ErrJobRunning // another replica is running it
+}
+defer release()
+```
+
+`pgxlock` lives in its own module (`github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock`) so the root module stays dependency-free. It matches `distlock.Manager` by method set and does not import the root module. Options: `WithKeyPrefix` (default `"job:"`), `WithAcquireTimeout` and `WithUnlockTimeout` (default 5 s each).
+
+**Installing it today.** The release pipeline tags only the root module (`vX.Y.Z`); no version of the nested module has been tagged. So a plain `go get` of the nested module path will not give you a release and is not supported until the pipeline tags nested modules. Until then, point a `replace` at a checkout of this repository in the consumer's `go.mod`:
+
+```
+require (
+	github.com/jackc/pgx/v5 v5.7.4
+	github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock v0.0.0
+)
+
+replace github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock => ../node-server-decorator/go/adapter/pgxlock
+```
+
+The `v0.0.0` is a placeholder that the `replace` overrides; the path is wherever the checkout lives. `pgx` v5.7.4 is the module's minimum, and a consumer may require a newer v5.
+
+- **One pool connection per held lock.** A session advisory lock belongs to one connection, so `pgxlock` leases a dedicated connection and keeps it out of the pool until `release`. The pool needs one spare connection for every lock that can be held at the same time.
+- **Lock identity.** The lock is `pg_try_advisory_lock(hashtext(prefix + key))`. With the default prefix it is the same lock as `pg_try_advisory_lock(hashtext('job:' || key))`, so a replica still running hand-written SQL of that form and a replica on `pgxlock` exclude each other during a rolling deploy.
+- **Hash collisions.** `hashtext` returns a 32-bit integer. Two different keys can hash to the same value and then exclude each other.
+- **A failed unlock closes the connection.** If the unlock query returns an error, `release` closes the connection before handing it back, so the pool destroys it. Ending the session makes PostgreSQL free the lock; an idle pooled connection would otherwise keep it. The same happens when the lock query itself fails. `release` returns nothing and swallows the unlock error.
+- Cancelling the context after a successful acquire does not free the lock, and the unlock runs on its own context, so a deferred `release` works after the caller's context has ended.
+
 ### Tracing (`go/core/tracing`)
 
 `tracing.ParseTraceparent` accepts only version `00`, lower-case hex and non-zero trace/span ids, the same verdicts as Node and Python (`contracts/fixtures/trace-context.cases.json`). A panic inside a function wrapped with `tracing.Trace` exports the span as `ERROR` and then re-panics with the original value.
@@ -320,4 +372,15 @@ go test ./go/...                      # unit tests, stdlib only
 bash scripts/check-go-coverage.sh     # same tests + per-package statement-coverage gate (what CI runs)
 ```
 
-The thresholds live at the top of `scripts/check-go-coverage.sh` and are a ratchet: raise them as tests are added, never lower one. A package that appears in the coverprofile without an entry fails the gate, so a new package must declare a threshold. `go/adapter/gin` is a separate module and is tested on its own (`cd go/adapter/gin && go test ./...`).
+The thresholds live at the top of `scripts/check-go-coverage.sh` and are a ratchet: raise them as tests are added, never lower one. A package that appears in the coverprofile without an entry fails the gate, so a new package must declare a threshold. `go/adapter/gin` and `go/adapter/pgxlock` are separate modules with no coverage threshold; each is tested on its own:
+
+```bash
+(cd go/adapter/gin && go test ./...)
+(cd go/adapter/pgxlock && go vet ./... && go test -race -cover ./...)   # unit tests with fakes, no database
+
+# pgxlock against a real PostgreSQL. Local only: no CI job runs it. Use a throwaway instance.
+(cd go/adapter/pgxlock && PGXLOCK_TEST_DATABASE_URL='postgres://user:pass@127.0.0.1:5432/postgres?sslmode=disable' \
+  go test -tags integration ./...)
+```
+
+`ci-go.yml` and `scripts/contributor-check.sh` run both modules' unit tests. The `pgxlock` unit coverage is checked by hand: every function except the five one-line `pgxpool` delegations must be fully covered.

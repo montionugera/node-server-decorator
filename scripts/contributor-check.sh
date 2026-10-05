@@ -34,6 +34,9 @@ CGO_ENABLED=0 go test ./go/...
 if [ -d "$ROOT_DIR/go/adapter/gin" ]; then
   (cd "$ROOT_DIR/go/adapter/gin" && CGO_ENABLED=0 go test ./...)
 fi
+if [ -d "$ROOT_DIR/go/adapter/pgxlock" ]; then
+  (cd "$ROOT_DIR/go/adapter/pgxlock" && CGO_ENABLED=0 go test ./...)
+fi
 echo "  ✓ Go tests passed"
 
 echo ""
