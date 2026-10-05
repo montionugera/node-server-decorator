@@ -408,6 +408,44 @@ one is not restarted.
 A traced message is handled inside its own exported span, named
 `consume <eventName>` (`span.kind = CONSUMER`), whose parent is the producer span.
 
+## Concurrency helpers
+
+Two small in-process helpers, with no timeout, no queue bound and no cancellation.
+
+`createLimiter(max)` admits at most `max` concurrent executions; extra callers queue
+first-in first-out:
+
+```ts
+import { createLimiter } from '@montionugera/server-decorator';
+
+const limit = createLimiter(2);
+const results = await Promise.all(jobs.map((job) => limit(() => runJob(job))));
+```
+
+`createKeyedSerializer()` runs the tasks of one key one at a time, in call order, while
+different keys run in parallel:
+
+```ts
+import { createKeyedSerializer } from '@montionugera/server-decorator';
+
+const serialize = createKeyedSerializer();
+const image = await serialize(gpuUrl, () => render(request));
+serialize.size; // number of keys with a task queued or running
+```
+
+- **Slot hand-off.** A finished task hands its slot to the first waiter synchronously, so
+  a caller arriving in the same tick cannot jump the queue and the count never exceeds `max`.
+- **Limiter never calls `fn` synchronously.** `fn` starts on a later microtask, even when
+  a slot is free.
+- **`max` is validated.** `createLimiter` throws `RangeError` unless `max` is an integer of
+  at least 1.
+- **A failed task does not block its key.** After a rejection or a synchronous throw, the
+  next task for that key still runs.
+- **Serializer never calls `fn` synchronously.** `fn` starts on a later microtask, even
+  when the key is idle.
+- **Keys are cleaned up.** A key is removed when its last task settles; `size` is 0 when
+  nothing is queued or running.
+
 ## Behaviour notes
 
 - **Emit never changes the method's outcome.** If `transform` throws, the error
