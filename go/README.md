@@ -18,7 +18,7 @@ Module: `github.com/montionugera/node-server-decorator/v2` · Go 1.22+ · Zero e
 | **`distlock`** | `go/core/distlock` | Redis distributed lock with a heartbeat watchdog (`Locker.Acquire`, `Locker.Do`) |
 | **`tracing`** | `go/core/tracing` | W3C `traceparent` parsing/formatting, `StartSpan`, generic `Trace[In, Out]` |
 | **`httpserver`** | `go/http` | REST route mounting on standard Go 1.22+ `http.ServeMux`, RFC 9457 Problem Details, scope auth |
-| **`sse`** | `go/sse` | Generic `Broadcaster[T]` with history and `Last-Event-ID` replay |
+| **`sse`** | `go/sse` | Generic `Broadcaster[T]` with history, `Last-Event-ID` replay and keyed channels |
 | **`gqlloader`** | `go/adapter/gqlloader` | Request-scoped GraphQL loader registry over `coalesce` |
 | **`gin`** | `go/adapter/gin` | Gin router adapter. A **separate module** with its own `go.mod`; the root module stays dependency-free |
 
@@ -253,6 +253,61 @@ Automatically mounts:
 - `POST /users/{id}/actions/activate` (validates action input DTO)
 
 If the spec declares a `security` requirement, mount with `httpserver.WithAuth(extractor)`. Without an extractor a secured operation answers `401` (fail closed) rather than running unauthenticated.
+
+---
+
+## 6. Server-Sent Events (`go/sse`)
+
+`sse.Broadcaster[T]` fans typed events out to subscribers and is an `http.Handler` that streams them, with a bounded history for `Last-Event-ID` replay:
+
+```go
+import "github.com/montionugera/node-server-decorator/v2/go/sse"
+
+b := sse.NewBroadcaster[JobUpdate]() // defaults: heartbeat 15s, buffer 64, history 100
+defer b.Close()
+
+mux.Handle("GET /jobs/stream", b) // replays history after Last-Event-ID, then streams live
+b.Broadcast(sse.Event[JobUpdate]{ID: "42", Event: "job.updated", Data: update})
+```
+
+`Subscribe(ctx)` returns a receive channel and a cancel func for callers that write their own stream loop. Sends never block: a subscriber whose buffer is full misses the new event.
+
+### Keyed channels
+
+Use keyed channels when each stream must receive only its own events (one build, one series):
+
+```go
+events, dropped, cancel := b.SubscribeKey(ctx, buildID)
+defer cancel()
+
+poll := time.NewTicker(time.Second)
+defer poll.Stop()
+for {
+	select {
+	case ev, ok := <-events:
+		if !ok {
+			return // cancelled, ctx done, or the broadcaster closed
+		}
+		write(ev)
+	case <-poll.C:
+		if dropped() {
+			resync() // events were missed: reload the current state
+		}
+	}
+}
+```
+
+```go
+b.BroadcastTo(buildID, sse.Event[JobUpdate]{Event: "build.step", Data: update}) // that key only
+b.MarkAllDropped() // e.g. after the upstream LISTEN connection was re-established
+```
+
+- Keyed and unkeyed subscribers are disjoint: `BroadcastTo` never reaches `Subscribe` subscribers, and `Broadcast` / `Publish` never reach `SubscribeKey` subscribers.
+- `BroadcastTo` keeps no history: `History()` is unchanged by it and a keyed event is never replayed for a `Last-Event-ID`.
+- `dropped()` returns the flag and resets it in one atomic step: the first call after a drop returns true, the next returns false until a new drop.
+- The flag can be set while no event arrives (`MarkAllDropped` on a quiet key), so poll `dropped()` on your own timer; the library does not wake the consumer.
+
+`SubscriberCount()` counts keyed and unkeyed subscribers, and `Close()` ends both kinds.
 
 ---
 
