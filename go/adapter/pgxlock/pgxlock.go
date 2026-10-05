@@ -190,10 +190,11 @@ func (m *Manager) unlock(conn lockConn, name string) {
 }
 
 // closeAndRelease ends the session, then hands the connection back so the
-// pool frees its slot and destroys the closed connection.
+// pool frees its slot and destroys the closed connection. The release is
+// deferred so the slot is freed even if Close panics.
 func (m *Manager) closeAndRelease(conn lockConn) {
+	defer conn.Release()
 	ctx, cancel := context.WithTimeout(context.Background(), m.unlockTimeout)
 	defer cancel()
 	_ = conn.Close(ctx)
-	conn.Release()
 }

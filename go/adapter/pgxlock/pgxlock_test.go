@@ -56,11 +56,12 @@ func (r fakeRow) Scan(dest ...any) error {
 
 // fakeConn is a scripted lockConn that logs every interaction in order.
 type fakeConn struct {
-	granted   bool
-	lockErr   error
-	execErr   error
-	scanPanic bool // the lock query's Scan panics
-	execPanic bool // the unlock query panics
+	granted    bool
+	lockErr    error
+	execErr    error
+	scanPanic  bool // the lock query's Scan panics
+	execPanic  bool // the unlock query panics
+	closePanic bool // Close panics
 
 	mu      sync.Mutex
 	events  []string // "query", "exec", "close", "release" in call order
@@ -93,6 +94,9 @@ func (c *fakeConn) Close(ctx context.Context) error {
 	defer c.mu.Unlock()
 	c.events = append(c.events, "close")
 	c.closes = append(c.closes, recordCall(ctx, "", nil))
+	if c.closePanic {
+		panic("fake close panic")
+	}
 	return nil
 }
 
@@ -446,6 +450,22 @@ func TestPanicInLockQueryStillDropsTheConnection(t *testing.T) {
 
 func TestPanicInUnlockStillDropsTheConnection(t *testing.T) {
 	conn := &fakeConn{granted: true, execPanic: true}
+	m := newTestManager(&fakePool{conn: conn})
+	release, _, _ := m.AcquireLock(context.Background(), "k")
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("the panic was swallowed")
+			}
+		}()
+		release()
+	}()
+	wantEvents(t, conn, "query", "exec", "close", "release")
+}
+
+func TestPanicInCloseStillReleasesTheConnectionOnce(t *testing.T) {
+	conn := &fakeConn{granted: true, execErr: errors.New("broken pipe"), closePanic: true}
 	m := newTestManager(&fakePool{conn: conn})
 	release, _, _ := m.AcquireLock(context.Background(), "k")
 
