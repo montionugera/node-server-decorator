@@ -330,12 +330,21 @@ func TestSubscribeKey_NilContext(t *testing.T) {
 	b := NewBroadcaster[int]()
 	defer b.Close()
 
+	// Twenty subscribers and a margin of ten, so that an unrelated goroutine
+	// starting or exiting meanwhile cannot decide the result.
+	const n = 20
 	before := runtime.NumGoroutine()
-	//nolint:staticcheck // a nil context is part of the documented contract
-	ch, _, cancel := b.SubscribeKey(nil, "k")
-	if after := runtime.NumGoroutine(); after > before {
-		t.Fatalf("goroutines %d -> %d: a nil context must not start a watcher", before, after)
+	for i := 0; i < n; i++ {
+		//nolint:staticcheck // a nil context is part of the documented contract
+		_, _, c := b.SubscribeKey(nil, "quiet")
+		defer c()
 	}
+	if after := runtime.NumGoroutine(); after >= before+n/2 {
+		t.Fatalf("goroutines %d -> %d for %d subscribers: a nil context must not start a watcher", before, after, n)
+	}
+
+	//nolint:staticcheck // as above
+	ch, _, cancel := b.SubscribeKey(nil, "k")
 
 	b.BroadcastTo("k", Event[int]{Data: 1})
 	if e := <-ch; e.Data != 1 {
