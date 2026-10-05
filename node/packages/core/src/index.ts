@@ -132,3 +132,16 @@ export {
   type SpanExporterCallback,
 } from './decorators/trace';
 
+// Functional Utility Wrappers
+export {
+  withRetry,
+  withCache,
+  withCircuitBreaker,
+  withRateLimit,
+  withDistributedLock,
+  withTrace,
+  withTracking,
+  type WithCacheOptions,
+  type WithRateLimitOptions,
+} from './utils/functional';
+
