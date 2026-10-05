@@ -20,7 +20,7 @@ Many modern engineering teams run heterogeneous stacks — for instance, a TypeS
 
 ## Language Ecosystem Matrix
 
-The repository maintains implementations across four languages:
+The repository maintains implementations across five languages:
 
 | Language | Directory | Package / Module | Capabilities |
 | :--- | :--- | :--- | :--- |
@@ -28,6 +28,7 @@ The repository maintains implementations across four languages:
 | **Python** | `python/` | `server-decorator`<br/>`server-decorator-entity`<br/>`server-decorator-gen-pydantic`<br/>`server-decorator-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Pydantic v2 DTO generator, OpenAPI 3.1 generator |
 | **Go** | `go/` | `github.com/montionugera/node-server-decorator/v2` | EntitySpec IR producer (`go/entity`), OpenAPI 3.1 generator (`go/openapi`), DTO validation engine (`go/dto`), Core Cache/Emit wrappers (`go/core`), HTTP REST router & Problem Details (`go/http`) |
 | **Nim** | `nim/` | `server_decorator` (Nimble) | EntitySpec IR producer (macro DSL), OpenAPI 3.1 generator (`gen_openapi`) |
+| **Rust** | `rust/` | `server-decorator-entity`<br/>`server-decorator-openapi`<br/>`server-decorator-dto`<br/>`server-decorator-core`<br/>`server-decorator-axum` | EntitySpec IR producer & builder, OpenAPI 3.1 generator, DTO validation engine, Resiliency core (Cache, Retry, CircuitBreaker, RateLimit, BatchLoader), Axum REST router & Problem Details |
 
 ---
 
@@ -64,6 +65,6 @@ Layer 4: Verification & Interop Gates
 ## The Parity Guarantee
 
 In this repository, "parity" is not an aspiration; it is an automated CI gate:
-1. **EntitySpec Parity**: Emitting the IR for a given entity in TypeScript, Python, Go, or Nim produces **100% byte-identical JSON**.
-2. **OpenAPI Parity**: Emitting an OpenAPI 3.1 specification for a given entity in TypeScript, Python, or Nim produces **100% byte-identical JSON**.
-3. **DTO Parity**: All DTO generators validate against the identical fixture cases in `contracts/fixtures/entity-spec.cases.json`.
+1. **EntitySpec Parity**: Emitting the IR for a given entity in TypeScript, Python, Go, Nim, or Rust produces **100% byte-identical JSON**.
+2. **OpenAPI Parity**: Emitting an OpenAPI 3.1 specification for a given entity in TypeScript, Python, Nim, or Rust produces **100% byte-identical JSON**.
+3. **DTO Parity**: All DTO generators and validation engines validate against the identical fixture cases in `contracts/fixtures/entity-spec.cases.json`.

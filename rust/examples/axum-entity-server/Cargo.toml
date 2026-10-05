@@ -1,0 +1,20 @@
+[package]
+name = "axum-entity-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+server-decorator-entity = { path = "../../crates/server-decorator-entity" }
+server-decorator-dto = { path = "../../crates/server-decorator-dto" }
+server-decorator-axum = { path = "../../crates/server-decorator-axum" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tower = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
