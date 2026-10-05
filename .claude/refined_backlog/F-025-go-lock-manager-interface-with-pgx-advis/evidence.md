@@ -93,31 +93,38 @@ Without the variable the tagged tests fail with:
 
 ## Run 2: pgx v5.11.0 compatibility (the version joy-data-platform uses)
 
-**Status: NOT re-run on the current HEAD.** The only pgx v5.11.0 run predates the review
-fixes, so the acceptance line "pgx v5.11.0 compatibility ... command and output recorded"
-is not met for the code as it stands.
-
-What exists is one earlier run, in a scratch copy of the module outside the repository
-(the committed `go.mod` stays on v5.7.4):
+**Status: run on 2026-10-05 against the code at commit `9b493c0`, exit 0.** It was run in a
+scratch copy of the module outside the repository; the committed `go.mod` stays on v5.7.4.
+Database: a throwaway `postgres:16` container on 127.0.0.1:55433, removed afterwards.
 
 ```bash
-go get github.com/jackc/pgx/v5@v5.11.0 && go mod tidy   # GOTOOLCHAIN unset (auto)
-go version                                               # go1.25.0 darwin/amd64
-go test -tags integration -race -count=1 -v ./...
+cp -R go/adapter/pgxlock <scratch>/pgxlock-v511
+go -C <scratch>/pgxlock-v511 get github.com/jackc/pgx/v5@v5.11.0
+go -C <scratch>/pgxlock-v511 version      # go version go1.25.0 darwin/amd64
+PGXLOCK_TEST_DATABASE_URL='postgres://postgres:...@127.0.0.1:55433/postgres?sslmode=disable' \
+  go -C <scratch>/pgxlock-v511 test -race -tags integration -count=1 -v ./...
 ```
 
-pgx v5.11.0 raised the scratch `go.mod` to `go 1.25.0`, so it needs the Go 1.25
-toolchain (the committed module builds with Go 1.22). That run was summarised at the
-time as exit 0, 20 tests passed (7 integration); its raw output was not kept. It did
-not include the later changes: the panic guards, the ignored non-positive timeouts, the
-narrower kill query in one integration test, and the deferred release in
-`closeAndRelease`.
+pgx v5.11.0 raised the scratch `go.mod` to `go 1.25.0` and `require github.com/jackc/pgx/v5
+v5.11.0`, so it needs the Go 1.25 toolchain (the committed module builds with Go 1.22).
 
-A repeat on 2026-10-05 at commit `db3331a` was attempted with the same commands in a
-scratch copy and was refused by the agent session's permission system before anything
-ran (the `go get` step). No output exists for it and none is claimed. To close this
-item, run the three commands above in a scratch copy against a throwaway PostgreSQL and
-paste the output here.
+Output (exit code 0; 25 `--- PASS` lines including subtests, 0 `--- FAIL`, 0 `--- SKIP`):
+
+```text
+--- PASS: TestIntegrationHeldLockKeepsOneConnection (0.06s)
+--- PASS: TestIntegrationKeyMatchesServiceSQL (0.06s)
+--- PASS: TestIntegrationServiceHolderExcludesLibrary (0.05s)
+--- PASS: TestIntegrationAnotherPoolCanLockAfterRelease (0.05s)
+--- PASS: TestIntegrationCancelDoesNotFreeButReleaseDoes (0.05s)
+--- PASS: TestIntegrationCustomPrefixIsADifferentLock (0.04s)
+--- PASS: TestIntegrationFailedUnlockDropsTheConnection (0.07s)
+PASS
+ok  	github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock	2.736s
+```
+
+This run includes the panic guards, the ignored non-positive timeouts and the deferred
+release in `closeAndRelease`. An earlier v5.11.0 run predated those changes and is
+superseded by this one.
 
 ## Unit-only coverage (no Postgres)
 
