@@ -1,11 +1,11 @@
 [project]
 name = "server-decorator-gen-pydantic"
-version = "2.0.14"
+version = "2.0.15"
 description = "IR-derived create/update/read/action pydantic v2 DTO models (contracts/schemas/entity-spec.schema.json). Polyglot sibling of @montionugera/entity-spec-gen-zod."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-dependencies = ["pydantic>=2.7", "server-decorator-entity==2.0.14"]
+dependencies = ["pydantic>=2.7", "server-decorator-entity==2.0.15"]
 
 [tool.uv.sources]
 server-decorator-entity = { workspace = true }
