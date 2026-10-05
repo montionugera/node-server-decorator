@@ -70,26 +70,30 @@ describe('createLimiter', () => {
     const order: string[] = [];
     let active = 0;
     let peak = 0;
-    const run = (name: string, after?: () => void) =>
+    const run = (name: string, onEnd?: () => void) =>
       limit(async () => {
         active++;
         peak = Math.max(peak, active);
         order.push(name);
         await tick();
         active--;
-        after?.();
+        onEnd?.();
       });
 
-    let late: Promise<void> | undefined;
-    // `late` is submitted synchronously as the first task ends, before its slot is released.
-    const first = run('first', () => {
-      late = run('late');
-    });
+    // As the first task ends, one late caller arrives on each of the following microtasks, so
+    // some arrive after the slot was released and before the queued waiter has resumed.
+    const late: Promise<void>[] = [];
+    const arriveOnEachMicrotask = (hops: number): void => {
+      late.push(run(`late ${late.length}`));
+      if (hops > 0) queueMicrotask(() => arriveOnEachMicrotask(hops - 1));
+    };
+    const first = run('first', () => arriveOnEachMicrotask(8));
     const queued = run('queued');
     await Promise.all([first, queued]);
-    await late;
+    await Promise.all(late);
 
-    expect(order).toEqual(['first', 'queued', 'late']);
+    expect(order.slice(0, 2)).toEqual(['first', 'queued']);
+    expect(order).toHaveLength(11);
     expect(peak).toBe(1);
   });
 

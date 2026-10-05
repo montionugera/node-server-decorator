@@ -8,7 +8,7 @@ const tick = () => new Promise<void>((r) => setTimeout(r, 0));
  * Child-process script (cwd = package root). It compiles keyed-serializer.ts, registers a real
  * `unhandledRejection` listener, and prints what the listener saw: first for a deliberately
  * unhandled rejection (the positive control), then for a serializer whose task rejects while the
- * caller handles its own promise.
+ * caller handles its own promise, then for a rejected task whose promise the caller ignores.
  */
 const UNHANDLED_REJECTION_PROBE = `
 const fs = require('fs');
@@ -39,7 +39,13 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
   await next;
   await tick();
   await tick();
-  process.stdout.write(JSON.stringify({ control, chain: seen }));
+  const chain = seen.splice(0);
+
+  // A rejection the caller ignores is still the caller's own unhandled rejection.
+  serialize('k', () => Promise.reject(new Error('ignored by caller')));
+  await tick();
+  await tick();
+  process.stdout.write(JSON.stringify({ control, chain, ignored: seen }));
 })();
 `;
 
@@ -165,7 +171,11 @@ describe('createKeyedSerializer', () => {
       cwd: path.resolve(__dirname, '../..'),
       encoding: 'utf8',
     });
-    expect(JSON.parse(stdout)).toEqual({ control: ['control'], chain: [] });
+    expect(JSON.parse(stdout)).toEqual({
+      control: ['control'],
+      chain: [],
+      ignored: ['ignored by caller'],
+    });
   });
 
   it('reports size 1 while a task runs and 0 after the last task of every key settles', async () => {

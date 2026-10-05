@@ -26,7 +26,9 @@ export function createKeyedSerializer(): KeyedSerializer {
     };
     const tail: Promise<void> = result.then(forget, forget);
     tails.set(key, tail);
-    return result;
+    // A separate promise for the caller: `tail` handles `result`, so returning `result` itself
+    // would hide a rejection the caller ignores from `unhandledRejection`.
+    return result.then((value) => value);
   };
 
   return Object.defineProperty(serialize, 'size', {
