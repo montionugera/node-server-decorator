@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -51,12 +52,16 @@ func defaultOptions() options {
 type subscriber[T any] struct {
 	ch   chan Event[T]
 	done chan struct{}
+	// dropped is set when an event was discarded for a keyed subscriber
+	// (see SubscribeKey). Unkeyed subscribers never set or read it.
+	dropped atomic.Bool
 }
 
 // Broadcaster coordinates SSE event fan-out, client subscriptions, and HTTP streaming.
 type Broadcaster[T any] struct {
 	mu           sync.RWMutex
 	subscribers  map[uint64]*subscriber[T]
+	byKey        map[string]map[uint64]*subscriber[T]
 	nextSubID    uint64
 	history      []Event[T]
 	historyLimit int
@@ -81,6 +86,7 @@ func NewBroadcaster[T any](opts ...Option) *Broadcaster[T] {
 
 	return &Broadcaster[T]{
 		subscribers:  make(map[uint64]*subscriber[T]),
+		byKey:        make(map[string]map[uint64]*subscriber[T]),
 		historyLimit: opt.historyLimit,
 		bufferSize:   opt.bufferSize,
 		heartbeat:    opt.heartbeat,
@@ -186,11 +192,16 @@ func (b *Broadcaster[T]) subscribe(ctx context.Context, lastID string) (<-chan E
 	return sub.ch, cancel, replayed
 }
 
-// SubscriberCount returns the number of active subscribers.
+// SubscriberCount returns the number of active subscribers, unkeyed
+// (Subscribe) plus keyed (SubscribeKey).
 func (b *Broadcaster[T]) SubscriberCount() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return len(b.subscribers)
+	n := len(b.subscribers)
+	for _, subs := range b.byKey {
+		n += len(subs)
+	}
+	return n
 }
 
 // History returns a snapshot of cached events.
@@ -202,7 +213,8 @@ func (b *Broadcaster[T]) History() []Event[T] {
 	return res
 }
 
-// Close shuts down the broadcaster and unsubscribes all active clients.
+// Close shuts down the broadcaster and unsubscribes all active clients, keyed
+// and unkeyed.
 func (b *Broadcaster[T]) Close() {
 	b.closeOnce.Do(func() {
 		b.mu.Lock()
@@ -213,6 +225,13 @@ func (b *Broadcaster[T]) Close() {
 			delete(b.subscribers, id)
 			close(sub.done)
 			close(sub.ch)
+		}
+		for key, subs := range b.byKey {
+			delete(b.byKey, key)
+			for _, sub := range subs {
+				close(sub.done)
+				close(sub.ch)
+			}
 		}
 	})
 }
