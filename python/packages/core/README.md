@@ -112,6 +112,29 @@ A traced message is handled inside its own exported span, named
 span. Inside the handler `span_id` is that consumer span's id, and the caller's
 previous trace context is restored after dispatch.
 
+## Single-flight
+
+`SingleFlight` runs one execution per key while it is in flight; callers that arrive
+meanwhile share its outcome:
+
+```python
+from server_decorator import SingleFlight
+
+flights: SingleFlight[tuple[str, str], list[Row]] = SingleFlight()
+
+async def load(symbol: str, quarter: str) -> list[Row]:
+    return await flights.do((symbol, quarter), lambda: fetch_rows(symbol, quarter))
+```
+
+- **Shared result.** Every caller receives the same object, not a copy; a caller that
+  mutates it changes what the others see.
+- **Nothing is cached.** A `do` call that starts after the work finished calls `fn` again.
+- **Shared work runs while callers wait.** Cancelling one caller raises `CancelledError`
+  in that caller only; the others still receive the result.
+- **Shared work is cancelled when the last waiter leaves.** Once every waiting caller has
+  been cancelled, the work is cancelled and the key is forgotten.
+- **One event loop.** An instance belongs to one event loop and is not safe across threads.
+
 ## Behaviour notes
 
 - **Auto topic.** The auto-generated topic is always `ClassName.methodName`,

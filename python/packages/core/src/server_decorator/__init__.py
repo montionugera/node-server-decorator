@@ -52,6 +52,7 @@ from server_decorator.decorators.rate_limit import (
     rate_limit_class,
 )
 from server_decorator.decorators.retry import retry, retry_class
+from server_decorator.decorators.single_flight import SingleFlight
 from server_decorator.decorators.trace import (
     TraceContext,
     TraceSpan,
@@ -160,6 +161,8 @@ __all__ = [
     "TokenBucket",
     "get_token_bucket",
     "clear_rate_limiters",
+    # concurrency helpers
+    "SingleFlight",
     # SSE transport
     "SSEEvent",
     "AsyncSSEBroadcaster",
