@@ -305,6 +305,25 @@ async def test_cancel_later_caller_first_still_gets_result() -> None:
     assert len(sf) == 0
 
 
+async def test_cancel_caller_in_the_iteration_the_work_finishes() -> None:
+    sf: SingleFlight[str, list[str]] = SingleFlight()
+    work = _Work()
+
+    first = asyncio.create_task(sf.do("k", work))
+    second = asyncio.create_task(sf.do("k", work))
+    await _settle()
+
+    work.gate.set()
+    await asyncio.sleep(0)  # the work has finished; no caller has resumed yet
+    second.cancel()
+
+    assert await asyncio.wait_for(first, timeout=2) == ["row"]
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(second, timeout=2)
+    assert work.cancelled == 0
+    assert len(sf) == 0
+
+
 async def test_cancel_all_callers_cancels_the_work_silently() -> None:
     logged: list[dict[str, Any]] = []
     asyncio.get_running_loop().set_exception_handler(lambda _loop, ctx: logged.append(ctx))
