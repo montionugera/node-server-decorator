@@ -48,7 +48,7 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | Go tests (byte parity, guards, drift gate) | `go test ./go/...` (repo root; stdlib only, no install) |
 | Go coverage gate | `bash scripts/check-go-coverage.sh` (runs `go test ./go/...` once with a coverprofile and fails if any package is below its statement threshold, declared at the top of the script; a new package must add an entry; `ci-go.yml` runs this) |
 | Go hygiene | `test -z "$(gofmt -l go)" && go vet ./go/...` |
-| pgxlock unit tests (nested module, no database) | `cd go/adapter/pgxlock && go vet ./... && go test -race -cover ./...` (`scripts/contributor-check.sh` runs the tests; no coverage gate) |
+| pgxlock unit tests (nested module, no database) | `cd go/adapter/pgxlock && go vet ./... && go test -race -cover ./...` (`ci-go.yml` and `scripts/contributor-check.sh` run the tests; no coverage gate) |
 | pgxlock integration (real Postgres, local only) | `cd go/adapter/pgxlock && PGXLOCK_TEST_DATABASE_URL=postgres://... go test -tags integration ./...` (throwaway database; no CI job runs it) |
 | Regenerate Go example IR | `go generate ./go/...` |
 | Nim tests (byte parity, cases.json openapi suite, compile-error harness) | `export PATH=$HOME/.nimble/bin:$PATH && cd nim && nimble test` (Nim 2.2.12, stdlib only) |
@@ -83,6 +83,7 @@ Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses *
 
 - `ci-node.yml` — unit + build on every Node/contracts PR; e2e only on `push: main` or PRs with the `run-e2e` label; auto-publishes (Node + Python) on `push: main` touching `node/`, `contracts/`, `go/`, `go.mod` or `nim/` by patch-bumping, pushing back and tagging `vX.Y.Z`; a follow-up `smoke` job then installs the Go module and Nim package at that tag (fail-closed, re-runnable alone).
 - `ci-python.yml` — equivalent for the Python side.
+- `ci-go.yml` — gofmt + `go vet ./go/...` + `scripts/check-go-coverage.sh` on every `go/`/`go.mod`/`contracts/` PR and on `push: main`, then `go vet` + `go test` inside the nested modules `go/adapter/gin` and `go/adapter/pgxlock` (unit tests only; no database, no coverage gate).
 - `ci-nim.yml` — `nimble check` + `nim check` + `nimble test` on every `nim/`/`contracts/` PR and on `push: main`; Nim parity with the other lanes runs in `ci-contracts.yml`.
 - `ci-contracts.yml` — schema/fixture validation + version-match enforcement.
 - `ci-interop.yml` — heavy cross-language scenarios; runs on `push: main`, weekly schedule, or PRs with the `run-interop` label.

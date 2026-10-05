@@ -253,7 +253,20 @@ if !acquired {
 defer release()
 ```
 
-`pgxlock` lives in its own module (`go get github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock`) so the root module stays dependency-free. It matches `distlock.Manager` by method set and does not import the root module. Options: `WithKeyPrefix` (default `"job:"`), `WithAcquireTimeout` and `WithUnlockTimeout` (default 5 s each). Until the release pipeline tags nested modules, install it with a `replace` line pointing at a checkout.
+`pgxlock` lives in its own module (`github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock`) so the root module stays dependency-free. It matches `distlock.Manager` by method set and does not import the root module. Options: `WithKeyPrefix` (default `"job:"`), `WithAcquireTimeout` and `WithUnlockTimeout` (default 5 s each).
+
+**Installing it today.** The release pipeline tags only the root module (`vX.Y.Z`); no version of the nested module has been tagged. So a plain `go get` of the nested module path will not give you a release and is not supported until the pipeline tags nested modules. Until then, point a `replace` at a checkout of this repository in the consumer's `go.mod`:
+
+```
+require (
+	github.com/jackc/pgx/v5 v5.7.4
+	github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock v0.0.0
+)
+
+replace github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock => ../node-server-decorator/go/adapter/pgxlock
+```
+
+The `v0.0.0` is a placeholder that the `replace` overrides; the path is wherever the checkout lives. `pgx` v5.7.4 is the module's minimum, and a consumer may require a newer v5.
 
 - **One pool connection per held lock.** A session advisory lock belongs to one connection, so `pgxlock` leases a dedicated connection and keeps it out of the pool until `release`. The pool needs one spare connection for every lock that can be held at the same time.
 - **Lock identity.** The lock is `pg_try_advisory_lock(hashtext(prefix + key))`. With the default prefix it is the same lock as `pg_try_advisory_lock(hashtext('job:' || key))`, so a replica still running hand-written SQL of that form and a replica on `pgxlock` exclude each other during a rolling deploy.
@@ -370,4 +383,4 @@ The thresholds live at the top of `scripts/check-go-coverage.sh` and are a ratch
   go test -tags integration ./...)
 ```
 
-`scripts/contributor-check.sh` runs both modules' unit tests. The `pgxlock` unit coverage is checked by hand: every function except the five one-line `pgxpool` delegations must be fully covered.
+`ci-go.yml` and `scripts/contributor-check.sh` run both modules' unit tests. The `pgxlock` unit coverage is checked by hand: every function except the five one-line `pgxpool` delegations must be fully covered.
