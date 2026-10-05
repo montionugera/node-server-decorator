@@ -40,9 +40,13 @@ func recordCall(ctx context.Context, sql string, args []any) call {
 type fakeRow struct {
 	granted bool
 	err     error
+	panics  bool
 }
 
 func (r fakeRow) Scan(dest ...any) error {
+	if r.panics {
+		panic("fake scan panic")
+	}
 	if r.err != nil {
 		return r.err
 	}
@@ -52,9 +56,11 @@ func (r fakeRow) Scan(dest ...any) error {
 
 // fakeConn is a scripted lockConn that logs every interaction in order.
 type fakeConn struct {
-	granted bool
-	lockErr error
-	execErr error
+	granted   bool
+	lockErr   error
+	execErr   error
+	scanPanic bool // the lock query's Scan panics
+	execPanic bool // the unlock query panics
 
 	mu      sync.Mutex
 	events  []string // "query", "exec", "close", "release" in call order
@@ -68,7 +74,7 @@ func (c *fakeConn) QueryRow(ctx context.Context, sql string, args ...any) pgx.Ro
 	defer c.mu.Unlock()
 	c.events = append(c.events, "query")
 	c.queries = append(c.queries, recordCall(ctx, sql, args))
-	return fakeRow{granted: c.granted, err: c.lockErr}
+	return fakeRow{granted: c.granted, err: c.lockErr, panics: c.scanPanic}
 }
 
 func (c *fakeConn) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
@@ -76,6 +82,9 @@ func (c *fakeConn) Exec(ctx context.Context, sql string, args ...any) (pgconn.Co
 	defer c.mu.Unlock()
 	c.events = append(c.events, "exec")
 	c.execs = append(c.execs, recordCall(ctx, sql, args))
+	if c.execPanic {
+		panic("fake exec panic")
+	}
 	return pgconn.CommandTag{}, c.execErr
 }
 
@@ -128,6 +137,15 @@ func newTestManager(p *fakePool, opts ...Option) *Manager {
 	return m
 }
 
+// wantDeadlineIn checks the call ran with a deadline of start+d, where start
+// lies between before and now.
+func wantDeadlineIn(t *testing.T, c call, before time.Time, d time.Duration, what string) {
+	t.Helper()
+	if !c.hasDeadline || c.deadline.Before(before.Add(d)) || c.deadline.After(time.Now().Add(d)) {
+		t.Fatalf("%s deadline %v (set %v) is not the %v timeout", what, c.deadline, c.hasDeadline, d)
+	}
+}
+
 func wantEvents(t *testing.T, c *fakeConn, want ...string) {
 	t.Helper()
 	if got := c.log(); !reflect.DeepEqual(got, want) {
@@ -167,6 +185,15 @@ func TestDefaultsAndOptions(t *testing.T) {
 	m = New(nil, WithKeyPrefix("cron:"), WithAcquireTimeout(time.Second), WithUnlockTimeout(2*time.Second))
 	if m.prefix != "cron:" || m.acquireTimeout != time.Second || m.unlockTimeout != 2*time.Second {
 		t.Fatalf("options = (%q, %v, %v), want (\"cron:\", 1s, 2s)", m.prefix, m.acquireTimeout, m.unlockTimeout)
+	}
+}
+
+func TestNonPositiveTimeoutsKeepTheDefault(t *testing.T) {
+	for _, d := range []time.Duration{0, -time.Second} {
+		m := New(nil, WithAcquireTimeout(d), WithUnlockTimeout(d))
+		if m.acquireTimeout != 5*time.Second || m.unlockTimeout != 5*time.Second {
+			t.Fatalf("timeouts after %v = (%v, %v), want the 5s defaults", d, m.acquireTimeout, m.unlockTimeout)
+		}
 	}
 }
 
@@ -252,7 +279,8 @@ func TestCallerDeadlineAndCancelStillWin(t *testing.T) {
 	})
 
 	t.Run("cancelled caller", func(t *testing.T) {
-		pool := &fakePool{conn: &fakeConn{granted: true}}
+		conn := &fakeConn{granted: true}
+		pool := &fakePool{conn: conn}
 		m := newTestManager(pool)
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -262,6 +290,9 @@ func TestCallerDeadlineAndCancelStillWin(t *testing.T) {
 
 		if !errors.Is(pool.leases[0].ctxErr, context.Canceled) {
 			t.Fatalf("lease ctx err = %v, want context.Canceled", pool.leases[0].ctxErr)
+		}
+		if !errors.Is(conn.queries[0].ctxErr, context.Canceled) {
+			t.Fatalf("lock query ctx err = %v, want context.Canceled", conn.queries[0].ctxErr)
 		}
 	})
 }
@@ -317,6 +348,7 @@ func TestLockQueryErrorClosesConnection(t *testing.T) {
 	// The acquire context is already dead, as it is after a query timeout.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+	before := time.Now()
 	release, acquired, err := m.AcquireLock(ctx, "k")
 	if acquired {
 		t.Fatal("acquired = true after a lock query error")
@@ -332,9 +364,7 @@ func TestLockQueryErrorClosesConnection(t *testing.T) {
 	if closed.ctxErr != nil {
 		t.Fatalf("Close ran on a dead context: %v", closed.ctxErr)
 	}
-	if !closed.hasDeadline || closed.deadline.After(time.Now().Add(time.Minute)) {
-		t.Fatalf("Close is not bounded by the 1m timeout (deadline %v, set %v)", closed.deadline, closed.hasDeadline)
-	}
+	wantDeadlineIn(t, closed, before, time.Minute, "Close")
 
 	release()
 	wantEvents(t, conn, "query", "close", "release")
@@ -359,9 +389,7 @@ func TestReleaseIgnoresCallerContext(t *testing.T) {
 	if unlock.ctxErr != nil {
 		t.Fatalf("unlock ran on a dead context: %v", unlock.ctxErr)
 	}
-	if !unlock.hasDeadline || unlock.deadline.Before(before.Add(time.Minute)) || unlock.deadline.After(time.Now().Add(time.Minute)) {
-		t.Fatalf("unlock deadline %v is not the 1m unlock timeout", unlock.deadline)
-	}
+	wantDeadlineIn(t, unlock, before, time.Minute, "unlock")
 }
 
 func TestReleaseTwiceReturnsConnectionOnce(t *testing.T) {
@@ -389,12 +417,45 @@ func TestUnlockErrorClosesConnectionBeforeRelease(t *testing.T) {
 	m := newTestManager(&fakePool{conn: conn}, WithUnlockTimeout(time.Minute))
 
 	release, _, _ := m.AcquireLock(context.Background(), "k")
+	before := time.Now()
 	release() // returns nothing: the unlock error is swallowed
 	release()
 
 	wantEvents(t, conn, "query", "exec", "close", "release")
 	closed := conn.closes[0]
-	if closed.ctxErr != nil || !closed.hasDeadline {
-		t.Fatalf("Close ctx: err=%v hasDeadline=%v, want a live bounded context", closed.ctxErr, closed.hasDeadline)
+	if closed.ctxErr != nil {
+		t.Fatalf("Close ran on a dead context: %v", closed.ctxErr)
 	}
+	wantDeadlineIn(t, closed, before, time.Minute, "Close")
+}
+
+func TestPanicInLockQueryStillDropsTheConnection(t *testing.T) {
+	conn := &fakeConn{scanPanic: true}
+	m := newTestManager(&fakePool{conn: conn})
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("the panic was swallowed")
+			}
+		}()
+		_, _, _ = m.AcquireLock(context.Background(), "k")
+	}()
+	wantEvents(t, conn, "query", "close", "release")
+}
+
+func TestPanicInUnlockStillDropsTheConnection(t *testing.T) {
+	conn := &fakeConn{granted: true, execPanic: true}
+	m := newTestManager(&fakePool{conn: conn})
+	release, _, _ := m.AcquireLock(context.Background(), "k")
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("the panic was swallowed")
+			}
+		}()
+		release()
+	}()
+	wantEvents(t, conn, "query", "exec", "close", "release")
 }

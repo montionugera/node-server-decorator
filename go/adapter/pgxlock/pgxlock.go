@@ -97,13 +97,27 @@ func WithKeyPrefix(prefix string) Option {
 }
 
 // WithAcquireTimeout bounds leasing the connection plus the lock query. Default 5s.
+// A zero or negative d is ignored.
 func WithAcquireTimeout(d time.Duration) Option {
-	return func(m *Manager) { m.acquireTimeout = d }
+	return func(m *Manager) {
+		if d > 0 {
+			m.acquireTimeout = d
+		}
+	}
 }
 
 // WithUnlockTimeout bounds the unlock query. Default 5s.
+// A zero or negative d is ignored.
+//
+// The same bound applies to closing a connection after a failed lock or
+// unlock query, so a failing AcquireLock can take up to the acquire timeout
+// plus this one.
 func WithUnlockTimeout(d time.Duration) Option {
-	return func(m *Manager) { m.unlockTimeout = d }
+	return func(m *Manager) {
+		if d > 0 {
+			m.unlockTimeout = d
+		}
+	}
 }
 
 func noopRelease() {}
@@ -129,13 +143,21 @@ func (m *Manager) AcquireLock(ctx context.Context, key string) (release func(), 
 		return noopRelease, false, fmt.Errorf("pgxlock: lease connection: %w", err)
 	}
 
+	// Until the outcome is known the lock may be held: on an error (the reply
+	// can be lost after the grant) or a panic, ending the session is the only
+	// sure way not to leave it held on an idle pooled connection.
+	settled := false
+	defer func() {
+		if !settled {
+			m.closeAndRelease(conn)
+		}
+	}()
+
 	name := m.prefix + key
 	if err := conn.QueryRow(acquireCtx, lockSQL, name).Scan(&acquired); err != nil {
-		// The lock may have been granted with the reply lost. Ending the
-		// session is the only sure way not to leave it held.
-		m.closeAndRelease(conn)
 		return noopRelease, false, fmt.Errorf("pgxlock: lock query: %w", err)
 	}
+	settled = true
 	if !acquired {
 		conn.Release()
 		return noopRelease, false, nil
@@ -147,14 +169,23 @@ func (m *Manager) AcquireLock(ctx context.Context, key string) (release func(), 
 
 // unlock frees the lock and returns the connection. It runs on its own
 // context: the caller's is often already cancelled when a deferred release runs.
+//
+// If the unlock query fails or panics, the session is ended instead, so the
+// lock cannot stay held on an idle pooled connection.
 func (m *Manager) unlock(conn lockConn, name string) {
+	unlocked := false
+	defer func() {
+		if !unlocked {
+			m.closeAndRelease(conn)
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), m.unlockTimeout)
-	_, err := conn.Exec(ctx, unlockSQL, name)
-	cancel()
-	if err != nil {
-		m.closeAndRelease(conn)
+	defer cancel()
+	if _, err := conn.Exec(ctx, unlockSQL, name); err != nil {
 		return
 	}
+	unlocked = true
 	conn.Release()
 }
 

@@ -21,9 +21,10 @@ cd go/adapter/pgxlock
 go test -tags integration -race -count=3 -v -coverprofile=<tmp> ./...
 ```
 
-Result: exit 0, `ok ... coverage: 98.0% of statements`. 20 top-level tests per pass
-(13 unit, 7 integration), all passed in each of the 3 passes (60 PASS lines, 21 of them
-`TestIntegration*`). With the integration tests included, every function is at 100
+Result of the final run, after the review fixes: exit 0, 23 top-level tests per pass
+(16 unit, 7 integration), all passed in each of the 3 passes (69 PASS lines, 21 of them
+`TestIntegration*`). A coverage run of the same suite before the review fixes reported
+98.0 percent. With the integration tests included, every function is at 100
 percent except `poolAdapter.Acquire` (75 percent: its error return needs a failing
 pool) — so all five adapter delegations run against the real pool.
 
@@ -54,11 +55,13 @@ go test -tags integration -race -count=1 -v ./...
 ```
 
 pgx v5.11.0 raised the scratch `go.mod` to `go 1.25.0`. Result: exit 0, 20 tests passed
-(7 integration), same container.
+(7 integration). This run was made BEFORE the review fixes (panic guards, ignored
+non-positive timeouts, narrower kill query in one test) and was not repeated after them;
+those fixes use no pgx API that the earlier run did not already exercise.
 
 ## Unit-only coverage (no Postgres)
 
-`go test -race -coverprofile=<tmp> ./...` reports 83.7 percent raw. Every function is at
+`go test -race -coverprofile=<tmp> ./...` reports 86.2 percent raw. Every function is at
 100 percent except the five adapter delegations (`poolAdapter.Acquire`,
 `connAdapter.QueryRow`, `Exec`, `Release`, `Close`), which is the exclusion the spec
-allows. The raw figure is below 90 because those delegations are 8 of 49 statements.
+allows. The raw figure is below 90 because those delegations are 8 of 58 statements.

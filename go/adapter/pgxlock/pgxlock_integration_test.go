@@ -224,11 +224,16 @@ func TestIntegrationFailedUnlockDropsTheConnection(t *testing.T) {
 		t.Fatalf("AcquireLock = (%v, %v), want (true, nil)", acquired, err)
 	}
 
-	// Kill the session that holds the lock, so the unlock query fails.
+	// Kill the session that holds this lock (and only this lock), so the
+	// unlock query fails. A one-argument advisory lock stores the low 32 bits
+	// of its key in objid.
 	var killed int
 	err = raw.QueryRow(ctx, `SELECT count(*) FROM (
-		SELECT pg_terminate_backend(pid) FROM pg_locks
-		WHERE locktype = 'advisory' AND granted AND pid <> pg_backend_pid()
+		SELECT pg_terminate_backend(l.pid) FROM pg_locks l
+		JOIN pg_database d ON d.oid = l.database AND d.datname = current_database()
+		WHERE l.locktype = 'advisory' AND l.granted AND l.objsubid = 1
+		  AND l.pid <> pg_backend_pid()
+		  AND l.objid::bigint = (hashtext('job:broken-session')::bigint & 4294967295)
 	) AS terminated`).Scan(&killed)
 	if err != nil || killed != 1 {
 		t.Fatalf("terminated %d lock-holding sessions (err %v), want 1", killed, err)
