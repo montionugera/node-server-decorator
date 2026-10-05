@@ -16,17 +16,65 @@ export GOFLAGS=-ldflags=-linkmode=external   # this Mac only
 
 ## Run 1: committed module (pgx v5.7.4, go1.22.4)
 
+Re-run on 2026-10-05 at commit `db3331a` (code identical to `f839b5b`, the last code
+change: the deferred release in `closeAndRelease`), against PostgreSQL 16.15 in the
+container above.
+
+Unit tests, no database:
+
 ```bash
 cd go/adapter/pgxlock
-go test -tags integration -race -count=3 -v -coverprofile=<tmp> ./...
+go vet ./...                 # exit 0, no output
+go test -race -cover ./...   # exit 0
 ```
 
-Result of the final run, after the review fixes: exit 0, 23 top-level tests per pass
-(16 unit, 7 integration), all passed in each of the 3 passes (69 PASS lines, 21 of them
-`TestIntegration*`). A coverage run of the same suite before the review fixes reported
-98.0 percent. With the integration tests included, every function is at 100
-percent except `poolAdapter.Acquire` (75 percent: its error return needs a failing
-pool) — so all five adapter delegations run against the real pool.
+```
+ok  	github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock	1.907s	coverage: 86.2% of statements
+```
+
+`go test -race -count=1 -v ./...` (same suite, verbose): exit 0, 17 `--- PASS`, 0 FAIL.
+
+Integration, real PostgreSQL:
+
+```bash
+go vet -tags integration ./...                    # exit 0, no output
+go test -tags integration -race -count=1 -v ./... # exit 0
+```
+
+Output, `--- `/`PASS`/`ok` lines only (24 `--- PASS`: 7 integration + 17 unit; 0 FAIL, 0 SKIP):
+
+```
+--- PASS: TestIntegrationHeldLockKeepsOneConnection (0.05s)
+--- PASS: TestIntegrationKeyMatchesServiceSQL (0.04s)
+--- PASS: TestIntegrationServiceHolderExcludesLibrary (0.04s)
+--- PASS: TestIntegrationAnotherPoolCanLockAfterRelease (0.04s)
+--- PASS: TestIntegrationCancelDoesNotFreeButReleaseDoes (0.04s)
+--- PASS: TestIntegrationCustomPrefixIsADifferentLock (0.04s)
+--- PASS: TestIntegrationFailedUnlockDropsTheConnection (0.07s)
+--- PASS: TestNilPoolReturnsErrNilPool (0.00s)
+--- PASS: TestNewWiresTheRealPool (0.00s)
+--- PASS: TestDefaultsAndOptions (0.00s)
+--- PASS: TestNonPositiveTimeoutsKeepTheDefault (0.00s)
+--- PASS: TestAcquireSendsExactSQLWithPrefixedKey (0.00s)
+--- PASS: TestAcquireTimeoutCoversLeaseAndQuery (0.00s)
+--- PASS: TestCallerDeadlineAndCancelStillWin (0.00s)
+--- PASS: TestLeaseFailureIsWrapped (0.00s)
+--- PASS: TestExhaustedPoolReportsDeadlineExceeded (0.02s)
+--- PASS: TestNotAcquiredReturnsConnectionAtOnce (0.00s)
+--- PASS: TestLockQueryErrorClosesConnection (0.00s)
+--- PASS: TestReleaseIgnoresCallerContext (0.00s)
+--- PASS: TestReleaseTwiceReturnsConnectionOnce (0.00s)
+--- PASS: TestUnlockErrorClosesConnectionBeforeRelease (0.00s)
+--- PASS: TestPanicInLockQueryStillDropsTheConnection (0.00s)
+--- PASS: TestPanicInUnlockStillDropsTheConnection (0.00s)
+--- PASS: TestPanicInCloseStillReleasesTheConnectionOnce (0.00s)
+PASS
+ok  	github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock	2.571s
+```
+
+No combined unit-plus-integration coverage figure was taken in this re-run; the
+98.0 percent figure quoted in an earlier version of this file predates the review fixes
+and is withdrawn.
 
 Integration tests and the spec statements they prove:
 
@@ -45,8 +93,12 @@ Without the variable the tagged tests fail with:
 
 ## Run 2: pgx v5.11.0 compatibility (the version joy-data-platform uses)
 
-Done in a scratch copy of the module outside the repository; the committed `go.mod`
-stays on v5.7.4.
+**Status: NOT re-run on the current HEAD.** The only pgx v5.11.0 run predates the review
+fixes, so the acceptance line "pgx v5.11.0 compatibility ... command and output recorded"
+is not met for the code as it stands.
+
+What exists is one earlier run, in a scratch copy of the module outside the repository
+(the committed `go.mod` stays on v5.7.4):
 
 ```bash
 go get github.com/jackc/pgx/v5@v5.11.0 && go mod tidy   # GOTOOLCHAIN unset (auto)
@@ -54,14 +106,58 @@ go version                                               # go1.25.0 darwin/amd64
 go test -tags integration -race -count=1 -v ./...
 ```
 
-pgx v5.11.0 raised the scratch `go.mod` to `go 1.25.0`. Result: exit 0, 20 tests passed
-(7 integration). This run was made BEFORE the review fixes (panic guards, ignored
-non-positive timeouts, narrower kill query in one test) and was not repeated after them;
-those fixes use no pgx API that the earlier run did not already exercise.
+pgx v5.11.0 raised the scratch `go.mod` to `go 1.25.0`, so it needs the Go 1.25
+toolchain (the committed module builds with Go 1.22). That run was summarised at the
+time as exit 0, 20 tests passed (7 integration); its raw output was not kept. It did
+not include the later changes: the panic guards, the ignored non-positive timeouts, the
+narrower kill query in one integration test, and the deferred release in
+`closeAndRelease`.
+
+A repeat on 2026-10-05 at commit `db3331a` was attempted with the same commands in a
+scratch copy and was refused by the agent session's permission system before anything
+ran (the `go get` step). No output exists for it and none is claimed. To close this
+item, run the three commands above in a scratch copy against a throwaway PostgreSQL and
+paste the output here.
 
 ## Unit-only coverage (no Postgres)
 
-`go test -race -coverprofile=<tmp> ./...` reports 86.2 percent raw. Every function is at
-100 percent except the five adapter delegations (`poolAdapter.Acquire`,
-`connAdapter.QueryRow`, `Exec`, `Release`, `Close`), which is the exclusion the spec
-allows. The raw figure is below 90 because those delegations are 8 of 58 statements.
+Command and raw result (commit `db3331a`):
+
+```bash
+cd go/adapter/pgxlock
+go test -race -cover -coverprofile=<tmp> ./...
+# ok  ...  coverage: 86.2% of statements
+go tool cover -func=<tmp>
+```
+
+```
+pgxlock.go:45:	Acquire			0.0%
+pgxlock.go:55:	QueryRow		0.0%
+pgxlock.go:59:	Exec			0.0%
+pgxlock.go:63:	Release			0.0%
+pgxlock.go:65:	Close			0.0%
+pgxlock.go:79:	New			100.0%
+pgxlock.go:95:	WithKeyPrefix		100.0%
+pgxlock.go:101:	WithAcquireTimeout	100.0%
+pgxlock.go:115:	WithUnlockTimeout	100.0%
+pgxlock.go:123:	noopRelease		0.0%
+pgxlock.go:131:	AcquireLock		100.0%
+pgxlock.go:175:	unlock			100.0%
+pgxlock.go:195:	closeAndRelease		100.0%
+total:			(statements)		86.2%
+```
+
+(`noopRelease` has an empty body, zero statements; the tool prints 0.0% for it.)
+
+The raw figure, **86.2 percent (50 of 58 statements), is below 90**. The acceptance
+line "reports at least 90 percent" is therefore NOT met by the raw command output.
+
+Counted from the coverprofile blocks: the 8 uncovered statements are all in
+`pgxlock.go` lines 45 to 65, the `pgxpool` wrapper methods the spec names
+(`poolAdapter.Acquire` 4 statements; `connAdapter.QueryRow`, `Exec`, `Release`, `Close`
+1 each). Excluding exactly those, **50 of 50 remaining statements are covered (100
+percent)**. The 90 percent target is met only through the exclusion clause in spec
+sections 2b and 5, not by the number the command prints. Note that `poolAdapter.Acquire`
+is a 4-statement delegation with an error branch, not a single line. Run 1 shows all
+seven integration tests passing against a real pool, which exercises those wrappers,
+but no coverage figure was taken for that run.
