@@ -28,11 +28,7 @@ pub fn canonical_arg_stringify(v: &Value) -> String {
     }
 }
 
-pub fn build_cache_key(
-    qualname: &str,
-    args: &[Value],
-    kwargs: &BTreeMap<String, Value>,
-) -> String {
+pub fn build_cache_key(qualname: &str, args: &[Value], kwargs: &BTreeMap<String, Value>) -> String {
     let mut pieces = Vec::with_capacity(args.len() + kwargs.len());
 
     for arg in args {
@@ -46,7 +42,7 @@ pub fn build_cache_key(
     let arg_repr = pieces.join(",");
     let raw = format!("{qualname}({arg_repr})");
 
-    if raw.as_bytes().len() <= MAX_KEY_BYTES {
+    if raw.len() <= MAX_KEY_BYTES {
         raw
     } else {
         let mut hasher = Sha256::new();

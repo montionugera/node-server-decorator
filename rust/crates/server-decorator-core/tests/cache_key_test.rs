@@ -65,7 +65,11 @@ fn test_cache_key_golden_fixtures() {
 #[test]
 fn test_cache_key_sha256_fallback() {
     let long_str = "a".repeat(300);
-    let key = build_cache_key("Service.LongCall", &[Value::String(long_str)], &BTreeMap::new());
+    let key = build_cache_key(
+        "Service.LongCall",
+        &[Value::String(long_str)],
+        &BTreeMap::new(),
+    );
     assert!(key.starts_with("Service.LongCall(sha256:"));
     assert!(key.ends_with(')'));
 }
@@ -87,5 +91,3 @@ fn test_cache_key_array_arg() {
     );
     assert_eq!(key, "Test.ArrayFunc([\"apple\",\"banana\"])");
 }
-
-

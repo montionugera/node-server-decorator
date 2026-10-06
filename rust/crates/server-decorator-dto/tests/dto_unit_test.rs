@@ -1,6 +1,6 @@
 use serde_json::json;
-use server_decorator_entity::testing::user_spec;
 use server_decorator_dto::validate;
+use server_decorator_entity::testing::user_spec;
 
 #[test]
 fn test_dto_unknown_projection() {
@@ -134,8 +134,8 @@ fn test_dto_field_types_and_constraints() {
 #[test]
 fn test_dto_formats_and_bounds() {
     use server_decorator_entity::builder::{
-        float_field, int_field, opt_format, opt_max, opt_min, opt_optional, opt_pattern,
-        str_field, EntityBuilder,
+        float_field, int_field, opt_format, opt_max, opt_min, opt_optional, opt_pattern, str_field,
+        EntityBuilder,
     };
 
     let spec = EntityBuilder::new("Item", "items")
@@ -254,15 +254,24 @@ fn test_dto_string_bounds_and_unknown_types() {
 
     // Unknown field type in create
     let mut bad_spec = user_spec();
-    bad_spec.fields.push(server_decorator_entity::builder::str_field("custom", vec![]));
+    bad_spec
+        .fields
+        .push(server_decorator_entity::builder::str_field(
+            "custom",
+            vec![],
+        ));
     bad_spec.fields.last_mut().unwrap().r#type = "custom_unknown".into();
-    let (errs, ok) = validate(&bad_spec, "create", &json!({
-        "email": "a@b.com",
-        "name": "Alice",
-        "status": "active",
-        "tags": [],
-        "custom": "123"
-    }));
+    let (errs, ok) = validate(
+        &bad_spec,
+        "create",
+        &json!({
+            "email": "a@b.com",
+            "name": "Alice",
+            "status": "active",
+            "tags": [],
+            "custom": "123"
+        }),
+    );
     assert!(!ok);
     assert!(errs.contains(&"custom".to_string()));
 }
@@ -333,6 +342,39 @@ fn test_dto_int_and_float_deep() {
     assert!(errs.contains(&"price".to_string()));
 }
 
+#[test]
+fn test_dto_pattern_ascii_classes_and_escapes() {
+    use server_decorator_entity::builder::{opt_id, opt_pattern, str_field, EntityBuilder};
 
+    let spec = EntityBuilder::new("Item", "items")
+        .fields([
+            str_field("id", vec![opt_id()]),
+            str_field("text", vec![opt_pattern(r"^[\w\d]+$")]),
+            str_field("non_digits", vec![opt_pattern(r"^\D+\W+\w+$")]),
+            str_field("fallback", vec![opt_pattern(r"^[abc]$")]),
+        ])
+        .build()
+        .unwrap();
 
+    // 1. Valid text matching patterns
+    let val = json!({
+        "id": "i1",
+        "text": "Valid123",
+        "non_digits": "abc -xyz",
+        "fallback": "a"
+    });
+    let (errs, ok) = validate(&spec, "create", &val);
+    assert!(ok, "unexpected errors: {:?}", errs);
 
+    // 2. Reject non-digits when digits supplied
+    let invalid = json!({
+        "id": "i1",
+        "text": "Valid123",
+        "non_digits": "123",
+        "fallback": "z"
+    });
+    let (errs, ok) = validate(&spec, "create", &invalid);
+    assert!(!ok);
+    assert!(errs.contains(&"non_digits".to_string()));
+    assert!(errs.contains(&"fallback".to_string()));
+}

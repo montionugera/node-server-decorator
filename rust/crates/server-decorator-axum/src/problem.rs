@@ -34,7 +34,12 @@ impl Problem {
 impl IntoResponse for Problem {
     fn into_response(self) -> Response {
         let status = StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-        (status, [("content-type", "application/problem+json")], Json(self)).into_response()
+        (
+            status,
+            [("content-type", "application/problem+json")],
+            Json(self),
+        )
+            .into_response()
     }
 }
 

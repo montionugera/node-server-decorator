@@ -24,9 +24,11 @@ pub trait CacheAdapter: Send + Sync {
     async fn set(&self, key: &str, val: Value, ttl: Duration) -> Result<(), CacheError>;
 }
 
+type CacheStorage = Arc<RwLock<HashMap<String, (Value, Option<Instant>)>>>;
+
 #[derive(Clone, Default)]
 pub struct MemoryCacheAdapter {
-    storage: Arc<RwLock<HashMap<String, (Value, Option<Instant>)>>>,
+    storage: CacheStorage,
 }
 
 impl MemoryCacheAdapter {

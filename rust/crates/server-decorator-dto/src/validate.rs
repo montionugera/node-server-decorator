@@ -9,11 +9,15 @@ static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static UUID_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$").unwrap()
+    Regex::new(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+        .unwrap()
 });
 
-static URI_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]+$").unwrap()
+static URI_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]+$").unwrap());
+
+static DATETIME_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$").unwrap()
 });
 
 type IncludePredicate = fn(&FieldSpec) -> bool;
@@ -184,25 +188,20 @@ fn validate_string(f: &FieldSpec, val: &Value, path: &str, err_set: &mut BTreeSe
 
     if let Some(ref fmt) = f.format {
         match fmt.as_str() {
-            "email" => {
-                if !EMAIL_RE.is_match(s) {
-                    err_set.insert(path.to_string());
-                }
+            "email" if !EMAIL_RE.is_match(s) => {
+                err_set.insert(path.to_string());
             }
-            "uuid" => {
-                if !UUID_RE.is_match(s) {
-                    err_set.insert(path.to_string());
-                }
+            "uuid" if !UUID_RE.is_match(s) => {
+                err_set.insert(path.to_string());
             }
-            "uri" => {
-                if !URI_RE.is_match(s) {
-                    err_set.insert(path.to_string());
-                }
+            "uri" if !URI_RE.is_match(s) => {
+                err_set.insert(path.to_string());
             }
             _ => {}
         }
     } else if let Some(ref p) = f.pattern {
-        if let Ok(re) = Regex::new(p) {
+        let rewritten = ascii_classes(p);
+        if let Ok(re) = Regex::new(&rewritten) {
             if !re.is_match(s) {
                 err_set.insert(path.to_string());
             }
@@ -210,6 +209,63 @@ fn validate_string(f: &FieldSpec, val: &Value, path: &str, err_set: &mut BTreeSe
             err_set.insert(path.to_string());
         }
     }
+}
+
+fn ascii_classes(pattern: &str) -> String {
+    let mut out = String::new();
+    let mut in_class = false;
+    let chars: Vec<char> = pattern.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\\' && i + 1 < chars.len() {
+            let nxt = chars[i + 1];
+            match nxt {
+                'd' => {
+                    if in_class {
+                        out.push_str("0-9");
+                    } else {
+                        out.push_str("[0-9]");
+                    }
+                }
+                'D' => {
+                    out.push_str("[^0-9]");
+                }
+                'w' => {
+                    if in_class {
+                        out.push_str("0-9A-Za-z_");
+                    } else {
+                        out.push_str("[0-9A-Za-z_]");
+                    }
+                }
+                'W' => {
+                    out.push_str("[^0-9A-Za-z_]");
+                }
+                'b' | 'B' => {
+                    if !in_class {
+                        out.push_str(&format!("(?-u:\\{nxt})"));
+                    } else {
+                        out.push('\\');
+                        out.push(nxt);
+                    }
+                }
+                _ => {
+                    out.push(c);
+                    out.push(nxt);
+                }
+            }
+            i += 2;
+            continue;
+        }
+        if c == '[' && !in_class {
+            in_class = true;
+        } else if c == ']' && in_class {
+            in_class = false;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 fn validate_int(f: &FieldSpec, val: &Value, path: &str, err_set: &mut BTreeSet<String>) {
@@ -280,20 +336,6 @@ fn validate_bool(val: &Value, path: &str, err_set: &mut BTreeSet<String>) {
     }
 }
 
-fn has_explicit_utc_offset(s: &str) -> bool {
-    if s.ends_with('Z') || s.ends_with('z') {
-        return true;
-    }
-    if s.len() >= 6 {
-        let tail = &s[s.len() - 6..];
-        let bytes = tail.as_bytes();
-        if (bytes[0] == b'+' || bytes[0] == b'-') && bytes[3] == b':' {
-            return true;
-        }
-    }
-    false
-}
-
 fn validate_datetime(val: &Value, path: &str, err_set: &mut BTreeSet<String>) {
     let s = match val.as_str() {
         Some(s) => s,
@@ -303,7 +345,7 @@ fn validate_datetime(val: &Value, path: &str, err_set: &mut BTreeSet<String>) {
         }
     };
 
-    if chrono::DateTime::parse_from_rfc3339(s).is_err() || !has_explicit_utc_offset(s) {
+    if !DATETIME_RE.is_match(s) || chrono::DateTime::parse_from_rfc3339(s).is_err() {
         err_set.insert(path.to_string());
     }
 }
@@ -342,7 +384,13 @@ fn validate_list(
     if let Some(ref item) = f.item {
         for (i, elem) in arr.iter().enumerate() {
             let item_path = format!("{path}.{i}");
-            validate_field_value(item, elem, &item_path, include, err_set);
+            if elem.is_null() {
+                if !item.nullable {
+                    err_set.insert(item_path);
+                }
+            } else {
+                validate_field_value(item, elem, &item_path, include, err_set);
+            }
         }
     }
 }

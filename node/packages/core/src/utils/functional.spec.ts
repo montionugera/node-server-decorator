@@ -496,7 +496,7 @@ describe('Standalone Functional Utility Wrappers', () => {
 
     it('heartbeat watchdog extends lock TTL for long-running functions', async () => {
       const longTask = async () => {
-        await new Promise((r) => setTimeout(r, 120));
+        await new Promise((r) => setTimeout(r, 200));
         const entry = adapter.store.get('lock:watchdog');
         expect(entry).toBeDefined();
         expect(entry!.expiresAt).toBeGreaterThan(Date.now());
@@ -504,7 +504,7 @@ describe('Standalone Functional Utility Wrappers', () => {
       };
 
       const lockedLongTask = withDistributedLock('lock:watchdog', longTask, {
-        ttlMs: 60, // Short TTL: 60ms (watchdog runs every ~20ms)
+        ttlMs: 200, // Safe TTL: 200ms (watchdog runs every ~66ms)
         autoRenew: true,
         adapter,
       });

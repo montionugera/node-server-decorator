@@ -269,7 +269,11 @@ pub fn obj_field(name: impl Into<String>, opts: Vec<FieldOpt>) -> FieldSpec {
     build_field(name, "obj", opts)
 }
 
-pub fn ref_field(name: impl Into<String>, target: impl Into<String>, opts: Vec<FieldOpt>) -> FieldSpec {
+pub fn ref_field(
+    name: impl Into<String>,
+    target: impl Into<String>,
+    opts: Vec<FieldOpt>,
+) -> FieldSpec {
     let target = target.into();
     let mut f = build_field(name, "ref", opts);
     f.r#ref = Some(target);

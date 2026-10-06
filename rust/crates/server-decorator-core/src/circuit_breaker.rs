@@ -54,7 +54,9 @@ impl CircuitBreaker {
 
     pub async fn state(&self) -> CircuitState {
         let mut inner = self.inner.write().await;
-        if inner.state == CircuitState::Open && Instant::now().duration_since(inner.last_state_change) >= self.reset_timeout {
+        if inner.state == CircuitState::Open
+            && Instant::now().duration_since(inner.last_state_change) >= self.reset_timeout
+        {
             inner.state = CircuitState::HalfOpen;
             inner.success_count = 0;
             inner.last_state_change = Instant::now();
@@ -90,7 +92,9 @@ impl CircuitBreaker {
             Err(err) => {
                 let mut inner = self.inner.write().await;
                 inner.failure_count += 1;
-                if inner.state == CircuitState::HalfOpen || inner.failure_count >= self.failure_threshold {
+                if inner.state == CircuitState::HalfOpen
+                    || inner.failure_count >= self.failure_threshold
+                {
                     inner.state = CircuitState::Open;
                     inner.last_state_change = Instant::now();
                 }

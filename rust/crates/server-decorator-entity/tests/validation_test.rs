@@ -1,6 +1,6 @@
 use server_decorator_entity::builder::{
-    act, enum_field, list_field, obj_field, opt_format, opt_item, opt_pattern, opt_sub,
-    opt_values, str_field, EntityBuilder,
+    act, enum_field, list_field, obj_field, opt_format, opt_item, opt_pattern, opt_sub, opt_values,
+    str_field, EntityBuilder,
 };
 use server_decorator_entity::spec::{SchemeSpec, SecuritySpec};
 use server_decorator_entity::validate::ValidationError;
@@ -47,10 +47,7 @@ fn test_validation_format_and_pattern_mutually_exclusive() {
 #[test]
 fn test_validation_lookaround_in_pattern() {
     let res = EntityBuilder::new("Test", "tests")
-        .fields([str_field(
-            "pwd",
-            vec![opt_pattern(r"^(?=.*[A-Z]).+$")],
-        )])
+        .fields([str_field("pwd", vec![opt_pattern(r"^(?=.*[A-Z]).+$")])])
         .build();
     assert!(matches!(
         res,
@@ -61,10 +58,7 @@ fn test_validation_lookaround_in_pattern() {
 #[test]
 fn test_validation_backreference_in_pattern() {
     let res = EntityBuilder::new("Test", "tests")
-        .fields([str_field(
-            "dup",
-            vec![opt_pattern(r"^([a-z])\1+$")],
-        )])
+        .fields([str_field("dup", vec![opt_pattern(r"^([a-z])\1+$")])])
         .build();
     assert!(matches!(
         res,
@@ -110,7 +104,9 @@ fn test_validation_security_errors() {
         ops: None,
         schemes: vec![],
     };
-    let res = EntityBuilder::new("Test", "tests").secure(empty_sec).build();
+    let res = EntityBuilder::new("Test", "tests")
+        .secure(empty_sec)
+        .build();
     assert!(matches!(
         res,
         Err(ValidationError::EmptySecuritySchemes { .. })

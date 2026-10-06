@@ -39,7 +39,10 @@ async fn test_e2e_user_lifecycle_and_validation() {
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let err_json: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(err_json["fields"].as_array().unwrap(), &vec![json!("email")]);
+    assert_eq!(
+        err_json["fields"].as_array().unwrap(),
+        &vec![json!("email")]
+    );
 
     // 3. Reject Create with readonly loginCount
     let req = Request::builder()
@@ -61,7 +64,10 @@ async fn test_e2e_user_lifecycle_and_validation() {
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let err_json: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(err_json["fields"].as_array().unwrap(), &vec![json!("loginCount")]);
+    assert_eq!(
+        err_json["fields"].as_array().unwrap(),
+        &vec![json!("loginCount")]
+    );
 
     // 4. Create valid user -> returns 201 Created
     let req = Request::builder()
@@ -200,4 +206,3 @@ async fn test_e2e_user_lifecycle_and_validation() {
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 }
-

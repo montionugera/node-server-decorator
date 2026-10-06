@@ -42,6 +42,12 @@ sed -i.bak -E "s/^const Version = \"[^\"]+\"$/const Version = \"$new_version\"/"
 nimble_file=nim/server_decorator.nimble
 sed -i.bak -E "s/^(version[[:space:]]*=[[:space:]]*)\"[^\"]+\"/\1\"$new_version\"/" "$nimble_file" \
   && rm "$nimble_file.bak"
+# Mirror into the Rust workspace manifest
+rust_cargo_file=rust/Cargo.toml
+if [ -f "$rust_cargo_file" ]; then
+  sed -i.bak -E "s/^(version[[:space:]]*=[[:space:]]*)\"[^\"]+\"/\1\"$new_version\"/" "$rust_cargo_file" \
+    && rm "$rust_cargo_file.bak"
+fi
 # uv.lock pins each workspace member's own version (python/uv.lock's `[[package]]
 # name = "server-decorator" version = "..."` entry) — refresh it so the lockfile doesn't
 # go stale on every publish (unlike pnpm-lock, which doesn't record a workspace member's

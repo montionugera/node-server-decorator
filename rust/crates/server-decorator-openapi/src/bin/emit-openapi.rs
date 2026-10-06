@@ -3,6 +3,7 @@ use server_decorator_openapi::generate;
 
 fn main() {
     let spec = user_spec();
-    let json = generate(&[spec], "1.2.0").expect("failed to generate openapi document");
+    let version = include_str!("../../../../../contracts/VERSION").trim();
+    let json = generate(&[spec], version).expect("failed to generate openapi document");
     print!("{}", json);
 }

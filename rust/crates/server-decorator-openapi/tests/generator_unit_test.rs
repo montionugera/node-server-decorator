@@ -31,24 +31,31 @@ fn test_openapi_features_coverage() {
         .fields([
             str_field("id", vec![opt_id(), opt_readonly(), opt_format("uuid")]),
             str_field("website", vec![opt_format("uri"), opt_optional()]),
-            str_field("customCode", vec![opt_pattern(r"^[A-Z]{3}$"), opt_optional()]),
-            int_field("views", vec![opt_min(0), opt_max(1_000_000), opt_optional()]),
+            str_field(
+                "customCode",
+                vec![opt_pattern(r"^[A-Z]{3}$"), opt_optional()],
+            ),
+            int_field(
+                "views",
+                vec![opt_min(0), opt_max(1_000_000), opt_optional()],
+            ),
             float_field("rating", vec![opt_min(0), opt_max(5), opt_optional()]),
             bool_field("published", vec![opt_optional()]),
             datetime_field("publishedAt", vec![opt_optional()]),
-            list_field("tags", vec![
-                opt_item(str_field("tag", vec![])),
-                opt_min(1),
-                opt_max(10),
-                opt_optional(),
-            ]),
+            list_field(
+                "tags",
+                vec![
+                    opt_item(str_field("tag", vec![])),
+                    opt_min(1),
+                    opt_max(10),
+                    opt_optional(),
+                ],
+            ),
         ])
-        .actions([
-            act("publish")
-                .desc("Publish article")
-                .input([str_field("scheduledFor", vec![opt_optional()])])
-                .build(),
-        ])
+        .actions([act("publish")
+            .desc("Publish article")
+            .input([str_field("scheduledFor", vec![opt_optional()])])
+            .build()])
         .build()
         .expect("Valid EntitySpec");
 

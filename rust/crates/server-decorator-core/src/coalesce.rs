@@ -4,7 +4,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 
-pub type BatchFn<K, V, E> = Arc<dyn Fn(Vec<K>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<HashMap<K, V>, E>> + Send>> + Send + Sync>;
+pub type BatchFn<K, V, E> = Arc<
+    dyn Fn(
+            Vec<K>,
+        )
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<HashMap<K, V>, E>> + Send>>
+        + Send
+        + Sync,
+>;
 
 struct ActiveBatch<K: Eq + Hash + Clone, V: Clone, E: Clone> {
     keys: Vec<K>,
@@ -12,14 +19,23 @@ struct ActiveBatch<K: Eq + Hash + Clone, V: Clone, E: Clone> {
 }
 
 #[derive(Clone)]
-pub struct BatchLoader<K: Eq + Hash + Clone + Send + 'static, V: Clone + Send + 'static, E: Clone + Send + 'static> {
+pub struct BatchLoader<
+    K: Eq + Hash + Clone + Send + 'static,
+    V: Clone + Send + 'static,
+    E: Clone + Send + 'static,
+> {
     batch_fn: BatchFn<K, V, E>,
     window: Duration,
     max_batch_size: usize,
     active: Arc<Mutex<Option<ActiveBatch<K, V, E>>>>,
 }
 
-impl<K: Eq + Hash + Clone + Send + 'static, V: Clone + Send + 'static, E: Clone + Send + 'static> BatchLoader<K, V, E> {
+impl<
+        K: Eq + Hash + Clone + Send + 'static,
+        V: Clone + Send + 'static,
+        E: Clone + Send + 'static,
+    > BatchLoader<K, V, E>
+{
     pub fn new<F, Fut>(batch_fn: F, window: Duration, max_batch_size: usize) -> Self
     where
         F: Fn(Vec<K>) -> Fut + Send + Sync + 'static,

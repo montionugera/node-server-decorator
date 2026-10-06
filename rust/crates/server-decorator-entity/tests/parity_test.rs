@@ -40,4 +40,3 @@ fn test_emit_fixture_binary() {
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("\"entity\":\"User\""));
 }
-

@@ -209,7 +209,10 @@ fn list_envelope(entity_name: &str, pagination: &str) -> Map<String, Value> {
                 }
             }),
         );
-        out.insert("required".into(), json!(["items", "total", "limit", "offset"]));
+        out.insert(
+            "required".into(),
+            json!(["items", "total", "limit", "offset"]),
+        );
     }
     out
 }
@@ -327,6 +330,7 @@ fn security_for(spec: &EntitySpec, key: &str, kind: &str) -> Option<Value> {
     ]))
 }
 
+#[allow(clippy::type_complexity)]
 fn openapi_components(
     spec: &EntitySpec,
 ) -> Result<(Map<String, Value>, Map<String, Value>), OpenApiError> {

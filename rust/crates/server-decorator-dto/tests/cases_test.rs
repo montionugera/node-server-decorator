@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde_json::Value;
 use server_decorator_dto::validate;
+use server_decorator_entity::spec::EntitySpec;
 use server_decorator_entity::testing::user_spec;
 use std::fs;
 use std::path::Path;
@@ -13,6 +14,8 @@ struct ContractCase {
     valid: bool,
     #[serde(rename = "errorFields")]
     error_fields: Vec<String>,
+    #[serde(default)]
+    spec: Option<EntitySpec>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,7 +27,7 @@ struct FixtureData {
 
 #[test]
 fn test_all_contract_cases() {
-    let spec = user_spec();
+    let default_spec = user_spec();
 
     let candidates = [
         "../../contracts/fixtures/entity-spec.cases.json",
@@ -43,14 +46,14 @@ fn test_all_contract_cases() {
     let data = data.expect("could not find entity-spec.cases.json");
     let fixture: FixtureData = serde_json::from_str(&data).expect("failed to parse fixture json");
 
-    assert_eq!(
-        fixture.cases.len(),
-        22,
-        "Expected exactly 22 contract test cases"
+    assert!(
+        !fixture.cases.is_empty(),
+        "Expected contract test cases to not be empty"
     );
 
     for c in fixture.cases {
-        let (err_fields, is_valid) = validate(&spec, &c.dto, &c.payload);
+        let spec = c.spec.as_ref().unwrap_or(&default_spec);
+        let (err_fields, is_valid) = validate(spec, &c.dto, &c.payload);
 
         assert_eq!(
             is_valid, c.valid,

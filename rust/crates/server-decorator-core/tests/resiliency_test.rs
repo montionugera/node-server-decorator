@@ -83,7 +83,9 @@ async fn test_circuit_breaker_transitions() {
     assert_eq!(cb.state().await, CircuitState::Closed);
 
     // Success in Closed resets failure count
-    let _ = cb.execute(|| async { Ok::<_, &str>("success in closed") }).await;
+    let _ = cb
+        .execute(|| async { Ok::<_, &str>("success in closed") })
+        .await;
     assert_eq!(cb.state().await, CircuitState::Closed);
 
     // Two failures to trigger Open
@@ -92,7 +94,9 @@ async fn test_circuit_breaker_transitions() {
     assert_eq!(cb.state().await, CircuitState::Open);
 
     // While open, fails fast
-    let res = cb.execute(|| async { Ok::<_, &str>("should not run") }).await;
+    let res = cb
+        .execute(|| async { Ok::<_, &str>("should not run") })
+        .await;
     assert!(matches!(res, Err(CircuitBreakerError::Open)));
 
     // Wait reset timeout -> transitions to HalfOpen
@@ -166,14 +170,22 @@ fn test_w3c_trace_context() {
     assert_eq!(ctx.to_header(), valid_header);
 
     // Invalid version
-    assert!(TraceContext::parse("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01").is_none());
-    assert!(TraceContext::parse("ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01").is_none());
+    assert!(
+        TraceContext::parse("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01").is_none()
+    );
+    assert!(
+        TraceContext::parse("ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01").is_none()
+    );
 
     // All-zero trace ID rejected
-    assert!(TraceContext::parse("00-00000000000000000000000000000000-00f067aa0ba902b7-01").is_none());
+    assert!(
+        TraceContext::parse("00-00000000000000000000000000000000-00f067aa0ba902b7-01").is_none()
+    );
 
     // All-zero span ID rejected
-    assert!(TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01").is_none());
+    assert!(
+        TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01").is_none()
+    );
 }
 
 #[test]
@@ -189,9 +201,15 @@ fn test_trace_context_constructors() {
     // Invalid parts count
     assert!(TraceContext::parse("00-123").is_none());
     // Non-hex characters
-    assert!(TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e473z-00f067aa0ba902b7-01").is_none());
-    assert!(TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902bz-01").is_none());
-    assert!(TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-0z").is_none());
+    assert!(
+        TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e473z-00f067aa0ba902b7-01").is_none()
+    );
+    assert!(
+        TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902bz-01").is_none()
+    );
+    assert!(
+        TraceContext::parse("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-0z").is_none()
+    );
 }
 
 #[test]
@@ -216,9 +234,7 @@ async fn test_retry_exhaustion() {
         max_interval: Duration::from_millis(10),
         multiplier: 2.0,
     };
-    let res = retry(&opts, || async {
-        Err::<(), _>("always fail")
-    }).await;
+    let res = retry(&opts, || async { Err::<(), _>("always fail") }).await;
     assert!(res.is_err());
 }
 
@@ -230,7 +246,9 @@ async fn test_circuit_breaker_half_open_failure() {
     tokio::time::sleep(Duration::from_millis(60)).await;
     assert_eq!(cb.state().await, CircuitState::HalfOpen);
     // Failure in half open immediately re-opens
-    let _ = cb.execute(|| async { Err::<(), _>("fail in half open") }).await;
+    let _ = cb
+        .execute(|| async { Err::<(), _>("fail in half open") })
+        .await;
     assert_eq!(cb.state().await, CircuitState::Open);
 }
 
@@ -298,4 +316,34 @@ async fn test_batch_loader_dispatch_immediately() {
     assert_eq!(res2, "v_b");
 }
 
+#[tokio::test]
+async fn test_circuit_breaker_half_open_recovery() {
+    let cb = CircuitBreaker::new(1, Duration::from_millis(20), 2);
+    let _ = cb.execute(|| async { Err::<(), _>("fail") }).await;
+    assert_eq!(cb.state().await, CircuitState::Open);
 
+    // When open, execute immediately returns Err(CircuitBreakerError::Open)
+    let open_res = cb.execute(|| async { Ok::<_, &str>("ok") }).await;
+    match open_res {
+        Err(CircuitBreakerError::Open) => {}
+        _ => panic!("expected CircuitBreakerError::Open"),
+    }
+    assert_eq!(
+        format!("{}", CircuitBreakerError::<&str>::Open),
+        "circuit breaker is open"
+    );
+
+    // Wait for reset timeout to expire
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    assert_eq!(cb.state().await, CircuitState::HalfOpen);
+
+    // 1st success in half open -> still half open
+    let res1 = cb.execute(|| async { Ok::<_, &str>("first") }).await;
+    assert_eq!(res1.unwrap(), "first");
+    assert_eq!(cb.state().await, CircuitState::HalfOpen);
+
+    // 2nd success in half open -> closes circuit
+    let res2 = cb.execute(|| async { Ok::<_, &str>("second") }).await;
+    assert_eq!(res2.unwrap(), "second");
+    assert_eq!(cb.state().await, CircuitState::Closed);
+}

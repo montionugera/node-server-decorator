@@ -61,10 +61,10 @@ impl EntityHandler for InMemoryUserStore {
 
     async fn get(&self, id: &str) -> Result<Value, Problem> {
         let users = self.users.read().await;
-        users
-            .get(id)
-            .cloned()
-            .ok_or_else(|| Problem::new(StatusCode::NOT_FOUND, "User Not Found").with_detail(format!("User {id} does not exist")))
+        users.get(id).cloned().ok_or_else(|| {
+            Problem::new(StatusCode::NOT_FOUND, "User Not Found")
+                .with_detail(format!("User {id} does not exist"))
+        })
     }
 
     async fn create(&self, mut payload: Value) -> Result<Value, Problem> {

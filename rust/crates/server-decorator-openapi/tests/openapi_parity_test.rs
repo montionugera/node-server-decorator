@@ -6,7 +6,8 @@ use std::path::Path;
 #[test]
 fn test_openapi_byte_parity() {
     let spec = user_spec();
-    let actual = generate(&[spec], "1.2.0").expect("openapi generation failed");
+    let version = include_str!("../../../../contracts/VERSION").trim();
+    let actual = generate(&[spec], version).expect("openapi generation failed");
 
     let candidates = [
         "../../contracts/fixtures/openapi.valid-user.json",
@@ -40,4 +41,3 @@ fn test_emit_openapi_binary() {
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("\"openapi\":\"3.1.0\""));
 }
-
