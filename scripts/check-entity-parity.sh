@@ -11,10 +11,13 @@ command -v nim >/dev/null || { echo "nim not on PATH (export PATH=\$HOME/.nimble
 # nim/config.nims adds ../src to the path and turns hints off; --hints:off is repeated so the
 # script does not depend on it.
 nim_out=$(nim r --hints:off nim/examples/emit_fixture.nim)
+rust_out=$(cargo run --manifest-path rust/Cargo.toml --quiet -p server-decorator-entity --bin emit-fixture)
 expected=$(cat "$fixture")
 
 [ "$ts_out" = "$expected" ] || { echo "FAIL: TS IR != $fixture" >&2; diff <(echo "$ts_out") <(echo "$expected") >&2 || true; exit 1; }
 [ "$py_out" = "$expected" ] || { echo "FAIL: PY IR != $fixture" >&2; diff <(echo "$py_out") <(echo "$expected") >&2 || true; exit 1; }
 [ "$go_out" = "$expected" ] || { echo "FAIL: GO IR != $fixture" >&2; diff <(echo "$go_out") <(echo "$expected") >&2 || true; exit 1; }
 [ "$nim_out" = "$expected" ] || { echo "FAIL: NIM IR != $fixture" >&2; diff <(echo "$nim_out") <(echo "$expected") >&2 || true; exit 1; }
-echo "OK: entity-spec parity (TS == PY == GO == NIM == contract fixture)"
+[ "$rust_out" = "$expected" ] || { echo "FAIL: RUST IR != $fixture" >&2; diff <(echo "$rust_out") <(echo "$expected") >&2 || true; exit 1; }
+echo "OK: entity-spec parity (TS == PY == GO == NIM == RUST == contract fixture)"
+

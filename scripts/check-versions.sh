@@ -30,6 +30,11 @@ nim_v=$(grep -oE '^version[[:space:]]*=[[:space:]]*"[^"]+"' nim/server_decorator
   || { echo "FAIL: no 'version = \"x.y.z\"' in nim/server_decorator.nimble" >&2; exit 1; }
 versions+="nim/server_decorator.nimble=$nim_v\n"
 
+# rust/Cargo.toml is the Rust workspace's version source.
+rust_v=$(grep -oE '^version\s*=\s*"[^"]+"' rust/Cargo.toml | grep -oE '"[^"]+"' | tr -d '"') \
+  || { echo "FAIL: no 'version = \"x.y.z\"' in rust/Cargo.toml" >&2; exit 1; }
+versions+="rust/Cargo.toml=$rust_v\n"
+
 count=$(printf "%b" "$versions" | cut -d= -f2 | sort -u | wc -l | tr -d ' ')
 if [ "$count" != "1" ]; then
   echo "FAIL: package versions diverge:" >&2
