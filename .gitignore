@@ -37,6 +37,7 @@ __pycache__/
 
 # Rendered design HTML — local view artifacts only (global rule)
 docs/superpowers/**/*.html
+research/**/*.html
 
 # Nim (F-006): `nim c` drops binaries beside sources; `nim r`/`nimble test` do not, but be safe.
 nimcache/
@@ -50,3 +51,7 @@ nim/nimble.lock
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 graft/
+
+# Rust build artifacts
+target/
+rust/target/

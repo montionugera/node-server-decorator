@@ -621,5 +621,153 @@ describe('Standalone Functional Utility Wrappers', () => {
 
       trackSpy.mockRestore();
     });
+
+    it('infers event key from function name or options when fn is first argument', async () => {
+      const trackSpy = jest.spyOn(globalTracker, 'track').mockImplementation(() => {});
+
+      const namedFn = withTracking(async function processPayment(x: number) {
+        return x + 1;
+      });
+      const res = await namedFn(5);
+      expect(res).toBe(6);
+      expect(trackSpy.mock.calls[0][0]).toBe('processPayment');
+
+      const customNamed = withTracking(
+        async function anon() {
+          return 42;
+        },
+        { name: 'custom.event' }
+      );
+      await customNamed();
+      expect(trackSpy.mock.calls[1][0]).toBe('custom.event');
+
+      trackSpy.mockRestore();
+    });
+  });
+
+  describe('functional utils edge cases & branch coverage', () => {
+    it('withRetry respects maxBackoffMs cap, jitter, and exhausted attempts', async () => {
+      let tries = 0;
+      const capped = withRetry(
+        async () => {
+          tries++;
+          throw new Error('fail');
+        },
+        {
+          maxAttempts: 3,
+          backoffMs: 10,
+          factor: 100,
+          maxBackoffMs: 20,
+          jitter: true,
+        }
+      );
+
+      await expect(capped()).rejects.toThrow('fail');
+      expect(tries).toBe(3);
+
+      const exhausted = withRetry(async () => 'ok', { maxAttempts: 0 });
+      await expect(exhausted()).rejects.toThrow('Retry exhausted without result');
+    });
+
+    it('withCache supports number TTL, CacheAdapter instance, TTL option, and default cache expiration', async () => {
+      let callCount = 0;
+      const fn = async (id: string) => {
+        callCount++;
+        return `val:${id}`;
+      };
+
+      // Numeric TTL
+      const cachedNum = withCache(fn, 60);
+      expect(await cachedNum('a')).toBe('val:a');
+      expect(await cachedNum('a')).toBe('val:a');
+      expect(callCount).toBe(1);
+
+      // CacheAdapter instance directly
+      const customStore = new Map<string, any>();
+      const customAdapter: CacheAdapter = {
+        get: (k) => (customStore.has(k) ? customStore.get(k) : CACHE_MISS),
+        set: (k, v) => {
+          customStore.set(k, v);
+        },
+      };
+      const cachedAdapter = withCache(fn, customAdapter);
+      expect(await cachedAdapter('b')).toBe('val:b');
+      expect(callCount).toBe(2);
+
+      // Capital TTL option
+      const cachedCapital = withCache(fn, { TTL: 10, name: 'custom_cap' });
+      expect(await cachedCapital('c')).toBe('val:c');
+      expect(callCount).toBe(3);
+
+      // Default in-memory cache expiration branch
+      const shortLived = withCache(async () => ++callCount, { ttl: 0.005 });
+      const first = await shortLived();
+      await new Promise((r) => setTimeout(r, 20));
+      const second = await shortLived();
+      expect(second).toBeGreaterThan(first);
+    });
+
+    it('withTrace supports function as first argument with and without options', async () => {
+      const traceFn = withTrace(async function testSpan() {
+        return 'traced';
+      });
+      expect(await traceFn()).toBe('traced');
+
+      const traceWithOpts = withTrace(
+        async () => 'traced_opts',
+        { name: 'explicit_span' }
+      );
+      expect(await traceWithOpts()).toBe('traced_opts');
+    });
+
+    it('withDistributedLock handles missing adapter, watchdog lost, and fallback', async () => {
+      const fnWithoutAdapter = withDistributedLock(
+        'test-lock',
+        async () => 'should fail',
+        { adapter: null as any }
+      );
+      await expect(fnWithoutAdapter()).rejects.toThrow('No RedisLockAdapter provided');
+
+      // Fallback branch
+      const mockAdapter: RedisLockAdapter = {
+        setNxPx: jest.fn().mockResolvedValue(false),
+        evalLua: jest.fn().mockResolvedValue(1),
+      };
+      const lockedWithFallback = withDistributedLock(
+        'test-lock-fb',
+        async () => 'main',
+        {
+          adapter: mockAdapter,
+          waitTimeoutMs: 10,
+          fallback: async () => 'fallback_value',
+        }
+      );
+      expect(await lockedWithFallback()).toBe('fallback_value');
+
+      // Watchdog lost / error branch
+      let evalCount = 0;
+      const watchdogAdapter: RedisLockAdapter = {
+        setNxPx: jest.fn().mockResolvedValue(true),
+        evalLua: jest.fn().mockImplementation(async (script: string) => {
+          evalCount++;
+          if (evalCount === 1) return 0; // lock lost
+          if (evalCount === 2) throw new Error('evalLua fail');
+          return 1;
+        }),
+      };
+      const watchdogFn = withDistributedLock(
+        'watchdog-test',
+        async () => {
+          await new Promise((r) => setTimeout(r, 60));
+          return 'ok';
+        },
+        {
+          adapter: watchdogAdapter,
+          ttlMs: 30,
+          autoRenew: true,
+        }
+      );
+      expect(await watchdogFn()).toBe('ok');
+    });
   });
 });
