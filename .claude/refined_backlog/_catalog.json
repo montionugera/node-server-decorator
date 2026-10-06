@@ -257,11 +257,12 @@
     "from_idea": "I-025",
     "created_at": "2026-10-04T15:57:01.776083+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.7",
     "claimed_at": "2026-10-04T15:57:02.458038+00:00",
     "shipped_at": "2026-10-04T16:00:47.666112+00:00",
-    "shipped_sha": "3bb813f3d7fd8ea2d093d02cfc0f40841a6a2bff"
+    "shipped_sha": "3bb813f3d7fd8ea2d093d02cfc0f40841a6a2bff",
+    "promoted_at": "2026-10-06T00:23:13.014921+00:00"
   },
   {
     "id": "F-023",
@@ -269,12 +270,13 @@
     "from_idea": "I-026",
     "created_at": "2026-10-05T00:38:55.900493+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.7",
     "epic": "E-001",
     "claimed_at": "2026-10-05T00:38:56.339902+00:00",
     "shipped_at": "2026-10-05T00:45:15.920987+00:00",
-    "shipped_sha": "af939ba49a1706c01b5a94c982f6952bf8d75057"
+    "shipped_sha": "af939ba49a1706c01b5a94c982f6952bf8d75057",
+    "promoted_at": "2026-10-06T00:23:18.766065+00:00"
   },
   {
     "id": "F-024",
@@ -282,12 +284,13 @@
     "from_idea": "I-027",
     "created_at": "2026-10-05T00:45:49.091011+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.7",
     "epic": "E-001",
     "claimed_at": "2026-10-05T00:45:49.689911+00:00",
     "shipped_at": "2026-10-05T01:03:50.858226+00:00",
-    "shipped_sha": "2c5b7d214a4abf40e39b0a595d9ad37a06162768"
+    "shipped_sha": "2c5b7d214a4abf40e39b0a595d9ad37a06162768",
+    "promoted_at": "2026-10-06T00:23:21.826432+00:00"
   },
   {
     "id": "F-025",
@@ -295,11 +298,12 @@
     "from_idea": "I-028",
     "created_at": "2026-10-05T01:04:10.632134+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.7",
     "epic": "E-001",
     "claimed_at": "2026-10-05T01:04:14.089836+00:00",
     "shipped_at": "2026-10-05T01:28:15.195989+00:00",
-    "shipped_sha": "87a4ded348cc1fb8be375a6e31fc6097ef8976b4"
+    "shipped_sha": "87a4ded348cc1fb8be375a6e31fc6097ef8976b4",
+    "promoted_at": "2026-10-06T00:23:27.456891+00:00"
   }
 ]
