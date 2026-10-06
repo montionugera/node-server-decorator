@@ -275,6 +275,327 @@
       "errorFields": [
         "secretNote"
       ]
+    },
+    {
+      "name": "create-score-bool-rejected",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": [],
+        "score": true
+      },
+      "valid": false,
+      "errorFields": [
+        "score"
+      ]
+    },
+    {
+      "name": "create-active-int-rejected",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "tags": [],
+        "active": 1
+      },
+      "valid": false,
+      "errorFields": [
+        "active"
+      ]
+    },
+    {
+      "name": "read-loginCount-bool-rejected",
+      "dto": "read",
+      "payload": {
+        "id": "u1",
+        "email": "a@b.co",
+        "name": "Mont",
+        "status": "inactive",
+        "loginCount": true,
+        "tags": []
+      },
+      "valid": false,
+      "errorFields": [
+        "loginCount"
+      ]
+    },
+    {
+      "name": "update-datetime-space-separator-rejected",
+      "dto": "update",
+      "payload": {
+        "birthday": "2024-01-01 00:00:00Z"
+      },
+      "valid": false,
+      "errorFields": [
+        "birthday"
+      ]
+    },
+    {
+      "name": "update-datetime-lowercase-t-z-rejected",
+      "dto": "update",
+      "payload": {
+        "birthday": "2024-01-01t00:00:00z"
+      },
+      "valid": false,
+      "errorFields": [
+        "birthday"
+      ]
+    },
+    {
+      "name": "update-datetime-numeric-string-rejected",
+      "dto": "update",
+      "payload": {
+        "birthday": "1704067200"
+      },
+      "valid": false,
+      "errorFields": [
+        "birthday"
+      ]
+    },
+    {
+      "name": "update-datetime-offset-without-colon-rejected",
+      "dto": "update",
+      "payload": {
+        "birthday": "2024-01-01T00:00:00+0100"
+      },
+      "valid": false,
+      "errorFields": [
+        "birthday"
+      ]
+    },
+    {
+      "name": "update-datetime-fraction-and-offset-ok",
+      "dto": "update",
+      "payload": {
+        "birthday": "2024-01-01T00:00:00.123+07:00"
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "create-name-thai-at-max-counts-code-points",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01\u0e01",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "create-name-astral-at-max-counts-code-points",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "create-name-astral-over-max-rejected",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": false,
+      "errorFields": [
+        "name"
+      ]
+    },
+    {
+      "name": "create-name-single-astral-below-min-rejected",
+      "dto": "create",
+      "payload": {
+        "email": "a@b.co",
+        "name": "\ud83d\ude00",
+        "status": "inactive",
+        "tags": []
+      },
+      "valid": false,
+      "errorFields": [
+        "name"
+      ]
+    },
+    {
+      "name": "spec-pattern-word-and-digit-classes-are-ascii",
+      "dto": "create",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Widget",
+        "path": "widgets",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list",
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "code",
+            "type": "str",
+            "pattern": "^\\w+$"
+          },
+          {
+            "name": "digits",
+            "type": "str",
+            "pattern": "^\\d+$"
+          }
+        ]
+      },
+      "payload": {
+        "code": "\u0e01\u0e01\u0e01",
+        "digits": "\u0661\u0662\u0663"
+      },
+      "valid": false,
+      "errorFields": [
+        "code",
+        "digits"
+      ]
+    },
+    {
+      "name": "spec-pattern-ascii-word-and-digit-ok",
+      "dto": "create",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Widget",
+        "path": "widgets",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list",
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "code",
+            "type": "str",
+            "pattern": "^\\w+$"
+          },
+          {
+            "name": "digits",
+            "type": "str",
+            "pattern": "^\\d+$"
+          }
+        ]
+      },
+      "payload": {
+        "code": "ab_1",
+        "digits": "123"
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "spec-list-nullable-item-accepts-null",
+      "dto": "create",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Widget",
+        "path": "widgets",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list",
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "tags",
+            "type": "list",
+            "item": {
+              "name": "tags",
+              "type": "str",
+              "nullable": true
+            }
+          }
+        ]
+      },
+      "payload": {
+        "tags": [
+          null,
+          "a"
+        ]
+      },
+      "valid": true,
+      "errorFields": []
+    },
+    {
+      "name": "spec-list-non-nullable-item-rejects-null",
+      "dto": "create",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Widget",
+        "path": "widgets",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list",
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "tags",
+            "type": "list",
+            "item": {
+              "name": "tags",
+              "type": "str"
+            }
+          }
+        ]
+      },
+      "payload": {
+        "tags": [
+          "a",
+          null
+        ]
+      },
+      "valid": false,
+      "errorFields": [
+        "tags.1"
+      ]
     }
   ],
   "openapi": [
@@ -618,6 +939,80 @@
         ],
         "/components/schemas/OrderRead/properties/meta/properties/createdBy/type": "string",
         "/components/schemas/OrderRead/properties/lines/items/properties/computedTotal/type": "number"
+      }
+    },
+    {
+      "name": "uri-format-emits-the-shared-pattern-byte-for-byte",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Widget",
+        "path": "widgets",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list",
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "site",
+            "type": "str",
+            "format": "uri",
+            "filterable": true
+          }
+        ]
+      },
+      "expect": {
+        "/components/schemas/WidgetCreate/properties/site/pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\/[^\\s]+$",
+        "/components/schemas/WidgetRead/properties/site/pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\/[^\\s]+$"
+      }
+    },
+    {
+      "name": "list-parameters-sort-by-code-point-not-locale",
+      "spec": {
+        "specVersion": "1.2.0",
+        "entity": "Widget",
+        "path": "widgets",
+        "transports": [
+          "rest"
+        ],
+        "ops": [
+          "list",
+          "create"
+        ],
+        "pagination": "offset",
+        "fields": [
+          {
+            "name": "id",
+            "type": "str",
+            "role": "id",
+            "readonly": true
+          },
+          {
+            "name": "userid",
+            "type": "str",
+            "filterable": true
+          },
+          {
+            "name": "userName",
+            "type": "str",
+            "filterable": true
+          }
+        ]
+      },
+      "expect": {
+        "/paths/~1widgets/get/parameters/0/name": "limit",
+        "/paths/~1widgets/get/parameters/1/name": "offset",
+        "/paths/~1widgets/get/parameters/2/name": "userName",
+        "/paths/~1widgets/get/parameters/3/name": "userid"
       }
     }
   ]

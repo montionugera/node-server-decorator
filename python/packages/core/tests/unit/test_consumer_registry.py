@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import asyncio
+import logging
 
 import pytest
 
+from server_decorator.consumer.adapter import Dispatch
 from server_decorator.consumer.inmemory import InMemoryConsumer
 from server_decorator.consumer.registry import ConsumerRegistry
 
@@ -69,3 +73,36 @@ async def test_handler_raise_propagates_to_adapter() -> None:
     reg.on("A.x", boom, consumer="c")
     with pytest.raises(RuntimeError, match="handler failed"):
         await reg._dispatch_for("c")(_envelope("A.x", 1))
+
+
+class _FailingRunAdapter:
+    async def run(self, dispatch: Dispatch) -> None:
+        raise RuntimeError("boom")
+
+    async def stop(self) -> None:
+        pass
+
+
+async def test_stop_handles_crashed_consumer_task_without_double_logging(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.ERROR, logger="server_decorator.consumer")
+    reg = ConsumerRegistry()
+    reg.register("failing", _FailingRunAdapter())
+
+    await reg.start()
+    for _ in range(3):
+        await asyncio.sleep(0)
+    await reg.stop()
+
+    records = [
+        r
+        for r in caplog.records
+        if r.name == "server_decorator.consumer"
+        and r.levelname == "ERROR"
+        and r.getMessage() == "consumer task terminated with exception"
+    ]
+    assert len(records) == 1
+    assert records[0].exc_info is not None
+    assert isinstance(records[0].exc_info[1], RuntimeError)
+    assert str(records[0].exc_info[1]) == "boom"

@@ -1,0 +1,13 @@
+[
+  {
+    "id": "E-001",
+    "title": "Verified adoptions: keyed broadcaster, single-flight and limiter, Postgres lock manager, emit-on-success",
+    "created_at": "2026-10-05T00:22:56.347037+00:00",
+    "status": "verified",
+    "release_version": "2.7",
+    "verified_sha": "b4f01285c6c20fb65f525141dba0130ed10415b8",
+    "verified_at": "2026-10-05T02:10:14.983772+00:00",
+    "split_approved_by": null,
+    "verifying_sha": null
+  }
+]

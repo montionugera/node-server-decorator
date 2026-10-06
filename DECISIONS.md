@@ -12,6 +12,7 @@ The full migration plan lives at `~/workspace/wip/decoratorpolyglotmigrationplan
 4. **Python decorator surface.** Both method-level and class-level decorators (class form auto-wraps every public method). Skip `_private`, `__dunder__`, and `@property` by default; opt back in via `include`/`include_private`/`wrap_properties`. Inheritance: walk only `vars(cls)`, never the MRO. Class forms get distinct names (`tracking_class`, `cache_class`, `emit_on_success_class`).
 5. **`@tracking` in Python.** Detect coroutines via `inspect.iscoroutinefunction`; support sync and async. Node stays async-only.
 6. **Cache key format.** `<ClassName>.<methodName>(<json-args>)` with stable key ordering. If >250 bytes UTF-8, replace parens content with `sha256:<hex>`. Spec: `contracts/rules/cache-key.md`.
+    > Refined 2026-10-04 by ADR 0009 (docs/adr/0009-cache-key-code-point-ordering.md): "stable key ordering" means Unicode code-point order in every language.
 7. **Event payloads.** Anything published to a queue must be JSON-serializable. In-process emitter calls may pass rich objects.
 8. **Event emitter dependency.** Drop `@nestjs/event-emitter`; replace with `eventemitter3`. Ships in v2.0.0 as the one intentional Node breaking change.
 9. **Kafka client.** Optional peer dep: `kafkajs` (Node), `aiokafka` (Python via `pip install server-decorator[kafka]`).

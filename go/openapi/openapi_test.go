@@ -17,7 +17,13 @@ func TestOpenAPIGenerateMatchesContractFixture(t *testing.T) {
 		t.Fatalf("failed to read fixture: %v", err)
 	}
 
-	got, err := Generate([]entity.Spec{example.UserSpec}, "1.2.0")
+	// The fixture's info.version is the contract version, as in the other lanes' emitters.
+	rawVersion, err := os.ReadFile(filepath.Join("..", "..", "contracts", "VERSION"))
+	if err != nil {
+		t.Fatalf("failed to read contracts/VERSION: %v", err)
+	}
+
+	got, err := Generate([]entity.Spec{example.UserSpec}, string(bytes.TrimSpace(rawVersion)))
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}

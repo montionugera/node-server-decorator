@@ -1,6 +1,6 @@
 # REST conventions
 
-Normative for every generator and adapter built on the EntitySpec IR. Contract version 1.2.0.
+Normative for every generator and adapter built on the EntitySpec IR. Contract version 1.3.0.
 
 ## Route mapping
 
@@ -52,6 +52,11 @@ parent. Every object schema sets `additionalProperties: false`.
   `format` still agree.
 - `min`/`max` emit `minLength`/`maxLength` on `str` and `ref`, `minimum`/`maximum` on
   `int` and `float`, `minItems`/`maxItems` on `list`.
+  Route adapters that validate request bodies (Node express, Python fastapi, Go `dto`) count
+  `str`/`ref` length in **Unicode code points**, matching JSON Schema `minLength`/`maxLength` —
+  never bytes or UTF-16 code units (`"héllo"` is 5; five emoji are 5). They also apply the
+  recursive include rule from "Component naming" to nested `obj`/`list` members: a nested
+  `readonly` member is neither required nor accepted on create/update.
 - `nullable` emits an OpenAPI 3.1 type array: `{"type": ["string", "null"]}`.
 - `optional` removes the member from `required`; it never changes the member schema.
 - `description` emits `description`. Absent means the key is omitted, never `""`.
@@ -113,12 +118,32 @@ Which statuses appear on which operation:
 no entry emits no `security` key and is public. An entry of `[]` emits
 `[{<schemeName>: []}]` — authentication required, no particular scope.
 
+Route adapters enforce this at mount time and **fail closed**: an operation or action with an
+entry (including `[]`) answers `401` when the caller is unauthenticated, when the scope
+extractor errors, **and when no scope extractor was supplied to the adapter at all**. A
+declared requirement is never silently unenforced. A service that authenticates upstream of
+the adapter opts out explicitly by supplying an extractor that reports the request as
+authenticated with the scopes it holds.
+
 Scope strings are opaque: no hierarchy, no wildcards, no implied containment. Use permission
 strings (`user:write`), never role names, never ownership relationships. Object-level
 authorization is out of scope permanently — see the design doc's non-goals.
+
+## SSE replay (`Last-Event-ID`)
+
+Event IDs are opaque strings: broadcasters never compare or order them. Replay on reconnect is
+**positional** in the history buffer. If the presented `Last-Event-ID` is in the buffer, the
+events after its position are replayed in order. If it is not (or no longer) in the buffer,
+the **whole buffer** is replayed in order — a client may then see events it already has, but
+never silently misses one. Registering the subscriber and taking the replay snapshot happen
+atomically, so an event is delivered exactly once (replayed or live), and live events are
+never filtered by ID after a replay.
 
 ## Document assembly
 
 `openapi: "3.1.0"`. `info.title` is `"server-decorator API"`, `info.version` mirrors
 `contracts/VERSION`. Entities contribute `tags` entries deduplicated and sorted by name.
 Paths are emitted sorted by path string; every object's keys are sorted by the canonicalizer.
+A list operation's `parameters` array is sorted by parameter `name` in **code-point order**
+(`userName` before `userid`) — never a locale-aware comparison such as JS `localeCompare`, whose
+result depends on the host's ICU data.

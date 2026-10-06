@@ -108,7 +108,11 @@ func (m *mockUserHandler) Action(ctx context.Context, id string, action string, 
 func TestHTTPServer(t *testing.T) {
 	mux := http.NewServeMux()
 	handler := newMockUserHandler()
-	httpserver.MountRoutes(mux, example.UserSpec, handler)
+	// UserSpec declares security; without an extractor those routes fail closed (401).
+	allowAll := func(r *http.Request) (bool, []string, error) {
+		return true, []string{"user:read", "user:write", "user:admin"}, nil
+	}
+	httpserver.MountRoutes(mux, example.UserSpec, handler, httpserver.WithAuth(allowAll))
 
 	// 1. Test POST /users with invalid payload -> 400 ValidationProblem
 	t.Run("POST /users invalid payload", func(t *testing.T) {

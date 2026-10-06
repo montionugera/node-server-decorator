@@ -23,6 +23,10 @@ describe('canonicalJson', () => {
     );
   });
 
+  it('sorts a key before any longer key it is a prefix of', () => {
+    expect(canonicalJson({ ab: 1, a: 2, abc: 3 })).toBe('{"a":2,"ab":1,"abc":3}');
+  });
+
   it('serializes undefined array elements as null, matching JSON.stringify semantics', () => {
     expect(canonicalJson([undefined, 1])).toBe('[null,1]');
   });

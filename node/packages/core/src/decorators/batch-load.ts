@@ -63,7 +63,25 @@ interface QueuedItem<K, V> {
   key: K;
   resolve: (value: V) => void;
   reject: (reason: any) => void;
+  /** Set by clear(): the value this load reads may predate the invalidation; do not cache it. */
+  stale?: boolean;
 }
+
+// WeakRef exists on every supported runtime (Node >= 18) but not in this package's `es6` TS lib.
+interface WeakRefLike<T> {
+  deref(): T | undefined;
+}
+const WeakRefCtor: new <T extends object>(target: T) => WeakRefLike<T> = (globalThis as any).WeakRef;
+
+/**
+ * Ambient batching scope. While a call runs inside `batchLoadScopeStorage.run(scope, ...)`, every
+ * `@batchLoad` method keys its queue (and L1 cache) by `scope.scopeFor(instance)` instead of the
+ * service instance, so the state belongs to the scope owner (e.g. one GraphQL request).
+ */
+export interface BatchLoadScope {
+  scopeFor(identity: object): object;
+}
+export const batchLoadScopeStorage = new AsyncLocalStorage<BatchLoadScope>();
 
 const MISSING_SENTINEL = Symbol('MISSING_SENTINEL');
 
@@ -115,6 +133,9 @@ class BatchQueue<K, V> {
   private queue: QueuedItem<K, V>[] = [];
   private scheduled = false;
   private inFlightPromises = new Map<K, Promise<V>>();
+  // Every load that has not settled yet; clear() marks the matching ones stale so that a value
+  // read before the invalidation is never written back to L1/L2.
+  private pending = new Set<QueuedItem<K, V>>();
   private l1Cache: LruCache<K, any> | null = null;
   private l2Adapter: MGetCacheAdapter | null = null;
   private l2TtlSeconds = 300;
@@ -182,8 +203,11 @@ class BatchQueue<K, V> {
       }
     }
 
+    let item!: QueuedItem<K, V>;
     const promise = new Promise<V>((resolve, reject) => {
-      this.queue.push({ key, resolve, reject });
+      item = { key, resolve, reject };
+      this.pending.add(item);
+      this.queue.push(item);
 
       if (this.queue.length >= this.maxBatchSize) {
         this.dispatch().catch(() => {});
@@ -194,20 +218,37 @@ class BatchQueue<K, V> {
 
     if (this.deduplicate) {
       this.inFlightPromises.set(key, promise);
-      // Clean up from in-flight cache once settled without creating an unhandled rejection branch
-      const cleanup = () => {
-        this.inFlightPromises.delete(key);
-      };
-      promise.then(cleanup, cleanup);
     }
+    // Clean up once settled without creating an unhandled rejection branch. Only drop the
+    // in-flight entry if it is still ours: clear() may have let a newer flight take the slot.
+    const cleanup = () => {
+      this.pending.delete(item);
+      if (this.inFlightPromises.get(key) === promise) {
+        this.inFlightPromises.delete(key);
+      }
+    };
+    promise.then(cleanup, cleanup);
 
     return promise;
   }
 
-  public async clear(key: K): Promise<void> {
+  /** Invalidate this queue's own state for `key`: L1 entry and any load still in flight. */
+  public clearLocal(key: K): void {
     if (this.l1Cache) {
       this.l1Cache.delete(key);
     }
+    // A load in flight may already have read the pre-invalidation value: later reads must not
+    // join it, and it must not write that value back to L1/L2 when it settles.
+    this.inFlightPromises.delete(key);
+    for (const item of this.pending) {
+      if (item.key === key) {
+        item.stale = true;
+      }
+    }
+  }
+
+  public async clear(key: K): Promise<void> {
+    this.clearLocal(key);
     if (this.l2Adapter?.del) {
       await this.l2Adapter.del([String(key)]);
     }
@@ -313,7 +354,7 @@ class BatchQueue<K, V> {
           const strKey = String(item.key) as unknown as K;
           if (l2Map.has(strKey) || l2Map.has(item.key)) {
             const val = l2Map.get(strKey) ?? l2Map.get(item.key)!;
-            if (this.l1Cache) {
+            if (this.l1Cache && !item.stale) {
               this.l1Cache.set(item.key, val);
             }
             l2ResolvedItems.push(val);
@@ -349,23 +390,28 @@ class BatchQueue<K, V> {
     try {
       const result = await this.loaderFn(uniqueKeys);
       const resultMap = this.normalizeResult(result);
+      // A plain-object result has string keys only, so a non-string caller key (e.g. a number)
+      // must be looked up by its string form (the same compensation Phase B applies).
+      const stringKeyed = !(result instanceof Map) && !Array.isArray(result);
       const l2SetItems = new Map<string, any>();
       const l3ResolvedItems: V[] = [];
 
       for (const item of l2Misses) {
-        if (resultMap.has(item.key)) {
-          const val = resultMap.get(item.key)!;
+        const resultKey =
+          stringKeyed && !resultMap.has(item.key) ? (String(item.key) as unknown as K) : item.key;
+        if (resultMap.has(resultKey)) {
+          const val = resultMap.get(resultKey)!;
           l3ResolvedItems.push(val);
-          if (this.l1Cache) {
+          if (this.l1Cache && !item.stale) {
             this.l1Cache.set(item.key, val);
           }
-          if (this.l2Adapter) {
+          if (this.l2Adapter && !item.stale) {
             l2SetItems.set(String(item.key), val);
           }
           item.resolve(val);
         } else {
           // Negative cache missing key
-          if (this.l1Cache) {
+          if (this.l1Cache && !item.stale) {
             this.l1Cache.set(item.key, MISSING_SENTINEL, this.negativeTtlMs);
           }
           item.resolve(undefined as unknown as V);
@@ -431,7 +477,23 @@ export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}
   ) {
     const originalMethod = descriptor.value;
     const queues = new WeakMap<any, BatchQueue<K, V>>();
-    const allQueues = new Set<BatchQueue<K, V>>();
+    // Weak registry of every live queue, for clear() across scopes. It must not keep a queue
+    // (and its L1 cache) alive once its scope (request store, service instance) is gone.
+    const queueRefs = new Set<WeakRefLike<BatchQueue<K, V>>>();
+    let sweepAt = 64;
+
+    function liveQueues(): BatchQueue<K, V>[] {
+      const live: BatchQueue<K, V>[] = [];
+      for (const ref of queueRefs) {
+        const queue = ref.deref();
+        if (queue) {
+          live.push(queue);
+        } else {
+          queueRefs.delete(ref);
+        }
+      }
+      return live;
+    }
 
     function getOrCreateQueue(instance: any): BatchQueue<K, V> | null {
       // Determine the loader batch function
@@ -447,9 +509,12 @@ export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}
         return null;
       }
 
-      const scopeTarget = options.contextStorage
-        ? (options.contextStorage.getStore() ?? instance ?? target)
-        : (instance ?? target);
+      const ambientScope = batchLoadScopeStorage.getStore();
+      const scopeTarget = ambientScope
+        ? ambientScope.scopeFor(instance ?? target)
+        : options.contextStorage
+          ? (options.contextStorage.getStore() ?? instance ?? target)
+          : (instance ?? target);
 
       let queue = queues.get(scopeTarget);
       if (!queue) {
@@ -464,7 +529,10 @@ export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}
           options.relation ?? 'one'
         );
         queues.set(scopeTarget, queue);
-        allQueues.add(queue);
+        if (queueRefs.size >= sweepAt) {
+          sweepAt = Math.max(64, liveQueues().length * 2);
+        }
+        queueRefs.add(new WeakRefCtor(queue));
       }
       return queue;
     }
@@ -503,9 +571,12 @@ export function batchLoad<K = any, V = any>(options: BatchLoadOptions<K, V> = {}
           return;
         }
       }
-      for (const queue of allQueues) {
-        await queue.clear(key);
+      // Every queue of this method shares one L2 adapter: invalidate each live queue's own
+      // state, then delete from L2 once instead of once per queue.
+      for (const queue of liveQueues()) {
+        queue.clearLocal(key);
       }
+      await options.cache?.l2?.adapter.del?.([String(key)]);
     };
 
     descriptor.value = wrappedMethod;

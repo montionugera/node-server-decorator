@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { globalLogger } from '../logger';
 
 export interface RedisLockAdapter {
   setNxPx(key: string, value: string, ttlMs: number): Promise<boolean>;
@@ -21,10 +22,27 @@ else
 end
 `.trim();
 
+/** A token-guarded script reports "not ours" as 0; adapters may surface it as 0, "0", false, null or undefined. */
+const scriptReportedMiss = (reply: unknown): boolean => !reply || Number(reply) === 0;
+
 export class LockAcquisitionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'LockAcquisitionError';
+  }
+}
+
+/**
+ * Thrown after the protected method settles when the lock lease was lost while it was running
+ * (a renewal returned 0, or renewals kept failing for a full TTL). The method's own result must
+ * be treated as unsafe: another instance may have been inside the same critical section.
+ */
+export class LockLostError extends Error {
+  cause?: unknown;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'LockLostError';
   }
 }
 
@@ -104,9 +122,12 @@ export function distributedLock(options: DistributedLockOptions) {
 
       const startTime = Date.now();
       let acquired = false;
+      // Last instant the lease was known to be ours (taken before the call that confirmed it).
+      let lastConfirmedAt = startTime;
 
       // Acquisition loop
       while (!acquired) {
+        lastConfirmedAt = Date.now();
         acquired = await adapter.setNxPx(lockKey, token, ttlMs);
         if (acquired) break;
 
@@ -136,18 +157,28 @@ export function distributedLock(options: DistributedLockOptions) {
 
       if (autoRenew) {
         const renewPeriodMs = Math.max(20, Math.floor(ttlMs / 3));
+        const markLost = () => {
+          lockLost = true;
+          if (watchdogTimer) {
+            clearInterval(watchdogTimer);
+            watchdogTimer = null;
+          }
+        };
         watchdogTimer = setInterval(async () => {
+          const sentAt = Date.now();
           try {
             const renewed = await adapter.evalLua(RENEW_LOCK_LUA, [lockKey], [token, ttlMs]);
-            if (!renewed || renewed === 0) {
-              lockLost = true;
-              if (watchdogTimer) {
-                clearInterval(watchdogTimer);
-                watchdogTimer = null;
-              }
+            if (scriptReportedMiss(renewed)) {
+              markLost();
+            } else {
+              lastConfirmedAt = Math.max(lastConfirmedAt, sentAt);
             }
           } catch {
-            lockLost = true;
+            // A thrown renewal is "unknown", not "lost": retry on the next tick. Only once a
+            // full TTL has passed without a confirmed renewal has the lease certainly expired.
+            if (Date.now() - lastConfirmedAt >= ttlMs) {
+              markLost();
+            }
           }
         }, renewPeriodMs);
 
@@ -156,23 +187,47 @@ export function distributedLock(options: DistributedLockOptions) {
         }
       }
 
+      let result: any;
+      let methodError: unknown;
+      let methodFailed = false;
       try {
-        return await originalMethod.apply(this, args);
-      } finally {
-        if (watchdogTimer) {
-          clearInterval(watchdogTimer);
-          watchdogTimer = null;
-        }
+        result = await originalMethod.apply(this, args);
+      } catch (err) {
+        methodFailed = true;
+        methodError = err;
+      }
 
-        // Release lock only if we haven't lost it
-        if (!lockLost) {
-          try {
-            await adapter.evalLua(RELEASE_LOCK_LUA, [lockKey], [token]);
-          } catch {
-            // Ignore release errors on shutdown
-          }
+      if (watchdogTimer) {
+        clearInterval(watchdogTimer);
+        watchdogTimer = null;
+      }
+
+      // Always attempt the release: the script is token-guarded, so it is a no-op when the
+      // lease is no longer ours and frees the key immediately when it still is.
+      try {
+        const released = await adapter.evalLua(RELEASE_LOCK_LUA, [lockKey], [token]);
+        if (scriptReportedMiss(released)) {
+          lockLost = true;
+        }
+      } catch (err) {
+        // A thrown release is "unknown", the key stays held until TTL.
+        globalLogger.warn(
+          `@distributedLock: failed to release lock for key "${lockKey}": ${String(err)}; key stays held until its TTL expires`
+        );
+        if (Date.now() - lastConfirmedAt >= ttlMs) {
+          lockLost = true;
         }
       }
+
+      if (lockLost) {
+        const lost = new LockLostError(
+          `Distributed lock for key "${lockKey}" was lost while "${propertyKey}" was running`
+        );
+        if (methodFailed) lost.cause = methodError;
+        throw lost;
+      }
+      if (methodFailed) throw methodError;
+      return result;
     };
 
     return descriptor;

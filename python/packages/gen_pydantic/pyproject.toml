@@ -11,7 +11,7 @@ dependencies = ["pydantic>=2.7", "server-decorator-entity==2.0.15"]
 server-decorator-entity = { workspace = true }
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5", "mypy>=1.10"]
 
 [build-system]
 requires = ["hatchling"]

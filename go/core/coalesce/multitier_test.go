@@ -199,7 +199,10 @@ func TestMultiTier_L3Hit_BackfillBoth(t *testing.T) {
 
 	// Verify L2 has it backfilled
 	time.Sleep(20 * time.Millisecond)
-	if _, ok := cache.data["u3"]; !ok {
+	cache.mu.Lock()
+	_, backfilled := cache.data["u3"]
+	cache.mu.Unlock()
+	if !backfilled {
 		t.Fatalf("expected L2 to have u3 backfilled")
 	}
 

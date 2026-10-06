@@ -293,7 +293,7 @@ pnpm run dev
 ```bash
 pnpm test:unit
 ```
-Runs fast unit tests for all decorators and core functionality.
+Runs fast unit tests for all decorators and core functionality, with coverage. The run fails if line coverage of `src/` (excluding specs and `src/integration/`) drops below the `coverageThreshold` in `jest.config.js` (98). `pnpm test` and `pnpm test:e2e` collect no coverage.
 
 #### E2E Tests
 ```bash
@@ -395,6 +395,76 @@ imperatively with `registry.on('Event.name', handler, { consumer: 'orders' })`.
 All backends deliver **at-least-once**, so handlers must be idempotent; failed
 messages stay pending/unacked (Redis/RabbitMQ) or are retried per attempts
 (Kafka offset is not committed / BullMQ job `attempts`).
+
+`KafkaConsumer` rewinds the partition to a failed offset after `retryBackoffMs`
+(default 1000 ms), so the record is redelivered before anything later is
+committed. A record that always fails therefore blocks its partition; route it
+to a dead-letter topic inside the handler if that is not what you want.
+
+`ConsumerRegistry.start()` logs a consumer whose `run()` fails instead of
+raising an unhandled rejection. The other consumers keep running; the failed
+one is not restarted.
+
+A traced message is handled inside its own exported span, named
+`consume <eventName>` (`span.kind = CONSUMER`), whose parent is the producer span.
+
+## Concurrency helpers
+
+Two small in-process helpers, with no timeout, no queue bound and no cancellation.
+
+`createLimiter(max)` admits at most `max` concurrent executions; extra callers queue
+first-in first-out:
+
+```ts
+import { createLimiter } from '@montionugera/server-decorator';
+
+const limit = createLimiter(2);
+const results = await Promise.all(jobs.map((job) => limit(() => runJob(job))));
+```
+
+`createKeyedSerializer()` runs the tasks of one key one at a time, in call order, while
+different keys run in parallel:
+
+```ts
+import { createKeyedSerializer } from '@montionugera/server-decorator';
+
+const serialize = createKeyedSerializer();
+const image = await serialize(gpuUrl, () => render(request));
+serialize.size; // number of keys with a task queued or running
+```
+
+- **Slot hand-off.** A finished task hands its slot to the first waiter synchronously, so
+  a caller arriving in the same tick cannot jump the queue and the count never exceeds `max`.
+- **Limiter never calls `fn` synchronously.** `fn` starts on a later microtask, even when
+  a slot is free.
+- **`max` is validated.** `createLimiter` throws `RangeError` unless `max` is an integer of
+  at least 1.
+- **A failed task does not block its key.** After a rejection or a synchronous throw, the
+  next task for that key still runs.
+- **Serializer never calls `fn` synchronously.** `fn` starts on a later microtask, even
+  when the key is idle.
+- **Keys are cleaned up.** A key is removed when its last task settles; `size` is 0 when
+  nothing is queued or running.
+
+## Behaviour notes
+
+- **Emit never changes the method's outcome.** If `transform` throws, the error
+  is logged and both the event and the queue publish are skipped; the caller
+  still gets the method's result.
+- **Queue resolution.** `QueueRegistry.publish()` with no queue name uses the
+  default queue, or the first registered queue if no default was set. An unknown
+  *named* queue is not published (fail closed). `publish()` resolves to `true`
+  only when the message was handed to an adapter.
+- **Lost lock lease.** `@distributedLock` throws `LockLostError` after the method
+  settles if the lease was lost while it ran (the method's own error, if any, is
+  on `cause`). A renewal that errors is retried on the next tick; the lease
+  counts as lost on a definite refusal or after a full TTL with no confirmed
+  renewal. The token-guarded release is always attempted.
+- **Tracing.** A `traceparent` must be version `00` with lower-case hex; anything
+  else is ignored and a new trace starts. A throwing `attributes` extractor is
+  logged and never fails the method. Any thrown value marks the span `ERROR`.
+- **Cache.** A failing adapter `set` is logged and the result is still returned;
+  a failing `get` propagates. NaN / Infinity arguments throw a `TypeError`.
 
 ## Contributing
 

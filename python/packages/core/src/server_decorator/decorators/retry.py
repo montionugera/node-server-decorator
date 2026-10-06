@@ -26,13 +26,17 @@ def retry(
     retry_if: Callable[[Exception], bool] | None = None,
 ) -> Callable[[F], F]:
     """Wrap a method with exponential backoff and jitter retry semantics."""
+    if not isinstance(max_attempts, int) or isinstance(max_attempts, bool) or max_attempts < 1:
+        raise ValueError(f"@retry: max_attempts must be an integer >= 1, got {max_attempts!r}")
 
     def decorator(fn: F) -> F:
         if inspect.iscoroutinefunction(fn):
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                for attempt in range(1, max_attempts + 1):
+                attempt = 0
+                while True:
+                    attempt += 1
                     try:
                         return await fn(*args, **kwargs)
                     except Exception as e:
@@ -56,7 +60,9 @@ def retry(
 
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            for attempt in range(1, max_attempts + 1):
+            attempt = 0
+            while True:
+                attempt += 1
                 try:
                     return fn(*args, **kwargs)
                 except Exception as e:

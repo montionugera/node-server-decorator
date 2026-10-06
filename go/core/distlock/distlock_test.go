@@ -2,6 +2,7 @@ package distlock
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -18,6 +19,8 @@ type mockRedisClient struct {
 	store      map[string]mockEntry
 	setNXCalls int64
 	evalCalls  int64
+	// evalHook, when set, runs before each Eval; a non-nil error is returned as-is.
+	evalHook func(script string) error
 }
 
 func newMockRedis() *mockRedisClient {
@@ -41,8 +44,16 @@ func (m *mockRedisClient) SetNX(ctx context.Context, key string, value string, t
 
 func (m *mockRedisClient) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
 	atomic.AddInt64(&m.evalCalls, 1)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.evalHook != nil {
+		if err := m.evalHook(script); err != nil {
+			return nil, err
+		}
+	}
 
 	if len(keys) == 0 {
 		return int64(0), nil
@@ -252,5 +263,276 @@ func TestWatchdogRenewal(t *testing.T) {
 
 	if existsAfter {
 		t.Fatalf("expected lock to be released")
+	}
+}
+
+func (m *mockRedisClient) get(key string) (mockEntry, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.store[key]
+	return e, ok
+}
+
+func (m *mockRedisClient) takeOver(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.store[key] = mockEntry{token: "other-owner", expiresAt: time.Now().Add(5 * time.Second)}
+}
+
+func TestDefaultConfigAutoRenews(t *testing.T) {
+	client := newMockRedis()
+	locker := New(Config{Client: client, DefaultTTL: 60 * time.Millisecond})
+
+	var held bool
+	err := locker.Do(context.Background(), "lock:default-renew", func(ctx context.Context) error {
+		time.Sleep(150 * time.Millisecond) // 2.5x the TTL
+		entry, ok := client.get("lock:default-renew")
+		held = ok && entry.expiresAt.After(time.Now())
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Do failed: %v", err)
+	}
+	if !held {
+		t.Fatalf("expected default config to keep the lease alive past the TTL")
+	}
+}
+
+func TestDisableAutoRenew(t *testing.T) {
+	client := newMockRedis()
+	locker := New(Config{Client: client, DefaultTTL: 60 * time.Millisecond, DisableAutoRenew: true})
+
+	lock, err := locker.Acquire(context.Background(), "lock:no-renew")
+	if err != nil {
+		t.Fatalf("Acquire failed: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if calls := atomic.LoadInt64(&client.evalCalls); calls != 0 {
+		t.Fatalf("expected no renewal calls, got %d", calls)
+	}
+	if err := lock.Release(context.Background()); err != nil {
+		t.Fatalf("Release failed: %v", err)
+	}
+}
+
+func TestDoReportsLockLost(t *testing.T) {
+	client := newMockRedis()
+	locker := New(Config{Client: client, DefaultTTL: 60 * time.Millisecond})
+
+	var cause error
+	err := locker.Do(context.Background(), "lock:lost", func(ctx context.Context) error {
+		client.takeOver("lock:lost") // another instance now owns the key
+		select {
+		case <-ctx.Done():
+			cause = context.Cause(ctx)
+		case <-time.After(time.Second):
+		}
+		return nil
+	})
+
+	if !errors.Is(cause, ErrLockLost) {
+		t.Fatalf("expected fn ctx cancelled with cause ErrLockLost, got %v", cause)
+	}
+	if !errors.Is(err, ErrLockLost) {
+		t.Fatalf("expected Do to return ErrLockLost, got %v", err)
+	}
+	if entry, ok := client.get("lock:lost"); !ok || entry.token != "other-owner" {
+		t.Fatalf("expected the new owner's key to be left alone")
+	}
+}
+
+func TestReleaseReportsLostLease(t *testing.T) {
+	client := newMockRedis()
+	locker := New(Config{Client: client, DefaultTTL: 60 * time.Millisecond})
+
+	lock, err := locker.Acquire(context.Background(), "lock:lost-release")
+	if err != nil {
+		t.Fatalf("Acquire failed: %v", err)
+	}
+	client.takeOver("lock:lost-release")
+
+	select {
+	case <-lock.Lost():
+	case <-time.After(time.Second):
+		t.Fatalf("expected Lost() to be signalled after a renewal returned 0")
+	}
+	if err := lock.Release(context.Background()); !errors.Is(err, ErrLockLost) {
+		t.Fatalf("expected Release to return ErrLockLost, got %v", err)
+	}
+}
+
+func TestWatchdogRetriesAfterTransientError(t *testing.T) {
+	client := newMockRedis()
+	var renewCalls int64
+	client.evalHook = func(script string) error {
+		if script == RenewLockLua && atomic.AddInt64(&renewCalls, 1) == 1 {
+			return errors.New("connection reset")
+		}
+		return nil
+	}
+	locker := New(Config{Client: client, DefaultTTL: 90 * time.Millisecond})
+
+	lock, err := locker.Acquire(context.Background(), "lock:blip")
+	if err != nil {
+		t.Fatalf("Acquire failed: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond) // well past the TTL
+
+	if entry, ok := client.get("lock:blip"); !ok || entry.expiresAt.Before(time.Now()) {
+		t.Fatalf("expected the lease to keep being extended after one failed renewal")
+	}
+	if err := lock.Release(context.Background()); err != nil {
+		t.Fatalf("Release failed: %v", err)
+	}
+	if _, ok := client.get("lock:blip"); ok {
+		t.Fatalf("expected lock to be released")
+	}
+}
+
+func TestWatchdogFailsClosedWhenRenewalsFailPastTTL(t *testing.T) {
+	client := newMockRedis()
+	client.evalHook = func(script string) error {
+		if script == RenewLockLua {
+			return errors.New("redis down")
+		}
+		return nil
+	}
+	locker := New(Config{Client: client, DefaultTTL: 60 * time.Millisecond})
+
+	lock, err := locker.Acquire(context.Background(), "lock:outage")
+	if err != nil {
+		t.Fatalf("Acquire failed: %v", err)
+	}
+	defer lock.Release(context.Background())
+
+	select {
+	case <-lock.Lost():
+	case <-time.After(time.Second):
+		t.Fatalf("expected Lost() once renewals failed for a full TTL")
+	}
+}
+
+func TestReleaseCanBeRetriedAfterFailure(t *testing.T) {
+	client := newMockRedis()
+	locker := New(Config{Client: client, DefaultTTL: 5 * time.Second})
+
+	lock, err := locker.Acquire(context.Background(), "lock:retry-release")
+	if err != nil {
+		t.Fatalf("Acquire failed: %v", err)
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := lock.Release(cancelled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected first Release to fail with context.Canceled, got %v", err)
+	}
+	if _, ok := client.get("lock:retry-release"); !ok {
+		t.Fatalf("precondition: key should still be held after the failed release")
+	}
+
+	if err := lock.Release(context.Background()); err != nil {
+		t.Fatalf("retried Release failed: %v", err)
+	}
+	if _, ok := client.get("lock:retry-release"); ok {
+		t.Fatalf("expected the retried Release to delete the key")
+	}
+	if err := lock.Release(context.Background()); err != nil {
+		t.Fatalf("Release after success must be a no-op, got %v", err)
+	}
+}
+
+func TestDoSurfacesReleaseError(t *testing.T) {
+	client := newMockRedis()
+	releaseErr := errors.New("release failed")
+	client.evalHook = func(script string) error {
+		if script == ReleaseLockLua {
+			return releaseErr
+		}
+		return nil
+	}
+	locker := New(Config{Client: client, DefaultTTL: 5 * time.Second})
+
+	fnErr := errors.New("fn failed")
+	err := locker.Do(context.Background(), "lock:do-release", func(ctx context.Context) error { return fnErr })
+	if !errors.Is(err, releaseErr) || !errors.Is(err, fnErr) {
+		t.Fatalf("expected Do to surface both fn and release errors, got %v", err)
+	}
+
+	err = locker.Do(context.Background(), "lock:do-release-2", func(ctx context.Context) error { return nil })
+	if !errors.Is(err, releaseErr) {
+		t.Fatalf("expected Do to surface the release error, got %v", err)
+	}
+}
+
+type boundedReleaseMock struct {
+	*mockRedisClient
+	mu                sync.Mutex
+	releaseEvalCalled bool
+	hasDeadline       bool
+	deadlineRemaining time.Duration
+}
+
+func (m *boundedReleaseMock) Eval(ctx context.Context, script string, keys []string, args ...any) (any, error) {
+	if script == ReleaseLockLua {
+		calledAt := time.Now()
+		deadline, ok := ctx.Deadline()
+		m.mu.Lock()
+		m.releaseEvalCalled = true
+		m.hasDeadline = ok
+		if ok {
+			m.deadlineRemaining = deadline.Sub(calledAt)
+		}
+		m.mu.Unlock()
+
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return m.mockRedisClient.Eval(ctx, script, keys, args...)
+}
+
+func TestDoReleaseContextIsBoundedByTTL(t *testing.T) {
+	client := &boundedReleaseMock{
+		mockRedisClient: newMockRedis(),
+	}
+	ttl := 80 * time.Millisecond
+	locker := New(Config{
+		Client:           client,
+		DefaultTTL:       ttl,
+		DisableAutoRenew: true,
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- locker.Do(context.Background(), "lock:do-bounded-release", func(ctx context.Context) error {
+			return nil
+		})
+	}()
+
+	var err error
+	select {
+	case err = <-errCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Do did not return within 2 seconds: release context was likely unbounded")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected Do error to satisfy errors.Is(err, context.DeadlineExceeded), got %v", err)
+	}
+
+	client.mu.Lock()
+	evalCalled := client.releaseEvalCalled
+	hasDeadline := client.hasDeadline
+	remaining := client.deadlineRemaining
+	client.mu.Unlock()
+
+	if !evalCalled {
+		t.Fatal("expected Eval to be called with ReleaseLockLua")
+	}
+	if !hasDeadline {
+		t.Fatal("expected release Eval context to have a deadline")
+	}
+	slack := 20 * time.Millisecond
+	if remaining <= 0 || remaining > ttl+slack {
+		t.Fatalf("expected deadline to be no more than %v away from Eval call time, got %v", ttl+slack, remaining)
 	}
 }
