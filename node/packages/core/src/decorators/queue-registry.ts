@@ -60,15 +60,21 @@ export class QueueRegistry {
   }
 
   /**
-   * Publish to a specific queue with topic routing
+   * Publish to a specific queue with topic routing.
+   * Resolves to true only when the adapter accepted the message.
    */
-  async publish(message: QueueMessage, queueName?: string, topic?: string): Promise<void> {
-    const queueConfig = queueName ? this.queues.get(queueName) : (this.defaultQueue ? this.queues.get(this.defaultQueue) : null);
+  async publish(message: QueueMessage, queueName?: string, topic?: string): Promise<boolean> {
+    // Resolve like get(): named queue, then the default, then the first registered
+    // queue. An unknown named queue never falls back to another queue.
+    const queueConfig = queueName
+      ? this.queues.get(queueName)
+      : (this.defaultQueue ? this.queues.get(this.defaultQueue) : undefined)
+        ?? Array.from(this.queues.values())[0];
     const adapter = queueConfig?.adapter;
     
     if (!adapter) {
       globalLogger.error(`❌ No queue available for: ${queueName || 'default'}`);
-      return;
+      return false;
     }
 
     try {
@@ -86,8 +92,10 @@ export class QueueRegistry {
 
       await adapter.publish(enrichedMessage);
       globalLogger.debug(`📮 Published to queue: ${queueName || 'default'}, topic: ${effectiveTopic}`);
+      return true;
     } catch (error) {
       globalLogger.error(`❌ Failed to publish to queue '${queueName}': ${error}`);
+      return false;
     }
   }
 

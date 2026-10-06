@@ -146,6 +146,9 @@ jobs:
           # override it here or the publish PUTs to GH Packages with the npmjs
           # token (401).
           echo '@montionugera:registry=https://registry.npmjs.org' >> .npmrc
+          # Single quotes on purpose: npm expands ${NODE_AUTH_TOKEN} when it reads
+          # .npmrc, so the token itself is never written to disk.
+          # shellcheck disable=SC2016
           echo '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
           pnpm -r publish --no-git-checks --access public
           git checkout -- .

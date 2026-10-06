@@ -14,8 +14,10 @@ type ScopeExtractor func(c *gin.Context) (authenticated bool, scopes []string, e
 // It calls c.Abort() upon authentication or authorization failures to stop the middleware chain.
 func EnforceScopeAuth(requiredScopes []string, extractor ScopeExtractor) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Fail closed: declared security with no extractor never exposes the route.
 		if extractor == nil {
-			c.Next()
+			WriteProblem(c, http.StatusUnauthorized, "Unauthorized", "authentication required")
+			c.Abort()
 			return
 		}
 

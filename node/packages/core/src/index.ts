@@ -103,6 +103,10 @@ export {
 // Reactive Call Coalescing
 export { batchLoad, type BatchLoadOptions, type PrefetchRule } from './decorators/batch-load';
 
+// Concurrency helpers
+export { createLimiter, type Limiter } from './decorators/limiter';
+export { createKeyedSerializer, type KeyedSerializer } from './decorators/keyed-serializer';
+
 // Distributed Mutual Exclusion
 export {
   distributedLock,
@@ -110,6 +114,7 @@ export {
   getGlobalDistributedLockAdapter,
   clearGlobalDistributedLockAdapter,
   LockAcquisitionError,
+  LockLostError,
   RELEASE_LOCK_LUA,
   RENEW_LOCK_LUA,
   type DistributedLockOptions,

@@ -79,6 +79,30 @@ Contributors must follow the rules outlined in [`CONTRIBUTING.md`](./CONTRIBUTIN
 bash scripts/contributor-check.sh
 ```
 
+### Coverage gates
+
+Unit-test coverage is enforced per package; a drop below the threshold fails the command and CI. Thresholds are a ratchet (raise them, never lower them). e2e and integration tests are not counted.
+
+| Lane | Command | Gate |
+| ---- | ------- | ---- |
+| Node | `cd node && pnpm -r test:unit` | Line coverage, `coverageThreshold` in each package's `jest.config.js`: core 98, entity 97, gen-zod 100, gen-openapi 100 |
+| Python | `cd python && bash scripts/check.sh` | Line coverage, `COV_MIN` in each package's `scripts/check.sh`: core 99, entity 96, gen_openapi 96, gen_pydantic 97 |
+| Go | `bash scripts/check-go-coverage.sh` | Statement coverage per package, thresholds at the top of the script; a new package must declare one |
+
+Nim has no coverage gate; `nimble test` is its quality gate.
+
+### Behaviour changes in contract 1.3.0
+
+Contract `1.3.0` writes down rules that were previously implicit and aligns the lanes on them. The full list is in [`contracts/CHANGELOG.md`](./contracts/CHANGELOG.md); the ones a consumer can observe:
+
+- **Python auto topic**: `@emit_on_success(event_name=...)` without an explicit `topic` now publishes to `ClassName.methodName`, as Node does, not to the event name. Update consumers bound to the old topic or pin `topic=`.
+- **Cache keys**: Python keys with non-ASCII arguments and Go keys containing `<`, `>`, `&`, U+2028 or U+2029 change spelling to match Node, so those entries are re-computed once. NaN / Infinity arguments raise instead of producing a key.
+- **Distributed lock**: a lease lost mid-section raises `LockLostError` (Node, Python) or returns `ErrLockLost` (Go) instead of a normal result. Go now auto-renews by default.
+- **Tracing**: `traceparent` must be version `00` with lower-case hex; anything else starts a new trace. Each traced message consumed exports one extra `consume <eventName>` span.
+- **Kafka consumers**: a failed record is redelivered after `retryBackoffMs` / `retry_backoff_ms` (default 1000 ms), so a permanently failing record blocks its partition instead of being skipped.
+- **Emit side effects**: a throwing `transform` is logged and skips the emit; the caller still gets the method's result.
+- **Secured routes** answer `401` when no scope extractor was supplied to the route adapter.
+
 ## Versioning
 
 Lockstep semver: one tag, all packages publish together. See `DECISIONS.md` (decision #2) and [`docs/adr/`](./docs/adr) for the rationale.

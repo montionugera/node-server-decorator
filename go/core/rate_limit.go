@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"math"
 	"sync"
 	"time"
 )
@@ -46,7 +47,7 @@ func (l *TokenBucketLimiter) Allow(cost float64) bool {
 	defer l.mu.Unlock()
 
 	now := time.Now()
-	elapsed := now.Sub(l.lastRefill).Seconds()
+	elapsed := math.Max(0, now.Sub(l.lastRefill).Seconds())
 	l.lastRefill = now
 
 	l.tokens = l.tokens + elapsed*l.refillRate
@@ -66,8 +67,7 @@ func (l *TokenBucketLimiter) AvailableTokens() float64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	now := time.Now()
-	elapsed := now.Sub(l.lastRefill).Seconds()
+	elapsed := math.Max(0, time.Since(l.lastRefill).Seconds())
 	tokens := l.tokens + elapsed*l.refillRate
 	if tokens > l.capacity {
 		tokens = l.capacity

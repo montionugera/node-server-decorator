@@ -15,6 +15,13 @@ type Config[K comparable, V any] struct {
 	BatchFn      BatchFn[K, V]
 	Window       time.Duration
 	MaxBatchSize int
+	// SingleFlight deduplicates concurrent Loads of the same key into one shared call.
+	//
+	// Limit: the shared call runs detached from every caller's cancellation and deadline, so
+	// that it cannot die with whichever caller started it. Each caller still returns as soon
+	// as its own context ends, but in this mode the batch is never cancelled when all callers
+	// have given up, and BatchFn receives a context with no deadline. Bound the query inside
+	// BatchFn if it must not outlive its callers.
 	SingleFlight bool
 }
 
@@ -34,6 +41,10 @@ type activeBatch[K comparable, V any] struct {
 	keys        []K
 	requests    map[K][]chan result[V]
 	callerCount int32
+	// deadline is the latest deadline among the callers; it is applied to the batch only
+	// when every caller has one (unbounded == false), so no caller is cut short by another.
+	deadline  time.Time
+	unbounded bool
 }
 
 // Loader transparently coalesces multiple individual Load calls into bulk BatchFn executions.
@@ -77,9 +88,18 @@ func (l *Loader[K, V]) Prime(key K, val V) {
 // Load requests a single value by key, coalescing with peers within the configured window.
 func (l *Loader[K, V]) Load(ctx context.Context, key K) (V, error) {
 	if l.cfg.SingleFlight && l.group != nil {
-		return l.group.Do(key, func() (V, error) {
-			return l.loadInternal(ctx, key)
+		// The shared call must not die with whichever caller happened to start it: run it
+		// detached from cancellation (values are kept) and let every waiter honour its own ctx.
+		done := l.group.DoChan(key, func() (V, error) {
+			return l.loadInternal(context.WithoutCancel(ctx), key)
 		})
+		select {
+		case <-ctx.Done():
+			var zero V
+			return zero, ctx.Err()
+		case res := <-done:
+			return res.val, res.err
+		}
 	}
 	return l.loadInternal(ctx, key)
 }
@@ -101,7 +121,9 @@ func (l *Loader[K, V]) loadInternal(ctx context.Context, key K) (V, error) {
 	resChan := make(chan result[V], 1)
 
 	if l.batch == nil {
-		batchCtx, cancel := context.WithCancel(context.Background())
+		// Keep the request values (tenant, auth, trace, tx) of the caller that opens the batch,
+		// but not its cancellation: one caller giving up must not abort the others.
+		batchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 		l.batch = &activeBatch[K, V]{
 			ctx:         batchCtx,
 			cancelBatch: cancel,
@@ -116,6 +138,11 @@ func (l *Loader[K, V]) loadInternal(ctx context.Context, key K) (V, error) {
 
 	b := l.batch
 	atomic.AddInt32(&b.callerCount, 1)
+	if d, ok := ctx.Deadline(); !ok {
+		b.unbounded = true
+	} else if d.After(b.deadline) {
+		b.deadline = d
+	}
 
 	if _, exists := b.requests[key]; !exists {
 		b.keys = append(b.keys, key)
@@ -133,11 +160,23 @@ func (l *Loader[K, V]) loadInternal(ctx context.Context, key K) (V, error) {
 
 	select {
 	case <-ctx.Done():
-		// Individual caller cancelled: decrement active count.
-		// If all callers detached, cancel the underlying batch query.
+		// Individual caller cancelled: decrement active count. Done under the lock so no
+		// caller can join a batch that is being abandoned.
+		l.mu.Lock()
 		if atomic.AddInt32(&b.callerCount, -1) == 0 {
+			if l.batch == b {
+				// Still collecting and nobody is waiting: discard it so that a later
+				// caller opens a fresh batch instead of joining a cancelled one.
+				l.batch = nil
+				if l.timer != nil {
+					l.timer.Stop()
+					l.timer = nil
+				}
+			}
+			// Either discarded or already dispatched with no caller left: stop the query.
 			b.cancelBatch()
 		}
+		l.mu.Unlock()
 		var zero V
 		return zero, ctx.Err()
 	case res := <-resChan:
@@ -162,7 +201,13 @@ func (l *Loader[K, V]) dispatchBatchLocked() {
 
 	go func(b *activeBatch[K, V]) {
 		// Execute under batch context isolated from single caller aborts
-		results, err := l.cfg.BatchFn(b.ctx, b.keys)
+		ctx := b.ctx
+		if !b.unbounded && !b.deadline.IsZero() {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithDeadline(ctx, b.deadline)
+			defer cancel()
+		}
+		results, err := l.cfg.BatchFn(ctx, b.keys)
 		for _, k := range b.keys {
 			chans := b.requests[k]
 			for _, ch := range chans {

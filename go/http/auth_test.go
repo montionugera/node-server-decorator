@@ -165,8 +165,8 @@ func TestCheckScopes(t *testing.T) {
 }
 
 func TestEnforceScopeAuth_Direct(t *testing.T) {
-	// Nil extractor should call next handler
-	t.Run("nil extractor passes through", func(t *testing.T) {
+	// Nil extractor fails closed: declared security without an extractor is 401
+	t.Run("nil extractor fails closed with 401", func(t *testing.T) {
 		called := false
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			called = true
@@ -176,8 +176,42 @@ func TestEnforceScopeAuth_Direct(t *testing.T) {
 		req := httptest.NewRequest("POST", "/test", nil)
 		w := httptest.NewRecorder()
 		handler(w, req)
-		if !called || w.Code != http.StatusOK {
-			t.Errorf("expected next to be called with 200, got called=%v code=%d", called, w.Code)
+		if called || w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401 without calling next, got called=%v code=%d", called, w.Code)
+		}
+		if ct := w.Header().Get("Content-Type"); ct != httpserver.ProblemContentType {
+			t.Errorf("expected content-type %q, got %q", httpserver.ProblemContentType, ct)
+		}
+	})
+
+	// Mounting a spec with declared scopes and no WithAuth must not expose the route
+	t.Run("MountRoutes without WithAuth fails closed on secured ops", func(t *testing.T) {
+		spec := entity.New("Member", "members").
+			Fields(entity.Str("id", entity.ID, entity.Readonly), entity.Str("name")).
+			Ops("list", "delete").
+			Actions(entity.Act("promote")).
+			Secure(entity.Security{
+				Schemes: []entity.Scheme{{Name: "bearerAuth", Type: "http", Scheme: "bearer"}},
+				Ops:     map[string][]string{"delete": {"user:admin"}},
+				Actions: map[string][]string{"promote": {}},
+			}).
+			Build()
+		mux := http.NewServeMux()
+		httpserver.MountRoutes(mux, spec, newMockAuthEntityHandler())
+
+		for _, tc := range []struct {
+			method, path string
+			want         int
+		}{
+			{"DELETE", "/members/m1", http.StatusUnauthorized},
+			{"POST", "/members/m1/actions/promote", http.StatusUnauthorized},
+			{"GET", "/members", http.StatusOK},
+		} {
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, nil))
+			if w.Code != tc.want {
+				t.Errorf("%s %s: expected %d, got %d", tc.method, tc.path, tc.want, w.Code)
+			}
 		}
 	})
 

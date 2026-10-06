@@ -1713,7 +1713,7 @@ wheels = [
 
 [[package]]
 name = "server-decorator"
-version = "2.0.14"
+version = "2.0.15"
 source = { editable = "packages/core" }
 
 [package.optional-dependencies]
@@ -1794,7 +1794,7 @@ provides-extras = ["redis", "rabbitmq", "kafka", "bullmq", "fastapi", "all", "de
 
 [[package]]
 name = "server-decorator-entity"
-version = "2.0.14"
+version = "2.0.15"
 source = { editable = "packages/entity" }
 
 [package.optional-dependencies]
@@ -1802,6 +1802,7 @@ dev = [
     { name = "jsonschema" },
     { name = "mypy" },
     { name = "pytest" },
+    { name = "pytest-cov" },
     { name = "ruff" },
 ]
 
@@ -1810,13 +1811,14 @@ requires-dist = [
     { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.21" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
 ]
 provides-extras = ["dev"]
 
 [[package]]
 name = "server-decorator-gen-openapi"
-version = "2.0.14"
+version = "2.0.15"
 source = { editable = "packages/gen_openapi" }
 dependencies = [
     { name = "server-decorator-entity" },
@@ -1826,6 +1828,7 @@ dependencies = [
 dev = [
     { name = "mypy" },
     { name = "pytest" },
+    { name = "pytest-cov" },
     { name = "ruff" },
 ]
 
@@ -1833,6 +1836,7 @@ dev = [
 requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "server-decorator-entity", editable = "packages/entity" },
 ]
@@ -1840,7 +1844,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "server-decorator-gen-pydantic"
-version = "2.0.14"
+version = "2.0.15"
 source = { editable = "packages/gen_pydantic" }
 dependencies = [
     { name = "pydantic" },
@@ -1851,6 +1855,7 @@ dependencies = [
 dev = [
     { name = "mypy" },
     { name = "pytest" },
+    { name = "pytest-cov" },
     { name = "ruff" },
 ]
 
@@ -1859,6 +1864,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "server-decorator-entity", editable = "packages/entity" },
 ]

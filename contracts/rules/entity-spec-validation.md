@@ -59,6 +59,19 @@ multi-replica deployment (E8) where replicas may not share a local timezone.
 - Python (`gen-pydantic`): `pydantic.AwareDatetime` (never `AwareDatetime | NaiveDatetime` — that
   would accept the naive form).
 
+**Shared RFC 3339 shape.** Each engine's own datetime parser is laxer than the others somewhere
+(`AwareDatetime` takes a space separator, lowercase `t`/`z`, `+0100` and a numeric epoch string;
+zod takes `+0100` and out-of-range offsets; Go's `time.Parse` takes a comma fraction), so every
+validator (`gen-zod`, `gen-pydantic`, Go `dto`) MUST first require the whole string to match
+
+```
+^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$
+```
+
+(uppercase `T` and `Z`, seconds required, offset as `±HH:MM`, ASCII digits, no trailing newline)
+and then let the engine reject impossible calendar values (`2024-02-30`). Exported as
+`DATETIME_PATTERN` (Node, Python) and `DateTimePattern` (Go).
+
 See `fixtures/entity-spec.cases.json` for the contract cases locking in both rulings
 (`create-email-single-char-tld-ok`, `create-email-no-domain-rejected`,
 `update-datetime-with-offset-ok`, `update-datetime-naive-rejected`, `update-datetime-null-ok`).
@@ -100,6 +113,10 @@ generators MUST match that:
   on `isinstance(v, str)` per field, ahead of pydantic's normal (lax) coercion — it does NOT use a
   blanket `strict=True` model config, which would also reject legitimate ISO-string→`datetime`
   parsing.
+- `int`, `float`: a JSON **boolean** is REJECTED (it is not a JSON number; pydantic's lax mode
+  would coerce `true` to `1`). `bool`: only a JSON boolean is ACCEPTED — the numbers `0`/`1` are
+  REJECTED (pydantic's lax mode would coerce them). `gen-pydantic` enforces both with per-type
+  `BeforeValidator`s; zod and Go `dto` already behave this way.
 - `int` additionally keeps pydantic's lax **integral-float** behavior: a JSON number `5.0` is
   ACCEPTED for an `int` field (coerced to `5`) because JS/JSON cannot distinguish `5.0` from `5` —
   zod's `z.number().int()` accepts `5.0` for the same reason. A fractional JSON number (`5.5`) is
@@ -134,6 +151,20 @@ enforced on every element, in both generators — not silently dropped. `gen-zod
 `list[Annotated[inner_ann, inner_field_info]]` — thread the item's own `(annotation, FieldInfo)`
 pair through `Annotated`, never `list[inner_ann]` alone (which discards the `FieldInfo`, and with
 it every item-level constraint).
+
+A `null` element follows the **item's own** `nullable` flag, exactly like an object member: it is
+ACCEPTED when `item.nullable` is true and otherwise REJECTED at the element path (`tags.1`). This
+holds for every item type (scalars, enums, nested `obj`, nested `list`) in every validator,
+including Go `dto` (cases `spec-list-nullable-item-accepts-null`,
+`spec-list-non-nullable-item-rejects-null`).
+
+## String length (`min`/`max` on `str` and `ref`)
+
+Length is counted in **Unicode code points** (JSON Schema `minLength`/`maxLength`, which the
+OpenAPI output advertises) — never UTF-8 bytes or UTF-16 code units. `gen-zod` therefore does not
+use `z.string().min()/.max()` (UTF-16 units) but a refinement on `[...value].length`; Go `dto`
+uses `utf8.RuneCountInString`; pydantic's `min_length`/`max_length` already count code points.
+See also "String length" in `rest-conventions.md`.
 
 ## Non-integer `min`/`max` are rejected at decoration time
 
@@ -185,6 +216,22 @@ schema_json, update_forward_refs, validate
 unfiltered `dir(pydantic.BaseModel)` output: trivially re-derivable and re-verifiable, rather than
 a hand-curated subset someone has to remember to keep in sync.)
 
+## `pattern` character classes are ASCII
+
+In a `pattern`, `\d`, `\w`, `\b` and their negations `\D`, `\W`, `\B` have their **ASCII**
+meaning in every validator: `\d` is `[0-9]`, `\w` is `[0-9A-Za-z_]`. That is what JS `RegExp`
+(no `u` flag) and Go RE2 do natively. pydantic's Rust regex engine is Unicode-aware by default
+(`^\w+$` would accept Thai text, `^\d+$` Arabic-Indic digits), so `gen-pydantic` rewrites those
+six escapes to explicit ASCII classes (inside and outside `[...]`) before compiling the pattern.
+The `format` patterns do not use them. `\s` is NOT covered by this rule and is not portable yet:
+JS and the Rust engine match Unicode whitespace while Go RE2 matches only `[\t\n\f\r ]` — avoid
+`\s` in a `pattern` and spell out the characters instead. Cases:
+`spec-pattern-word-and-digit-classes-are-ascii`, `spec-pattern-ascii-word-and-digit-ok`.
+
+A validation case in `fixtures/entity-spec.cases.json` may carry an optional inline `spec` (IR);
+the runners (`gen-zod`, `gen_pydantic`, Go `dto`) then validate against it instead of the User
+fixture, which has no `pattern` field and no nullable list item.
+
 ## `pattern` regex flavor: RE2/rust-regex-compatible only
 
 `gen-pydantic` compiles `pattern` with pydantic v2's Rust-backed regex engine, which does **not**
@@ -217,3 +264,19 @@ generator, not from this check) — it only rejects the two known-non-portable c
 `gen-pydantic` additionally wraps its model-build call and re-raises any pattern-compile failure
 as a `ValueError` naming the offending field(s)/pattern(s) as defense-in-depth, in case IR reaches
 it from something other than these two entity packages' decorators.
+
+## Go lane: default wire names and generated struct names
+
+`entity.ParseStruct` derives a field's wire name from the Go field name only when neither an
+`entity` tag name nor a `json` tag supplies one. The derivation lowercases the whole leading run of
+upper-case letters, keeping the last letter of that run when the run is longer than one and a
+lower-case letter follows it: `ID` → `id`, `URL` → `url`, `HTTPServer` → `httpServer`,
+`APIKey` → `apiKey`, `UserID` → `userID`. This matches the name a Node or Python entity would use
+for the same attribute. The rule has no initialism dictionary, so a plural such as `IDs` becomes
+`iDs`; give such a field an explicit name in its `entity` tag.
+
+`dto.GenerateGoStructs` fails closed instead of emitting a file that drops members or does not
+compile. It returns an error when two fields of one struct capitalize to the same Go field name
+(`name` and `Name`), and when two paths produce the same nested struct name with a different shape
+at any depth (`x.y.z` and `xY.z`). Two paths that produce the same name with an identical shape at
+every depth are emitted once.

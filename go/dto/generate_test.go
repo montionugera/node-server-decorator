@@ -30,7 +30,7 @@ func TestGenerateGoStructsBindingTags(t *testing.T) {
 	}
 
 	// Profile is optional, so it should have omitempty
-	reProfileCreate := regexp.MustCompile(`Profile\s+\*UserProfile\s+` + "`" + `json:"profile,omitempty"\s+binding:"omitempty"` + "`")
+	reProfileCreate := regexp.MustCompile(`Profile\s+\*UserCreateProfile\s+` + "`" + `json:"profile,omitempty"\s+binding:"omitempty"` + "`")
 	if !reProfileCreate.MatchString(code) {
 		t.Errorf("expected Profile in UserCreateDTO to have binding:\"omitempty\", got:\n%s", code)
 	}

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/montionugera/node-server-decorator/v2/go/entity"
 )
@@ -16,12 +17,16 @@ const (
 	EmailPattern = `^[a-zA-Z0-9.!#$%&'*+/=?^_` + "`" + `{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`
 	UuidPattern  = `^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`
 	UriPattern   = `^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]+$`
+	// DateTimePattern is the RFC 3339 shape every lane pre-checks a datetime string against
+	// (time.Parse alone also takes a comma as the fractional separator).
+	DateTimePattern = `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$`
 )
 
 var (
-	emailRe = regexp.MustCompile(EmailPattern)
-	uuidRe  = regexp.MustCompile(UuidPattern)
-	uriRe   = regexp.MustCompile(UriPattern)
+	dateTimeRe = regexp.MustCompile(DateTimePattern)
+	emailRe    = regexp.MustCompile(EmailPattern)
+	uuidRe     = regexp.MustCompile(UuidPattern)
+	uriRe      = regexp.MustCompile(UriPattern)
 )
 
 type includePredicate func(entity.Field) bool
@@ -187,11 +192,11 @@ func validateString(f entity.Field, val any, path string, errMap map[string]stru
 		return
 	}
 
-	if f.Min != nil && len(s) < *f.Min {
+	if f.Min != nil && utf8.RuneCountInString(s) < *f.Min {
 		errMap[path] = struct{}{}
 		return
 	}
-	if f.Max != nil && len(s) > *f.Max {
+	if f.Max != nil && utf8.RuneCountInString(s) > *f.Max {
 		errMap[path] = struct{}{}
 		return
 	}
@@ -311,7 +316,7 @@ func validateDateTime(val any, path string, errMap map[string]struct{}) {
 		}
 	}
 
-	if !hasExplicitUTCOffset(s) {
+	if !hasExplicitUTCOffset(s) || !dateTimeRe.MatchString(s) {
 		errMap[path] = struct{}{}
 		return
 	}
@@ -356,6 +361,13 @@ func validateList(f entity.Field, val any, path string, include includePredicate
 		itemField := *f.Item
 		for i, item := range list {
 			itemPath := fmt.Sprintf("%s.%d", path, i)
+			// Same null rule as an object member: only a nullable item may be null.
+			if item == nil {
+				if !itemField.Nullable {
+					errMap[itemPath] = struct{}{}
+				}
+				continue
+			}
 			validateFieldValue(itemField, item, itemPath, include, errMap)
 		}
 	}

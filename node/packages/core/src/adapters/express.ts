@@ -154,22 +154,29 @@ function joinPath(parentPath: string, fieldName: string): string {
   return parentPath === '' ? fieldName : `${parentPath}.${fieldName}`;
 }
 
+type IncludePredicate = (f: FieldSpec) => boolean;
+
 export function validateDto(
   spec: EntitySpec,
   dtoType: string,
   payload: any
 ): { fields: string[]; ok: boolean } {
   let targetFields: FieldSpec[] = [];
-  const include = (f: FieldSpec) => true;
+  // Nested obj/list members are filtered recursively by the same include rule
+  // as their parent (contracts/rules/rest-conventions.md).
+  let include: IncludePredicate = () => true;
 
   if (dtoType === 'create') {
-    targetFields = (spec.fields || []).filter((f) => !f.readonly);
+    include = (f) => !f.readonly;
+    targetFields = (spec.fields || []).filter(include);
   } else if (dtoType === 'update') {
+    include = (f) => !f.readonly;
     targetFields = (spec.fields || [])
-      .filter((f) => !f.readonly)
+      .filter(include)
       .map((f) => ({ ...f, optional: true }));
   } else if (dtoType === 'read') {
-    targetFields = (spec.fields || []).filter((f) => !f.writeonly);
+    include = (f) => !f.writeonly;
+    targetFields = (spec.fields || []).filter(include);
   } else if (dtoType.startsWith('action:')) {
     const actionName = dtoType.slice('action:'.length);
     const found = (spec.actions || []).find((a) => a.name === actionName);
@@ -182,7 +189,7 @@ export function validateDto(
   }
 
   const errMap = new Set<string>();
-  validateObject(targetFields, payload, '', errMap);
+  validateObject(targetFields, payload, '', include, errMap);
 
   if (errMap.size === 0) {
     return { fields: [], ok: true };
@@ -196,6 +203,7 @@ function validateObject(
   fields: FieldSpec[],
   payload: any,
   currentPath: string,
+  include: IncludePredicate,
   errMap: Set<string>
 ): void {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
@@ -239,7 +247,7 @@ function validateObject(
       continue;
     }
 
-    validateFieldValue(f, val, fPath, errMap);
+    validateFieldValue(f, val, fPath, include, errMap);
   }
 }
 
@@ -247,6 +255,7 @@ function validateFieldValue(
   f: FieldSpec,
   val: any,
   path: string,
+  include: IncludePredicate,
   errMap: Set<string>
 ): void {
   switch (f.type) {
@@ -270,10 +279,10 @@ function validateFieldValue(
       validateEnum(f, val, path, errMap);
       break;
     case 'list':
-      validateList(f, val, path, errMap);
+      validateList(f, val, path, include, errMap);
       break;
     case 'obj':
-      validateObjField(f, val, path, errMap);
+      validateObjField(f, val, path, include, errMap);
       break;
     default:
       errMap.add(path);
@@ -290,11 +299,13 @@ function validateString(
     errMap.add(path);
     return;
   }
-  if (f.min !== undefined && val.length < f.min) {
+  // min/max count Unicode code points, not UTF-16 code units.
+  const length = f.min !== undefined || f.max !== undefined ? Array.from(val).length : 0;
+  if (f.min !== undefined && length < f.min) {
     errMap.add(path);
     return;
   }
-  if (f.max !== undefined && val.length > f.max) {
+  if (f.max !== undefined && length > f.max) {
     errMap.add(path);
     return;
   }
@@ -403,6 +414,7 @@ function validateList(
   f: FieldSpec,
   val: any,
   path: string,
+  include: IncludePredicate,
   errMap: Set<string>
 ): void {
   if (!Array.isArray(val)) {
@@ -411,7 +423,7 @@ function validateList(
   }
   if (f.item) {
     for (let i = 0; i < val.length; i++) {
-      validateFieldValue(f.item, val[i], `${path}.${i}`, errMap);
+      validateFieldValue(f.item, val[i], `${path}.${i}`, include, errMap);
     }
   }
 }
@@ -420,9 +432,10 @@ function validateObjField(
   f: FieldSpec,
   val: any,
   path: string,
+  include: IncludePredicate,
   errMap: Set<string>
 ): void {
-  validateObject(f.fields || [], val, path, errMap);
+  validateObject((f.fields || []).filter(include), val, path, include, errMap);
 }
 
 export function resolveEntitySpec(specOrClass: any): EntitySpec {
@@ -461,8 +474,16 @@ export function enforceScopeAuth(
   extractor?: ScopeExtractor
 ) {
   return async (req: any, res: any, next: (err?: any) => void): Promise<void> => {
+    // Fail closed: declared security with no extractor never exposes the route.
     if (!extractor) {
-      return next();
+      writeProblem(
+        res,
+        401,
+        'Unauthorized',
+        'authentication required',
+        req.originalUrl || req.url
+      );
+      return;
     }
     let authResult: { authenticated: boolean; scopes: string[] };
     try {
@@ -539,7 +560,8 @@ export function mountExpressRoutes(
     const middleware: any[] = [];
     if (spec.security?.ops && Object.prototype.hasOwnProperty.call(spec.security.ops, op)) {
       const required = spec.security.ops[op];
-      if (required && required.length > 0) {
+      // An entry of [] means authentication required, no particular scope.
+      if (Array.isArray(required)) {
         middleware.push(enforceScopeAuth(required, extractor));
       }
     }
@@ -750,7 +772,8 @@ export function mountExpressRoutes(
       Object.prototype.hasOwnProperty.call(spec.security.actions, action.name)
     ) {
       const required = spec.security.actions[action.name];
-      if (required && required.length > 0) {
+      // An entry of [] means authentication required, no particular scope.
+      if (Array.isArray(required)) {
         middleware.push(enforceScopeAuth(required, extractor));
       }
     }

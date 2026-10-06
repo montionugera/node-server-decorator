@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -52,13 +52,16 @@ func defaultOptions() options {
 type subscriber[T any] struct {
 	ch   chan Event[T]
 	done chan struct{}
-	once sync.Once
+	// dropped is set when an event was discarded for a keyed subscriber
+	// (see SubscribeKey). Unkeyed subscribers never set or read it.
+	dropped atomic.Bool
 }
 
 // Broadcaster coordinates SSE event fan-out, client subscriptions, and HTTP streaming.
 type Broadcaster[T any] struct {
 	mu           sync.RWMutex
 	subscribers  map[uint64]*subscriber[T]
+	byKey        map[string]map[uint64]*subscriber[T]
 	nextSubID    uint64
 	history      []Event[T]
 	historyLimit int
@@ -83,6 +86,7 @@ func NewBroadcaster[T any](opts ...Option) *Broadcaster[T] {
 
 	return &Broadcaster[T]{
 		subscribers:  make(map[uint64]*subscriber[T]),
+		byKey:        make(map[string]map[uint64]*subscriber[T]),
 		historyLimit: opt.historyLimit,
 		bufferSize:   opt.bufferSize,
 		heartbeat:    opt.heartbeat,
@@ -129,12 +133,25 @@ func (b *Broadcaster[T]) Publish(event Event[T]) {
 // Subscribe registers a new subscriber channel.
 // Returns the event receive channel and an unsubscribe cancel function.
 func (b *Broadcaster[T]) Subscribe(ctx context.Context) (<-chan Event[T], func()) {
+	ch, cancel, _ := b.subscribe(ctx, "")
+	return ch, cancel
+}
+
+// subscribe registers a subscriber and, when lastID is non-empty, snapshots the
+// history to replay under the same critical section, so that no event is both
+// replayed and delivered live, and none is missed in between.
+func (b *Broadcaster[T]) subscribe(ctx context.Context, lastID string) (<-chan Event[T], func(), []Event[T]) {
 	b.mu.Lock()
 	if b.closed {
 		b.mu.Unlock()
 		ch := make(chan Event[T])
 		close(ch)
-		return ch, func() {}
+		return ch, func() {}, nil
+	}
+
+	var replayed []Event[T]
+	if lastID != "" {
+		replayed = b.eventsAfterLocked(lastID)
 	}
 
 	id := b.nextSubID
@@ -147,14 +164,17 @@ func (b *Broadcaster[T]) Subscribe(ctx context.Context) (<-chan Event[T], func()
 	b.subscribers[id] = sub
 	b.mu.Unlock()
 
+	// Map membership (checked under b.mu) is what makes cancel idempotent and
+	// safe against Close; never wait on anything while holding b.mu.
 	cancel := func() {
-		sub.once.Do(func() {
-			close(sub.done)
-			b.mu.Lock()
-			delete(b.subscribers, id)
-			close(sub.ch)
-			b.mu.Unlock()
-		})
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		if b.subscribers[id] != sub {
+			return
+		}
+		delete(b.subscribers, id)
+		close(sub.done)
+		close(sub.ch)
 	}
 
 	if ctx != nil {
@@ -169,14 +189,19 @@ func (b *Broadcaster[T]) Subscribe(ctx context.Context) (<-chan Event[T], func()
 		}()
 	}
 
-	return sub.ch, cancel
+	return sub.ch, cancel, replayed
 }
 
-// SubscriberCount returns the number of active subscribers.
+// SubscriberCount returns the number of active subscribers, unkeyed
+// (Subscribe) plus keyed (SubscribeKey).
 func (b *Broadcaster[T]) SubscriberCount() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return len(b.subscribers)
+	n := len(b.subscribers)
+	for _, subs := range b.byKey {
+		n += len(subs)
+	}
+	return n
 }
 
 // History returns a snapshot of cached events.
@@ -188,7 +213,8 @@ func (b *Broadcaster[T]) History() []Event[T] {
 	return res
 }
 
-// Close shuts down the broadcaster and unsubscribes all active clients.
+// Close shuts down the broadcaster and unsubscribes all active clients, keyed
+// and unkeyed.
 func (b *Broadcaster[T]) Close() {
 	b.closeOnce.Do(func() {
 		b.mu.Lock()
@@ -197,56 +223,36 @@ func (b *Broadcaster[T]) Close() {
 		close(b.done)
 		for id, sub := range b.subscribers {
 			delete(b.subscribers, id)
-			sub.once.Do(func() {
+			close(sub.done)
+			close(sub.ch)
+		}
+		for key, subs := range b.byKey {
+			delete(b.byKey, key)
+			for _, sub := range subs {
 				close(sub.done)
 				close(sub.ch)
-			})
+			}
 		}
 	})
 }
 
-func isAfter(a, b string) bool {
-	aNum, errA := strconv.ParseInt(a, 10, 64)
-	bNum, errB := strconv.ParseInt(b, 10, 64)
-	if errA == nil && errB == nil {
-		return aNum > bNum
-	}
-	return a > b
-}
-
-func (b *Broadcaster[T]) getEventsAfter(lastID string) []Event[T] {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	if len(b.history) == 0 {
-		return nil
-	}
-
-	// If lastID exists in history, return all events occurring after it
-	foundIdx := -1
+// eventsAfterLocked returns the history to replay for lastID. The caller must
+// hold b.mu. Replay is positional: events after lastID's position in the
+// history; if lastID is no longer (or never was) in the history, the whole
+// history is replayed, since event IDs are opaque and carry no ordering.
+func (b *Broadcaster[T]) eventsAfterLocked(lastID string) []Event[T] {
+	start := 0
 	for i, e := range b.history {
 		if e.ID == lastID {
-			foundIdx = i
+			start = i + 1
 			break
 		}
 	}
-
-	if foundIdx != -1 {
-		if foundIdx+1 < len(b.history) {
-			replayed := make([]Event[T], len(b.history)-(foundIdx+1))
-			copy(replayed, b.history[foundIdx+1:])
-			return replayed
-		}
+	if start >= len(b.history) {
 		return nil
 	}
-
-	// If lastID not directly in history, return events whose ID is after lastID
-	var replayed []Event[T]
-	for _, e := range b.history {
-		if isAfter(e.ID, lastID) {
-			replayed = append(replayed, e)
-		}
-	}
+	replayed := make([]Event[T], len(b.history)-start)
+	copy(replayed, b.history[start:])
 	return replayed
 }
 
@@ -282,25 +288,20 @@ func (b *Broadcaster[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		lastID = r.URL.Query().Get("lastEventId")
 	}
 
-	ch, cancel := b.Subscribe(r.Context())
+	ch, cancel, replayed := b.subscribe(r.Context(), lastID)
 	defer cancel()
 
-	var highestReplayedID string
-	if lastID != "" {
-		replayed := b.getEventsAfter(lastID)
-		for _, e := range replayed {
-			frame, err := e.Format()
-			if err != nil {
-				continue
-			}
-			if _, err := w.Write(frame); err != nil {
-				return
-			}
-			highestReplayedID = e.ID
+	for _, e := range replayed {
+		frame, err := e.Format()
+		if err != nil {
+			continue
 		}
-		if len(replayed) > 0 {
-			flusher.Flush()
+		if _, err := w.Write(frame); err != nil {
+			return
 		}
+	}
+	if len(replayed) > 0 {
+		flusher.Flush()
 	}
 
 	var tickerChan <-chan time.Time
@@ -324,10 +325,6 @@ func (b *Broadcaster[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case event, ok := <-ch:
 			if !ok {
 				return
-			}
-			// Avoid duplicate replay if event was already sent during replay
-			if highestReplayedID != "" && event.ID != "" && !isAfter(event.ID, highestReplayedID) {
-				continue
 			}
 			frame, err := event.Format()
 			if err != nil {

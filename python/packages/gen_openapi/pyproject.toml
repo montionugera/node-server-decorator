@@ -1,17 +1,17 @@
 [project]
 name = "server-decorator-gen-openapi"
-version = "2.0.14"
+version = "2.0.15"
 description = "IR-derived OpenAPI 3.1 document (contracts/rules/rest-conventions.md). Polyglot sibling of @montionugera/entity-spec-gen-openapi."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-dependencies = ["server-decorator-entity==2.0.14"]
+dependencies = ["server-decorator-entity==2.0.15"]
 
 [tool.uv.sources]
 server-decorator-entity = { workspace = true }
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5", "mypy>=1.10"]
 
 [build-system]
 requires = ["hatchling"]

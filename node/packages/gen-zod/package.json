@@ -1,6 +1,6 @@
 {
   "name": "@montionugera/entity-spec-gen-zod",
-  "version": "2.0.14",
+  "version": "2.0.15",
   "description": "IR-derived create/update/read/action zod validation schemas (contracts/schemas/entity-spec.schema.json).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,7 +14,7 @@
     "build": "tsc",
     "test": "jest",
     "pretest:unit": "pnpm --filter @montionugera/entity-spec run build",
-    "test:unit": "jest",
+    "test:unit": "jest --coverage",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm test:unit && pnpm run build"
   },

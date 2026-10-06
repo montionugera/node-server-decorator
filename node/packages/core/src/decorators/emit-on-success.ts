@@ -121,7 +121,15 @@ async function handleSuccess(
   
   const className = target.constructor.name;
   const eventName = customEventName || `${className}.${propertyKey}`;
-  const payload = transform ? transform(result) : result;
+  // The method already succeeded: a throwing transform must not change its outcome.
+  // Log and skip emission instead of rejecting the caller's promise.
+  let payload: any;
+  try {
+    payload = transform ? transform(result) : result;
+  } catch (error) {
+    globalLogger.error(`EmitOnSuccess transform failed for ${eventName}; nothing emitted: ${error}`);
+    return;
+  }
 
   // Event emission
   if (useEvents) {
@@ -157,23 +165,27 @@ async function handleSuccess(
         }
       };
 
+      let published = false;
       // Use QueueRegistry for multi-queue support
       if (queueName || topic || service) {
         // Auto-generate topic from ClassName.methodName if not specified
         const base = `${className}.${propertyKey}`;
         const autoTopic = topic || (service ? `${service}.${base}` : base);
-        await globalQueueRegistry.publish(message, queueName, autoTopic);
+        published = await globalQueueRegistry.publish(message, queueName, autoTopic);
       } else {
         // Fallback to global queue for backward compatibility
         if (globalQueue) {
           await globalQueue.publish(message);
+          published = true;
         } else {
           // Try default queue from registry
-          await globalQueueRegistry.publish(message);
+          published = await globalQueueRegistry.publish(message);
         }
       }
       
-      globalLogger.debug(`📮 Message queued: ${eventName} -> ${queueName || 'default'}`);
+      if (published) {
+        globalLogger.debug(`📮 Message queued: ${eventName} -> ${queueName || 'default'}`);
+      }
     } catch (error) {
       globalLogger.error(`Failed to publish to queue: ${error}`);
     }

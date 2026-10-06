@@ -1,0 +1,45 @@
+{
+  "description": "Cross-language cases for contracts/rules/topic-naming.md. Each case decorates ClassName.methodName with useQueue/use_queue plus the given options and asserts the published QueueMessage's eventName and metadata.topic. null means 'option not set'.",
+  "cases": [
+    {
+      "name": "auto topic, no service, no event name override",
+      "className": "OrderService",
+      "methodName": "create",
+      "service": null,
+      "eventName": null,
+      "topic": null,
+      "expectedEventName": "OrderService.create",
+      "expectedTopic": "OrderService.create"
+    },
+    {
+      "name": "event name override does not change the auto topic",
+      "className": "OrderService",
+      "methodName": "create",
+      "service": null,
+      "eventName": "order.created",
+      "topic": null,
+      "expectedEventName": "order.created",
+      "expectedTopic": "OrderService.create"
+    },
+    {
+      "name": "event name override with service keeps service.ClassName.methodName",
+      "className": "OrderService",
+      "methodName": "create",
+      "service": "user-svc",
+      "eventName": "order.created",
+      "topic": null,
+      "expectedEventName": "order.created",
+      "expectedTopic": "user-svc.OrderService.create"
+    },
+    {
+      "name": "explicit topic wins over event name override and service",
+      "className": "OrderService",
+      "methodName": "create",
+      "service": "user-svc",
+      "eventName": "order.created",
+      "topic": "urgent",
+      "expectedEventName": "order.created",
+      "expectedTopic": "urgent"
+    }
+  ]
+}

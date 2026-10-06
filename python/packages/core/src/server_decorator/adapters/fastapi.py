@@ -114,6 +114,21 @@ def _join_path(parent: str, field: str) -> str:
     return field if parent == "" else f"{parent}.{field}"
 
 
+_Include = Callable[[dict[str, Any]], bool]
+
+
+def _include_all(f: dict[str, Any]) -> bool:
+    return True
+
+
+def _not_readonly(f: dict[str, Any]) -> bool:
+    return not f.get("readonly")
+
+
+def _not_writeonly(f: dict[str, Any]) -> bool:
+    return not f.get("writeonly")
+
+
 def validate_dto(
     spec: dict[str, Any],
     dto_type: str,
@@ -122,12 +137,18 @@ def validate_dto(
     """Validate a JSON payload against the given EntitySpec and DTO type."""
     fields = spec.get("fields", [])
 
+    # Nested obj/list members are filtered recursively by the same include rule
+    # as their parent (contracts/rules/rest-conventions.md).
+    include: _Include = _include_all
     if dto_type == "create":
-        target_fields = [f for f in fields if not f.get("readonly")]
+        include = _not_readonly
+        target_fields = [f for f in fields if include(f)]
     elif dto_type == "update":
-        target_fields = [{**f, "optional": True} for f in fields if not f.get("readonly")]
+        include = _not_readonly
+        target_fields = [{**f, "optional": True} for f in fields if include(f)]
     elif dto_type == "read":
-        target_fields = [f for f in fields if not f.get("writeonly")]
+        include = _not_writeonly
+        target_fields = [f for f in fields if include(f)]
     elif dto_type.startswith("action:"):
         action_name = dto_type[len("action:") :]
         actions = spec.get("actions", [])
@@ -139,7 +160,7 @@ def validate_dto(
         return ["_dto"], False
 
     err_map: set[str] = set()
-    _validate_object(target_fields, payload, "", err_map)
+    _validate_object(target_fields, payload, "", include, err_map)
 
     if not err_map:
         return [], True
@@ -151,6 +172,7 @@ def _validate_object(
     fields: list[dict[str, Any]],
     payload: Any,
     current_path: str,
+    include: _Include,
     err_map: set[str],
 ) -> None:
     if not isinstance(payload, dict):
@@ -182,13 +204,14 @@ def _validate_object(
                 err_map.add(f_path)
             continue
 
-        _validate_field_value(f, val, f_path, err_map)
+        _validate_field_value(f, val, f_path, include, err_map)
 
 
 def _validate_field_value(
     f: dict[str, Any],
     val: Any,
     path: str,
+    include: _Include,
     err_map: set[str],
 ) -> None:
     f_type = f.get("type")
@@ -205,9 +228,10 @@ def _validate_field_value(
     elif f_type == "enum":
         _validate_enum(f, val, path, err_map)
     elif f_type == "list":
-        _validate_list(f, val, path, err_map)
+        _validate_list(f, val, path, include, err_map)
     elif f_type == "obj":
-        _validate_object(f.get("fields", []), val, path, err_map)
+        nested = [nf for nf in f.get("fields", []) if include(nf)]
+        _validate_object(nested, val, path, include, err_map)
     else:
         err_map.add(path)
 
@@ -343,6 +367,7 @@ def _validate_list(
     f: dict[str, Any],
     val: Any,
     path: str,
+    include: _Include,
     err_map: set[str],
 ) -> None:
     if not isinstance(val, list):
@@ -352,7 +377,7 @@ def _validate_list(
     item_spec = f.get("item")
     if item_spec:
         for idx, elem in enumerate(val):
-            _validate_field_value(item_spec, elem, f"{path}.{idx}", err_map)
+            _validate_field_value(item_spec, elem, f"{path}.{idx}", include, err_map)
 
 
 def resolve_entity_spec(spec_or_class: Any) -> dict[str, Any]:
@@ -417,7 +442,7 @@ def mount_fastapi_routes(
 
     def make_list_endpoint(scopes: list[str] | None) -> Callable[[Request], Awaitable[Response]]:
         async def list_endpoint(request: Request) -> Response:
-            if scopes is not None and auth_extractor is not None:
+            if scopes is not None:
                 problem = await enforce_scope_auth(scopes, auth_extractor, request)
                 if problem is not None:
                     return ProblemDetailsResponse(
@@ -476,7 +501,7 @@ def mount_fastapi_routes(
     def make_get_endpoint(scopes: list[str] | None) -> Callable[[Request], Awaitable[Response]]:
         async def get_endpoint(request: Request) -> Response:
             ident = request.path_params.get(id_field, "")
-            if scopes is not None and auth_extractor is not None:
+            if scopes is not None:
                 problem = await enforce_scope_auth(scopes, auth_extractor, request)
                 if problem is not None:
                     return ProblemDetailsResponse(
@@ -516,7 +541,7 @@ def mount_fastapi_routes(
         scopes: list[str] | None,
     ) -> Callable[[Request], Awaitable[Response]]:
         async def create_endpoint(request: Request) -> Response:
-            if scopes is not None and auth_extractor is not None:
+            if scopes is not None:
                 problem = await enforce_scope_auth(scopes, auth_extractor, request)
                 if problem is not None:
                     return ProblemDetailsResponse(
@@ -545,7 +570,7 @@ def mount_fastapi_routes(
     ) -> Callable[[Request], Awaitable[Response]]:
         async def update_endpoint(request: Request) -> Response:
             ident = request.path_params.get(id_field, "")
-            if scopes is not None and auth_extractor is not None:
+            if scopes is not None:
                 problem = await enforce_scope_auth(scopes, auth_extractor, request)
                 if problem is not None:
                     return ProblemDetailsResponse(
@@ -595,7 +620,7 @@ def mount_fastapi_routes(
     ) -> Callable[[Request], Awaitable[Response]]:
         async def delete_endpoint(request: Request) -> Response:
             ident = request.path_params.get(id_field, "")
-            if scopes is not None and auth_extractor is not None:
+            if scopes is not None:
                 problem = await enforce_scope_auth(scopes, auth_extractor, request)
                 if problem is not None:
                     return ProblemDetailsResponse(
@@ -674,7 +699,7 @@ def mount_fastapi_routes(
         ) -> Callable[[Request], Awaitable[Response]]:
             async def action_endpoint(request: Request) -> Response:
                 ident = request.path_params.get(id_field, "")
-                if scopes is not None and auth_extractor is not None:
+                if scopes is not None:
                     problem = await enforce_scope_auth(scopes, auth_extractor, request)
                     if problem is not None:
                         return ProblemDetailsResponse(

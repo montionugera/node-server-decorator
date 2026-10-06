@@ -98,15 +98,21 @@ export class RedisStreamConsumer implements ConsumerAdapter {
 
 // KafkaConsumer — at-least-once consume via a kafkajs consumer group with manual offset
 // commit. Each message's `value` is the JSON envelope (matching the producer's KafkaAdapter).
-// dispatch success → commit offset; dispatch raise → do not commit (redelivered on restart);
-// unparseable value → commit + skip (log).
+// dispatch success → commit offset; dispatch raise → do not commit, seek the partition back
+// to the failed offset (after `retryBackoffMs`) so it is redelivered before any later offset
+// can be committed; unparseable value → commit + skip (log).
 export class KafkaConsumer implements ConsumerAdapter {
   private consumer?: Consumer
   private stopped = false
 
   constructor(
     private kafka: Kafka,
-    private options: { topics: string[]; groupId: string; fromBeginning?: boolean },
+    private options: {
+      topics: string[]
+      groupId: string
+      fromBeginning?: boolean
+      retryBackoffMs?: number
+    },
   ) {}
 
   async run(dispatch: Dispatch): Promise<void> {
@@ -134,8 +140,13 @@ export class KafkaConsumer implements ConsumerAdapter {
           await dispatch(raw)
         } catch (err) {
           globalLogger.error(
-            `dispatch failed for kafka offset ${message.offset}; not committing: ${err}`,
+            `dispatch failed for kafka offset ${message.offset}; not committing, will retry: ${err}`,
           )
+          // Rewind so the failed offset is fetched again. Without this the next
+          // message's commit (offset + 1) would pass over it and lose it for good.
+          const backoffMs = this.options.retryBackoffMs ?? 1000
+          if (backoffMs > 0) await new Promise((r) => setTimeout(r, backoffMs))
+          consumer.seek({ topic, partition, offset: message.offset })
           return
         }
         await this.commit(consumer, topic, partition, message.offset)
@@ -173,6 +184,7 @@ export class KafkaConsumer implements ConsumerAdapter {
 // RabbitMQConsumer — at-least-once consume via basic.consume. The message body is the
 // JSON envelope (matching the producer's RabbitMQAdapter). dispatch success -> ack;
 // dispatch raise -> nack(requeue=true); unparseable body -> ack + drop (log). One queue.
+// An ack/nack failure is logged and the message is left unacked (broker redelivers).
 export class RabbitMQConsumer implements ConsumerAdapter {
   private consumerTag?: string
 
@@ -188,7 +200,11 @@ export class RabbitMQConsumer implements ConsumerAdapter {
       this.options.queue,
       (msg: ConsumeMessage | null) => {
         if (!msg) return
-        void this.handle(dispatch, msg)
+        this.handle(dispatch, msg).catch((err) => {
+          globalLogger.error(
+            `rabbitmq ack/nack failed; message left unacked for broker redelivery: ${err}`,
+          )
+        })
       },
       { noAck: false },
     )

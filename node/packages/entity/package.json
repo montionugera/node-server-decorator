@@ -1,6 +1,6 @@
 {
   "name": "@montionugera/entity-spec",
-  "version": "2.0.14",
+  "version": "2.0.15",
   "description": "Declarative entity decorators emitting the language-neutral EntitySpec IR (contracts/schemas/entity-spec.schema.json).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -30,7 +30,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
-    "test:unit": "jest",
+    "test:unit": "jest --coverage",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm test:unit && pnpm run build"
   },

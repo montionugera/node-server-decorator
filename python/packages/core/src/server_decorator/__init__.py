@@ -11,6 +11,7 @@ from server_decorator.adapters.graphql import (
     GraphQLLoaderRegistry,
     create_graphql_loader_context,
     graphql_loader,
+    graphql_loader_scope,
 )
 from server_decorator.config import configure, get_service
 from server_decorator.consumer.adapters.bullmq_consumer import BullMQConsumer
@@ -32,6 +33,7 @@ from server_decorator.decorators.circuit_breaker import (
 from server_decorator.decorators.coalesce import PrefetchRule, batch_load
 from server_decorator.decorators.distributed_lock import (
     LockAcquisitionError,
+    LockLostError,
     RedisLockAdapter,
     clear_global_distributed_lock_adapter,
     configure_distributed_lock,
@@ -50,6 +52,7 @@ from server_decorator.decorators.rate_limit import (
     rate_limit_class,
 )
 from server_decorator.decorators.retry import retry, retry_class
+from server_decorator.decorators.single_flight import SingleFlight
 from server_decorator.decorators.trace import (
     TraceContext,
     TraceSpan,
@@ -137,6 +140,7 @@ __all__ = [
     "distributed_lock",
     "distributed_lock_class",
     "LockAcquisitionError",
+    "LockLostError",
     "RedisLockAdapter",
     "configure_distributed_lock",
     "get_global_distributed_lock_adapter",
@@ -157,6 +161,8 @@ __all__ = [
     "TokenBucket",
     "get_token_bucket",
     "clear_rate_limiters",
+    # concurrency helpers
+    "SingleFlight",
     # SSE transport
     "SSEEvent",
     "AsyncSSEBroadcaster",
@@ -179,5 +185,6 @@ __all__ = [
     # graphql dataloader adapter
     "graphql_loader",
     "create_graphql_loader_context",
+    "graphql_loader_scope",
     "GraphQLLoaderRegistry",
 ]

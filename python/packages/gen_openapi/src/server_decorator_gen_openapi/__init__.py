@@ -10,7 +10,7 @@ EMAIL_PATTERN = (
     r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
 )
 UUID_PATTERN = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-URI_PATTERN = r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^\s]+$"
+URI_PATTERN = r"^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]+$"
 
 _BASE_TYPE = {
     "str": "string",

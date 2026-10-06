@@ -96,6 +96,9 @@ class ConsumerRegistry:
                     await task
             except asyncio.CancelledError:
                 pass
+            except Exception:
+                # run() already died; _on_task_done logged it. Keep draining the rest.
+                pass
         self._tasks.clear()
 
     def _entry(self, consumer: str | None) -> _ConsumerEntry:
@@ -123,34 +126,34 @@ class ConsumerRegistry:
                 else:
                     _log.debug("no handler for event %s; acked + skipped", event_name)
                 return  # acked + skipped
-            traceparent = metadata.get("traceparent") if isinstance(metadata, dict) else None
             from server_decorator.decorators.trace import (
                 TraceContext,
+                _span_scope,
                 parse_traceparent,
-                set_active_trace_context,
             )
 
-            token = None
-            if traceparent:
-                parsed_ctx = parse_traceparent(traceparent)
+            traceparent = metadata.get("traceparent") if isinstance(metadata, dict) else None
+            parsed_ctx = parse_traceparent(traceparent)
+            with contextlib.ExitStack() as stack:
                 if parsed_ctx:
-                    tracestate = metadata.get("tracestate") if isinstance(metadata, dict) else None
-                    consumer_ctx = TraceContext(
-                        trace_id=parsed_ctx.trace_id,
-                        span_id=parsed_ctx.span_id,
-                        parent_span_id=parsed_ctx.span_id,
-                        sampled=parsed_ctx.sampled,
-                        tracestate=tracestate,
+                    # trace-context.md §4.2: a real, exported CONSUMER span (child of
+                    # the producer span) is active for the handler. A handler raise
+                    # marks it ERROR and still propagates → adapter does not ack.
+                    stack.enter_context(
+                        _span_scope(
+                            f"consume {event_name}",
+                            {"span.kind": "CONSUMER"},
+                            parent=TraceContext(
+                                trace_id=parsed_ctx.trace_id,
+                                span_id=parsed_ctx.span_id,
+                                sampled=parsed_ctx.sampled,
+                                tracestate=metadata.get("tracestate"),
+                            ),
+                        )
                     )
-                    token = set_active_trace_context(consumer_ctx)
-
-            try:
                 result = handler(payload, metadata)
                 if inspect.isawaitable(result):
                     await result  # a raise here propagates → adapter does not ack
-            finally:
-                if token is not None:
-                    set_active_trace_context(None)
 
         return dispatch
 

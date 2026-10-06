@@ -15,6 +15,9 @@ const isThenable = (v: unknown): v is PromiseLike<unknown> =>
  */
 export function retry(options: RetryOptions = {}) {
   const maxAttempts = options.maxAttempts ?? 3;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new RangeError(`@retry: maxAttempts must be an integer >= 1, got ${maxAttempts}`);
+  }
   const backoffMs = options.backoffMs ?? 50;
   const maxBackoffMs = options.maxBackoffMs ?? 2000;
   const factor = options.factor ?? 2.0;
@@ -25,7 +28,7 @@ export function retry(options: RetryOptions = {}) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (...args: unknown[]) {
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      for (let attempt = 1; ; attempt++) {
         try {
           const res = originalMethod.apply(this, args);
           return isThenable(res) ? await res : res;
