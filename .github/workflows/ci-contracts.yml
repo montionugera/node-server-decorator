@@ -19,6 +19,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'nim/**'
+      - 'rust/**'
       - '.github/workflows/ci-contracts.yml'
   push:
     branches: [main]
@@ -31,6 +32,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'nim/**'
+      - 'rust/**'
       - '.github/workflows/ci-contracts.yml'
 
 concurrency:
