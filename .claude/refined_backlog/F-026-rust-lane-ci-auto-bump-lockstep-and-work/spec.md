@@ -32,8 +32,8 @@ Maintaining strict version lockstep is a core invariant of `node-server-decorato
 
 ## Acceptance criteria
 
-- [ ] `rust/Cargo.toml` and `rust/Cargo.lock` are aligned to `2.0.17` and `bash scripts/check-versions.sh` passes cleanly.
-- [ ] `.github/workflows/ci-node.yml` stages `rust/Cargo.toml` and `rust/Cargo.lock` during auto-bump.
-- [ ] `.github/workflows/ci-contracts.yml` triggers on `rust/**` path changes.
-- [ ] `.github/workflows/ci-rust.yml` exists and validates cargo test, clippy, and fmt.
-- [ ] All 8 contributor quality gates in `scripts/contributor-check.sh` pass green.
+- [x] `rust/Cargo.toml` and `rust/Cargo.lock` are aligned to `2.0.17` and `bash scripts/check-versions.sh` passes cleanly.
+- [x] `.github/workflows/ci-node.yml` stages `rust/Cargo.toml` and `rust/Cargo.lock` during auto-bump.
+- [x] `.github/workflows/ci-contracts.yml` triggers on `rust/**` path changes.
+- [x] `.github/workflows/ci-rust.yml` exists and validates cargo test, clippy, and fmt.
+- [x] All 8 contributor quality gates in `scripts/contributor-check.sh` pass green.
