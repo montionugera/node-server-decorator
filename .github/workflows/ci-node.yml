@@ -106,7 +106,7 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go nim/server_decorator.nimble
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go nim/server_decorator.nimble rust/Cargo.toml rust/Cargo.lock
           git commit -m "chore: bump patch version [skip ci]"
           git push
 
