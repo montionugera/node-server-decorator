@@ -1,0 +1,66 @@
+---
+title: Interactive Studio & Live Docs
+description: Storybook-powered visual state machines and interactive simulators for server-decorator resilience and entity compilation.
+---
+
+import { CircuitBreakerSimulator } from "../../../components/studio/CircuitBreakerSimulator";
+import { RetryBackoffSimulator } from "../../../components/studio/RetryBackoffSimulator";
+import { RateLimiterSimulator } from "../../../components/studio/RateLimiterSimulator";
+import { DistributedLockSimulator } from "../../../components/studio/DistributedLockSimulator";
+import { CoalesceLoaderSimulator } from "../../../components/studio/CoalesceLoaderSimulator";
+import { EntitySpecStudio } from "../../../components/studio/EntitySpecStudio";
+
+Welcome to the **Interactive Studio & Live Docs**. Here you can experiment directly in your browser with live state machines for resilience patterns, distributed locking, reactive call coalescing, and EntitySpec schema compilation across **TypeScript, Python, Go, Nim, and Rust**.
+
+:::tip[Standalone Storybook 8 Hub]
+Prefer full-screen Storybook controls, addon inspector, and isolated story canvases?  
+[👉 Launch Full Storybook Portal](/storybook/)
+:::
+
+---
+
+## 1. Circuit Breaker Simulator
+
+Test downstream fault tolerance. Trigger successes and failures to watch the circuit breaker transition through **CLOSED**, **OPEN**, and **HALF-OPEN** states with automatic cooldowns.
+
+<CircuitBreakerSimulator client:load />
+
+---
+
+## 2. Exponential Backoff & Retry Simulator
+
+Simulate transient network faults. Adjust base backoff, maximum caps, and compare **Full Jitter** vs deterministic delays.
+
+<RetryBackoffSimulator client:load />
+
+---
+
+## 3. Token Bucket Rate Limiter Simulator
+
+Simulate burst traffic and token replenishment. When the bucket drains, observe the generated **RFC 7807 429 Problem Details** payload.
+
+<RateLimiterSimulator client:load />
+
+---
+
+## 4. Distributed Lock & Heartbeat Watchdog
+
+Explore how distributed locks maintain safety. See how the background watchdog extends lease TTL every `TTL / 3`, and simulate process crashes or lock contention.
+
+<DistributedLockSimulator client:load />
+
+---
+
+## 5. Reactive Call Coalescing / DataLoader
+
+Click multiple client entities simultaneously to watch them coalesce in the JavaScript event loop into a single batched backend query.
+
+<CoalesceLoaderSimulator client:load />
+
+---
+
+## 6. EntitySpec Studio & Polyglot Compiler
+
+Declare fields, roles, constraints, and actions. Watch the live **Canonical EntitySpec IR JSON**, **OpenAPI 3.1**, and multi-language DTO validators compile in real-time.
+
+<EntitySpecStudio client:load />

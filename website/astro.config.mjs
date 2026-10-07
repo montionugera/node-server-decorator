@@ -1,10 +1,12 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import react from '@astrojs/react';
 
 // https://astro.build/config
 export default defineConfig({
 	integrations: [
+		react(),
 		starlight({
 			title: 'server-decorator',
 			description: 'Polyglot microservices decorator library for Node/TypeScript, Python, Go, and Nim.',
@@ -33,6 +35,13 @@ export default defineConfig({
 						{ label: 'Overview', slug: 'getting-started/overview' },
 						{ label: 'Quickstart', slug: 'getting-started/quickstart' },
 						{ label: 'Installation', slug: 'getting-started/installation' },
+					],
+				},
+				{
+					label: 'Interactive Studio & Live Docs',
+					items: [
+						{ label: 'Interactive Studio Hub', slug: 'studio' },
+						{ label: 'Open Standalone Storybook ↗', link: '/storybook/' },
 					],
 				},
 				{

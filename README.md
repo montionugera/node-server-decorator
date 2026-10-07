@@ -14,8 +14,10 @@ The wire format and shared rules (cache key algorithm, queue message schema, top
 
 ## Documentation Portal
 
-A centralized, multilingual documentation website is powered by **Starlight (Astro)** under [`website/`](./website):
+A centralized, multilingual documentation website is powered by **Starlight (Astro)** and **Storybook 8** under [`website/`](./website):
+- **Interactive Studio & Visual Simulators**: Real-time state machine visualizers for `@circuitBreaker`, `@retryBackoff`, `@rateLimit`, `@distributedLock`, `@coalesce`, and EntitySpec Studio.
 - **Synchronized Multi-Language Code Switcher**: Switch code tabs between TypeScript, Python, Go, Nim, and Rust simultaneously across the entire site.
+- **Storybook 8 Component Workshop**: Standalone live documentation and component sandbox (`pnpm run storybook`) for designing and testing decorator UI simulators.
 - **Internationalization (i18n)**: Out-of-the-box multilingual support with built-in English and Thai (`/th/`) documentation.
 - **Offline Full-Text Search**: Built-in Pagefind search indexing.
 
@@ -24,7 +26,10 @@ Run locally:
 # Start documentation dev server
 pnpm run docs:dev
 
-# Build static production documentation
+# Start standalone Storybook 8 interactive studio (port 6006 / 6007)
+pnpm run storybook
+
+# Build static production documentation + Storybook
 pnpm run docs:build
 ```
 
