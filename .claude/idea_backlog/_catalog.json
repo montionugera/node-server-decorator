@@ -169,5 +169,11 @@
     "created_at": "2026-10-05T00:23:22.389866+00:00",
     "promoted_to": "F-025",
     "epic": "E-001"
+  },
+  {
+    "id": "I-029",
+    "title": "Rust lane CI, auto-bump lockstep, and workspace parity integration",
+    "created_at": "2026-10-07T00:35:12.125975+00:00",
+    "promoted_to": "F-026"
   }
 ]

@@ -1,0 +1,26 @@
+name: CI - Rust
+
+on:
+  pull_request:
+    paths: ['rust/**', 'contracts/**', '.github/workflows/ci-rust.yml']
+  push:
+    branches: [main]
+    paths: ['rust/**', 'contracts/**', '.github/workflows/ci-rust.yml']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        run: rustup update stable && rustup default stable
+      - name: Rustfmt Check
+        run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+      - name: Clippy Lint
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+      - name: Workspace Tests
+        run: cargo test --manifest-path rust/Cargo.toml --workspace
