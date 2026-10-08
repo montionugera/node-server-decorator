@@ -108,7 +108,15 @@ jobs:
         run: |
           git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go nim/server_decorator.nimble rust/Cargo.toml rust/Cargo.lock
           git commit -m "chore: bump patch version [skip ci]"
-          git push
+          # main can move while this job runs (e.g. a follow-up commit pushed right
+          # after a release merge), which rejects a plain push as non-fast-forward.
+          # Rebase the bump onto the latest main and retry; a real conflict still fails.
+          for attempt in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            echo "push attempt $attempt failed; retrying"
+            sleep $((attempt * 5))
+          done
+          exit 1
 
       - name: Build Node package
         working-directory: node
