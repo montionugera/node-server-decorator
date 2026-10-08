@@ -1,9 +1,9 @@
 ---
 title: server-decorator (ภาษาไทย)
-description: ไลบรารี Polyglot Microservices Decorator สำหรับ Node/TypeScript, Python, Go และ Nim
+description: ไลบรารี Polyglot Microservices Decorator สำหรับ Node/TypeScript, Python, Go, Nim และ Rust
 template: splash
 hero:
-  tagline: เครื่องมือ Decorator ระดับ Production สำหรับ Caching, Tracking, Queue Emission และ Entity-Spec REST Generation รองรับ Node, Python, Go และ Nim ใน repository เดียว
+  tagline: เครื่องมือ Decorator ระดับ Production สำหรับ Caching, Tracking, Queue Emission และ Entity-Spec REST Generation รองรับ Node, Python, Go, Nim และ Rust ใน repository เดียว
   image:
     file: ../../../assets/houston.webp
   actions:
@@ -17,7 +17,7 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Card, CardGrid, Tabs, TabItem } from "@astrojs/starlight/components";
 
 ## ตัวอย่างโค้ดหลายภาษา (Polyglot)
 
@@ -35,12 +35,13 @@ export class UserService {
     return db.users.findById(id);
   }
 
-  @EmitOnSuccess({ topic: 'user.created' })
-  async createUser(payload: CreateUserDTO) {
-    return db.users.create(payload);
-  }
+@EmitOnSuccess({ topic: 'user.created' })
+async createUser(payload: CreateUserDTO) {
+return db.users.create(payload);
 }
-```
+}
+
+````
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
@@ -55,21 +56,23 @@ class UserService:
     @emit_on_success(topic="user.created")
     async def create_user(self, payload: CreateUserDTO):
         return await db.users.create(payload)
-```
+````
+
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
 package main
 
-import "github.com/montionugera/node-server-decorator/v2/entity"
+import "github.com/montionugera/node-server-decorator/v2/entity";
 
 func main() {
-    spec := entity.Build("User",
-        entity.Field("id", entity.TypeInt, entity.Id()),
-        entity.Field("email", entity.TypeString, entity.Format("email")),
-    )
+spec := entity.Build("User",
+entity.Field("id", entity.TypeInt, entity.Id()),
+entity.Field("email", entity.TypeString, entity.Format("email")),
+)
 }
-```
+
+````
   </TabItem>
   <TabItem label="Nim" icon="seti:nim">
 ```nim
@@ -79,6 +82,21 @@ restful User:
   id: Id[int]
   email: str {.format: "email".}
   name: str
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_entity::{EntitySpecBuilder, Field};
+
+let spec = EntitySpecBuilder::new("User", "users")
+.field(Field::integer("id").id().readonly())
+.field(Field::string("email").format("email"))
+.field(Field::string("name").min(1).max(100))
+.build()
+.expect("Valid EntitySpec");
+// สร้าง EntitySpec IR และ OpenAPI 3.1 ที่ตรงกันในระดับไบต์
+
 ```
   </TabItem>
 </Tabs>
@@ -92,7 +110,7 @@ restful User:
     กำหนดโครงสร้างและข้อตกลงที่แน่นอนผ่าน JSON Schema ใน `contracts/` ทำให้ทุกภาษามีพฤติกรรมสอดคล้องกัน 100%
   </Card>
   <Card title="ความถูกต้องระดับ Byte-Identical" icon="approve-check-circle">
-    EntitySpec IR และเอกสาร OpenAPI 3.1 ที่สร้างจาก Node, Python, Go และ Nim จะเหมือนกันทุกไบต์
+    EntitySpec IR และเอกสาร OpenAPI 3.1 ที่สร้างจาก Node, Python, Go, Nim และ Rust จะเหมือนกันทุกไบต์
   </Card>
   <Card title="ปลอดภัยสำหรับ Multi-Replica" icon="random">
     อัลกอริทึมการแฮช Cache Key แบบ Canonical ป้องกันปัญหาข้อมูลแคชคลาดเคลื่อนข้ามระบบ
@@ -101,3 +119,4 @@ restful User:
     ทุกแพ็กเกจในทุกภาษาจะปล่อยเวอร์ชันเดียวกันพร้อมกันเสมอ ลดปัญหาความไม่เข้ากันของเวอร์ชัน
   </Card>
 </CardGrid>
+```

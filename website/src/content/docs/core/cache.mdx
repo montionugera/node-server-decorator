@@ -3,7 +3,7 @@ title: Caching (@cache)
 description: Canonical caching semantics, TTL, cache miss sentinels, and key hashing.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Caching (@cache)
 
@@ -38,10 +38,11 @@ export class OrderService {
 from server_decorator import cache
 
 class OrderService:
-    @cache(ttl=120)
-    async def get_order_by_id(self, order_id: str):
-        return await db.orders.find(order_id)
-```
+@cache(ttl=120)
+async def get_order_by_id(self, order_id: str):
+return await db.orders.find(order_id)
+
+````
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -59,7 +60,22 @@ getOrder := core.Cache[string, *Order](
         return db.FindOrder(ctx, orderID)
     },
 )
-```
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_core::{compute_cache_key, MemoryCacheAdapter, CacheAdapter};
+use serde_json::json;
+use std::time::Duration;
+
+let cache = MemoryCacheAdapter::new();
+let key = compute_cache_key("OrderService.GetOrderById", &[json!("order-123")]);
+
+cache.set(&key, &json!({"id": "order-123"}), Duration::from_secs(120)).await.unwrap();
+let value = cache.get(&key).await.unwrap();
+
+````
   </TabItem>
 </Tabs>
 
@@ -82,4 +98,4 @@ if (value === CACHE_MISS) {
 } else {
   // Key exists; value may legitimately be null, false, 0, etc.
 }
-```
+````

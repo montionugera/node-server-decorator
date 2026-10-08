@@ -3,7 +3,7 @@ title: Tracking (@tracking)
 description: Execution tracing, context injection, and tracking keys.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Tracking (@tracking)
 
@@ -30,9 +30,22 @@ export class PaymentProcessor {
 from server_decorator import tracking
 
 class PaymentProcessor:
-    @tracking(key="payment.charge")
-    async def process_payment(self, amount: int, currency: str):
-        return await stripe.charges.create(amount=amount, currency=currency)
-```
+@tracking(key="payment.charge")
+async def process_payment(self, amount: int, currency: str):
+return await stripe.charges.create(amount=amount, currency=currency)
+
+````
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_core::TraceContext;
+
+// Parse incoming W3C traceparent header or propagate downstream
+if let Some(trace) = TraceContext::parse(&traceparent_header) {
+    println!("Trace ID: {}, Parent ID: {}", trace.trace_id, trace.parent_id);
+    let outgoing_header = trace.to_header();
+}
+````
+
   </TabItem>
 </Tabs>

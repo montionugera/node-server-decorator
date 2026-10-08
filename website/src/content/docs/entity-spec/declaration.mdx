@@ -3,7 +3,7 @@ title: Declaring Entities
 description: How to declare REST entities with fields and custom actions across languages.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Declaring Entities
 
@@ -15,21 +15,21 @@ Each supported language provides native, idiomatic syntax to declare entities th
 import { Restful, action, id, str, bool, list, obj, entitySpec } from '@montionugera/entity-spec';
 
 class Address {
-  @str({ min: 1 }) street!: string;
-  @str({ min: 1 }) city!: string;
+@str({ min: 1 }) street!: string;
+@str({ min: 1 }) city!: string;
 }
 
 @Restful({ name: 'User', plural: 'users' })
 export class User {
-  @id() id!: number;
-  @str({ format: 'email' }) email!: string;
-  @str({ min: 1, max: 100 }) name!: string;
-  @bool({ default: true }) active!: boolean;
-  @list(str()) tags!: string[];
-  @obj(Address) address!: Address;
+@id() id!: number;
+@str({ format: 'email' }) email!: string;
+@str({ min: 1, max: 100 }) name!: string;
+@bool({ default: true }) active!: boolean;
+@list(str()) tags!: string[];
+@obj(Address) address!: Address;
 
-  @action({ method: 'POST', path: 'reset-password' })
-  resetPassword() {}
+@action({ method: 'POST', path: 'reset-password' })
+resetPassword() {}
 }
 
 export const userSpec = entitySpec(User);
@@ -40,24 +40,25 @@ export const userSpec = entitySpec(User);
 from server_decorator_entity import restful, action, Id, str_field, bool_field, list_field, obj_field, entity_spec
 
 class Address:
-    street: str = str_field(min_len=1)
-    city: str = str_field(min_len=1)
+street: str = str_field(min_len=1)
+city: str = str_field(min_len=1)
 
 @restful(name="User", plural="users")
 class User:
-    id: Id[int]
-    email: str = str_field(format="email")
-    name: str = str_field(min_len=1, max_len=100)
-    active: bool = bool_field(default=True)
-    tags: list[str] = list_field(str_field())
-    address: Address = obj_field(Address)
+id: Id[int]
+email: str = str_field(format="email")
+name: str = str_field(min_len=1, max_len=100)
+active: bool = bool_field(default=True)
+tags: list[str] = list_field(str_field())
+address: Address = obj_field(Address)
 
     @action(method="POST", path="reset-password")
     def reset_password(self):
         pass
 
 user_spec = entity_spec(User)
-```
+
+````
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -75,25 +76,47 @@ func NewUserSpec() entity.EntitySpec {
         entity.Action("reset-password", "POST"),
     )
 }
-```
+````
+
   </TabItem>
   <TabItem label="Nim" icon="seti:nim">
 ```nim
 import server_decorator
 
 restful Address:
-  street: str {.min: 1.}
-  city: str {.min: 1.}
+street: str {.min: 1.}
+city: str {.min: 1.}
 
 restful User:
-  id: Id[int]
-  email: str {.format: "email".}
-  name: str {.min: 1, max: 100.}
-  active: bool = true
-  tags: seq[str]
-  address: Address
+id: Id[int]
+email: str {.format: "email".}
+name: str {.min: 1, max: 100.}
+active: bool = true
+tags: seq[str]
+address: Address
 
-  action "reset-password", "POST"
-```
+action "reset-password", "POST"
+
+````
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_entity::{EntitySpecBuilder, Field, Action, Operation};
+
+let user_spec = EntitySpecBuilder::new("User", "users")
+    .field(Field::integer("id").id().readonly())
+    .field(Field::string("email").format("email"))
+    .field(Field::string("name").min(1).max(100))
+    .field(Field::boolean("active").default_value(true))
+    .field(Field::list("tags", Field::string("tags")))
+    .field(Field::object("address", vec![
+        Field::string("street").min(1),
+        Field::string("city").min(1),
+    ]))
+    .action(Action::new("reset-password").operation(Operation::Create))
+    .build()
+    .expect("Valid EntitySpec");
+````
+
   </TabItem>
 </Tabs>

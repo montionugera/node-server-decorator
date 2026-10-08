@@ -10,6 +10,7 @@ The **EntitySpec IR** is a language-neutral, canonical Intermediate Representati
 ## Why an Intermediate Representation?
 
 In polyglot architectures, defining models in one language (like TypeScript DTOs) and manually synchronizing them to another (like Python Pydantic or Go structs) leads to drift:
+
 - Field types diverge (e.g. naive string vs RFC 3339 datetime).
 - Validation constraints (min, max, pattern) disagree.
 - Hidden fields (`readonly`, `writeonly`) leak unexpectedly into API responses or create payloads.
@@ -17,7 +18,7 @@ In polyglot architectures, defining models in one language (like TypeScript DTOs
 The EntitySpec IR layer decouples **declaration** from **code generation**:
 
 ```
-Declaration (TS / Python / Go / Nim)
+Declaration (TS / Python / Go / Nim / Rust)
                   │
                   ▼
          EntitySpec IR (JSON)
@@ -26,15 +27,17 @@ Declaration (TS / Python / Go / Nim)
        ┌──────────┴──────────┐
        ▼                     ▼
 DTO Validators        OpenAPI 3.1 Specs
-(Zod / Pydantic)      (Routes, Schemas, Errors)
+(Zod / Pydantic / DTO)(Routes, Schemas, Errors)
 ```
 
-## The Four EntitySpec Producers
+## The Five EntitySpec Producers
 
-All four language packages produce the exact same JSON IR:
+All five language packages produce the exact same JSON IR:
+
 - **Node/TypeScript**: `@montionugera/entity-spec` (`@Restful`, `@action`, field markers)
 - **Python**: `server-decorator-entity` (`@restful`, `@action`, field markers)
 - **Go**: `go/entity` (`entity.Build(...)`)
 - **Nim**: `server_decorator` (`restful` block macro)
+- **Rust**: `server-decorator-entity` (`EntitySpecBuilder`, `Field`, `Action`)
 
-Parity is enforced across all 4 implementations by `scripts/check-entity-parity.sh`.
+Parity is enforced across all 5 implementations by `scripts/check-entity-parity.sh`.

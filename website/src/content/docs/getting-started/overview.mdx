@@ -3,13 +3,14 @@ title: Overview & Architecture
 description: Learn about the architecture and design of server-decorator.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Overview of server-decorator
 
 **server-decorator** is a high-rigor **polyglot microservices foundation** that solves a critical problem in modern distributed systems: **ensuring runtime behavioral symmetry across multiple programming languages**.
 
 Many modern engineering teams run heterogeneous stacks — for instance, a TypeScript web gateway communicating with Python machine learning or background workers, or Go and Nim high-performance services. When individual language teams implement decorators for caching, event tracking, or queue emission independently, slight behavioral divergences inevitably emerge:
+
 - Incompatible cache keys causing cache misses or collisions.
 - Divergent message envelope structures breaking queue consumers.
 - Subtle JSON schema drift between validation layers (e.g. Zod vs Pydantic).
@@ -22,13 +23,13 @@ Many modern engineering teams run heterogeneous stacks — for instance, a TypeS
 
 The repository maintains implementations across five languages:
 
-| Language | Directory | Package / Module | Capabilities |
-| :--- | :--- | :--- | :--- |
-| **Node / TypeScript** | `node/` | `@montionugera/server-decorator`<br/>`@montionugera/entity-spec`<br/>`@montionugera/entity-spec-gen-zod`<br/>`@montionugera/entity-spec-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Zod DTO generator, OpenAPI 3.1 generator |
-| **Python** | `python/` | `server-decorator`<br/>`server-decorator-entity`<br/>`server-decorator-gen-pydantic`<br/>`server-decorator-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Pydantic v2 DTO generator, OpenAPI 3.1 generator |
-| **Go** | `go/` | `github.com/montionugera/node-server-decorator/v2` | EntitySpec IR producer (`go/entity`), OpenAPI 3.1 generator (`go/openapi`), DTO validation engine (`go/dto`), Core Cache/Emit wrappers (`go/core`), HTTP REST router & Problem Details (`go/http`) |
-| **Nim** | `nim/` | `server_decorator` (Nimble) | EntitySpec IR producer (macro DSL), OpenAPI 3.1 generator (`gen_openapi`) |
-| **Rust** | `rust/` | `server-decorator-entity`<br/>`server-decorator-openapi`<br/>`server-decorator-dto`<br/>`server-decorator-core`<br/>`server-decorator-axum` | EntitySpec IR producer & builder, OpenAPI 3.1 generator, DTO validation engine, Resiliency core (Cache, Retry, CircuitBreaker, RateLimit, BatchLoader), Axum REST router & Problem Details |
+| Language              | Directory | Package / Module                                                                                                                                     | Capabilities                                                                                                                                                                                       |
+| :-------------------- | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Node / TypeScript** | `node/`   | `@montionugera/server-decorator`<br/>`@montionugera/entity-spec`<br/>`@montionugera/entity-spec-gen-zod`<br/>`@montionugera/entity-spec-gen-openapi` | Caching, Tracking, Queue Emission, EntitySpec IR producer, Zod DTO generator, OpenAPI 3.1 generator                                                                                                |
+| **Python**            | `python/` | `server-decorator`<br/>`server-decorator-entity`<br/>`server-decorator-gen-pydantic`<br/>`server-decorator-gen-openapi`                              | Caching, Tracking, Queue Emission, EntitySpec IR producer, Pydantic v2 DTO generator, OpenAPI 3.1 generator                                                                                        |
+| **Go**                | `go/`     | `github.com/montionugera/node-server-decorator/v2`                                                                                                   | EntitySpec IR producer (`go/entity`), OpenAPI 3.1 generator (`go/openapi`), DTO validation engine (`go/dto`), Core Cache/Emit wrappers (`go/core`), HTTP REST router & Problem Details (`go/http`) |
+| **Nim**               | `nim/`    | `server_decorator` (Nimble)                                                                                                                          | EntitySpec IR producer (macro DSL), OpenAPI 3.1 generator (`gen_openapi`)                                                                                                                          |
+| **Rust**              | `rust/`   | `server-decorator-entity`<br/>`server-decorator-openapi`<br/>`server-decorator-dto`<br/>`server-decorator-core`<br/>`server-decorator-axum`          | EntitySpec IR producer & builder, OpenAPI 3.1 generator, DTO validation engine, Resiliency core (Cache, Retry, CircuitBreaker, RateLimit, BatchLoader), Axum REST router & Problem Details         |
 
 ---
 
@@ -65,6 +66,7 @@ Layer 4: Verification & Interop Gates
 ## The Parity Guarantee
 
 In this repository, "parity" is not an aspiration; it is an automated CI gate:
+
 1. **EntitySpec Parity**: Emitting the IR for a given entity in TypeScript, Python, Go, Nim, or Rust produces **100% byte-identical JSON**.
 2. **OpenAPI Parity**: Emitting an OpenAPI 3.1 specification for a given entity in TypeScript, Python, Nim, or Rust produces **100% byte-identical JSON**.
 3. **DTO Parity**: All DTO generators and validation engines validate against the identical fixture cases in `contracts/fixtures/entity-spec.cases.json`.

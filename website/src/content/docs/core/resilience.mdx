@@ -1,13 +1,13 @@
 ---
 title: Resilience Suite (@retry, @circuit_breaker, @rate_limit)
-description: Declarative fault tolerance across Go, Node/TypeScript, and Python with exponential backoff retries, 3-state circuit breaking, and token bucket rate limiting.
+description: Declarative fault tolerance across Go, Node/TypeScript, Python, and Rust with exponential backoff retries, 3-state circuit breaking, and token bucket rate limiting.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Resilience Suite
 
-`server-decorator` includes a unified resilience suite across Go, Node/TypeScript, and Python to safeguard microservices against network volatility, cascading failures, and resource exhaustion.
+`server-decorator` includes a unified resilience suite across Go, Node/TypeScript, Python, and Rust to safeguard microservices against network volatility, cascading failures, and resource exhaustion.
 
 ---
 
@@ -42,16 +42,17 @@ export class PaymentClient {
 from server_decorator import retry, retry_class
 
 class PaymentClient:
-    @retry(
-        max_attempts=3,
-        backoff_ms=100.0,
-        max_backoff_ms=2000.0,
-        factor=2.0,
-        jitter=True,
-    )
-    async def process_payment(self, order_id: str) -> dict:
-        return await api.post(f"/orders/{order_id}/pay")
-```
+@retry(
+max_attempts=3,
+backoff_ms=100.0,
+max_backoff_ms=2000.0,
+factor=2.0,
+jitter=True,
+)
+async def process_payment(self, order_id: str) -> dict:
+return await api.post(f"/orders/{order_id}/pay")
+
+````
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -72,7 +73,27 @@ retryOpts := core.RetryOptions{
 processPayment := core.Retry(retryOpts, func(ctx context.Context, orderID string) (Receipt, error) {
     return client.Pay(ctx, orderID)
 })
-```
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_core::{Retry, RetryConfig};
+use std::time::Duration;
+
+let retry = Retry::new(RetryConfig {
+max_attempts: 3,
+backoff: Duration::from_millis(100),
+max_backoff: Duration::from_secs(2),
+factor: 2.0,
+jitter: true,
+});
+
+let receipt = retry.execute(|| async {
+client.pay(&order_id).await
+}).await?;
+
+````
   </TabItem>
 </Tabs>
 
@@ -103,22 +124,24 @@ export class InventoryService {
     return upstreamInventory.query(sku);
   }
 }
-```
+````
+
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
 from server_decorator import circuit_breaker, CircuitBreakerOpenError
 
 class InventoryService:
-    @circuit_breaker(
-        name="inventory-svc",
-        failure_threshold=5,
-        recovery_timeout_ms=5000.0,
-        fallback=lambda err, *args: {"cached": True, "available": False},
-    )
-    async def check_stock(self, sku: str) -> dict:
-        return await upstream_inventory.query(sku)
-```
+@circuit_breaker(
+name="inventory-svc",
+failure_threshold=5,
+recovery_timeout_ms=5000.0,
+fallback=lambda err, \*args: {"cached": True, "available": False},
+)
+async def check_stock(self, sku: str) -> dict:
+return await upstream_inventory.query(sku)
+
+````
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -137,7 +160,25 @@ cb := core.NewCircuitBreaker(core.CircuitBreakerOptions{
 checkStock := core.CircuitBreakerWrapper(cb, nil, func(ctx context.Context, sku string) (StockInfo, error) {
     return upstream.Check(ctx, sku)
 })
-```
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_core::{CircuitBreaker, CircuitBreakerConfig};
+use std::time::Duration;
+
+let cb = CircuitBreaker::new(CircuitBreakerConfig {
+failure_threshold: 5,
+reset_timeout: Duration::from_secs(5),
+success_threshold: 2,
+});
+
+let stock = cb.call(|| async {
+upstream_inventory.query(&sku).await
+}).await;
+
+````
   </TabItem>
 </Tabs>
 
@@ -164,21 +205,23 @@ export class ApiGateway {
     return searchEngine.query(query);
   }
 }
-```
+````
+
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
 from server_decorator import rate_limit
 
 class ApiGateway:
-    @rate_limit(
-        capacity=20.0,
-        refill_rate=10.0,
-        key_extractor=lambda user_id, query: str(user_id),
-    )
-    async def search(self, user_id: str, query: str) -> list:
-        return await search_engine.query(query)
-```
+@rate_limit(
+capacity=20.0,
+refill_rate=10.0,
+key_extractor=lambda user_id, query: str(user_id),
+)
+async def search(self, user_id: str, query: str) -> list:
+return await search_engine.query(query)
+
+````
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -192,6 +235,23 @@ limiter := core.NewTokenBucketLimiter(20.0, 10.0)
 search := core.RateLimit(limiter, func(ctx context.Context, query string) (Result, error) {
     return searchEngine.Query(ctx, query)
 })
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_core::RateLimiter;
+
+// Token-bucket rate limiter: 20 capacity, 10 tokens/sec
+let limiter = RateLimiter::new(20, 10.0);
+
+if limiter.acquire(1).await {
+let result = search_engine.query(&query).await;
+} else {
+// 429 Too Many Requests
+}
+
 ```
   </TabItem>
 </Tabs>
+```

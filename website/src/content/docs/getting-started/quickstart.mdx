@@ -3,7 +3,7 @@ title: Quickstart
 description: Get up and running with server-decorator across languages in minutes.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Quickstart
 
@@ -22,13 +22,14 @@ import { cache, InMemoryCacheAdapter, setGlobalCacheAdapter } from '@montionuger
 setGlobalCacheAdapter(new InMemoryCacheAdapter());
 
 class ProductCatalog {
-  @cache({ ttl: 300 })
-  async getProduct(productId: string) {
-    console.log('Fetching from database...');
-    return { id: productId, name: 'Sample Item', price: 99.99 };
-  }
+@cache({ ttl: 300 })
+async getProduct(productId: string) {
+console.log('Fetching from database...');
+return { id: productId, name: 'Sample Item', price: 99.99 };
 }
-```
+}
+
+````
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
@@ -42,7 +43,8 @@ class ProductCatalog:
     async def get_product(self, product_id: str):
         print("Fetching from database...")
         return {"id": product_id, "name": "Sample Item", "price": 99.99}
-```
+````
+
   </TabItem>
 </Tabs>
 
@@ -58,13 +60,14 @@ Decorate methods with `@EmitOnSuccess` / `@emit_on_success`. If the method compl
 import { EmitOnSuccess } from '@montionugera/server-decorator';
 
 class OrderService {
-  @EmitOnSuccess({ topic: 'orders.placed' })
-  async placeOrder(orderData: CreateOrderDTO) {
-    const order = await db.orders.create(orderData);
-    return { orderId: order.id, status: 'confirmed' };
-  }
+@EmitOnSuccess({ topic: 'orders.placed' })
+async placeOrder(orderData: CreateOrderDTO) {
+const order = await db.orders.create(orderData);
+return { orderId: order.id, status: 'confirmed' };
 }
-```
+}
+
+````
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
@@ -75,7 +78,8 @@ class OrderService:
     async def place_order(self, order_data: dict):
         order = await db.orders.create(order_data)
         return {"orderId": order["id"], "status": "confirmed"}
-```
+````
+
   </TabItem>
 </Tabs>
 
@@ -94,15 +98,16 @@ import { openapiDocument } from '@montionugera/entity-spec-gen-openapi';
 
 @Restful({ name: 'User', plural: 'users' })
 export class User {
-  @id() id!: number;
-  @str({ format: 'email' }) email!: string;
-  @str({ min: 1, max: 100 }) name!: string;
+@id() id!: number;
+@str({ format: 'email' }) email!: string;
+@str({ min: 1, max: 100 }) name!: string;
 }
 
 const spec = entitySpec(User);
 const CreateUserSchema = createSchema(spec);
 const openapi = openapiDocument([spec], { title: 'User API', version: '1.0.0' });
-```
+
+````
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
@@ -119,7 +124,8 @@ class User:
 spec = entity_spec(User)
 CreateUserModel = create_model_for(spec, "create")
 openapi = openapi_document([spec], title="User API", version="1.0.0")
-```
+````
+
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -131,18 +137,20 @@ import (
 )
 
 func main() {
-    spec := e.New("User", "users").
-        Fields(
-            e.Str("id", e.ID, e.Readonly),
-            e.Str("email", e.Format("email")),
-            e.Str("name", e.Min(1), e.Max(100)),
-        ).
-        Build()
+spec := e.New("User", "users").
+Fields(
+e.Str("id", e.ID, e.Readonly),
+e.Str("email", e.Format("email")),
+e.Str("name", e.Min(1), e.Max(100)),
+).
+Build()
 
     jsonBytes, _ := e.MarshalCanonical(spec)
     fmt.Println(string(jsonBytes))
+
 }
-```
+
+````
   </TabItem>
   <TabItem label="Nim" icon="seti:nim">
 ```nim
@@ -156,6 +164,26 @@ restful User:
 let spec = entitySpec(User)
 let openapi = openapiDocument(@[spec], "User API", "1.0.0")
 echo $openapi
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_entity::{EntitySpecBuilder, Field};
+use server_decorator_openapi::generate_openapi;
+
+let spec = EntitySpecBuilder::new("User", "users")
+.field(Field::integer("id").id().readonly())
+.field(Field::string("email").format("email"))
+.field(Field::string("name").min(1).max(100))
+.build()
+.expect("Valid EntitySpec");
+
+let openapi = generate_openapi(&[spec], "1.0.0")
+.expect("OpenAPI 3.1 generation");
+println!("{openapi}");
+
 ```
   </TabItem>
 </Tabs>
+```

@@ -10,22 +10,28 @@ To maintain rock-solid guarantees across our polyglot codebase, all contributors
 ## Core Rules for Contributors
 
 ### 1. Contract-First Rule
+
 Any change that alters wire behavior, message payloads, cache keys, or EntitySpec IR **must originate in `contracts/`**:
+
 - Update the relevant JSON schema in `contracts/schemas/` or rule in `contracts/rules/`.
 - Bump `contracts/VERSION` and update `contracts/CHANGELOG.md`.
 - Ensure golden fixtures in `contracts/fixtures/` reflect the new contract.
 
 ### 2. Lockstep Parity Rule
+
 Features implemented in one language lane must have verified parity with other active lanes:
-- EntitySpec IR changes must maintain 100% byte-identical output across Node, Python, Go, and Nim (`bash scripts/check-entity-parity.sh`).
-- OpenAPI changes must maintain 100% byte-identical output across Node, Python, and Nim (`bash scripts/check-openapi-parity.sh`).
-- DTO generator changes must validate against `contracts/fixtures/entity-spec.cases.json` in both Node and Python.
+
+- EntitySpec IR changes must maintain 100% byte-identical output across Node, Python, Go, Nim, and Rust (`bash scripts/check-entity-parity.sh`).
+- OpenAPI changes must maintain 100% byte-identical output across Node, Python, Nim, and Rust (`bash scripts/check-openapi-parity.sh`).
+- DTO generator changes must validate against `contracts/fixtures/entity-spec.cases.json` in Node, Python, and Rust.
 
 ### 3. Documentation Mandate
+
 - Any new decorator, adapter, or configuration option **must be documented in both package READMEs and this documentation website**.
 - Code examples must include snippets for **all supported languages** using synced tabs (`<Tabs syncKey="lang">`).
 
 ### 4. Verification Before Submitting
+
 Before opening a pull request, run the contributor verification script:
 
 ```bash
@@ -33,8 +39,9 @@ bash scripts/contributor-check.sh
 ```
 
 This script verifies:
+
 1. Version synchronization across all packages (`scripts/check-versions.sh`).
 2. EntitySpec IR parity (`scripts/check-entity-parity.sh`).
 3. OpenAPI parity (`scripts/check-openapi-parity.sh`).
-4. Unit tests across Node, Python, Go, and Nim.
+4. Unit tests across Node, Python, Go, Nim, and Rust.
 5. Documentation build sanity (`pnpm --filter website build`).

@@ -3,7 +3,7 @@ title: Real-Time SSE Streaming
 description: Server-Sent Events (SSE) streaming transport with reconnection replay and keep-alive heartbeats.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Real-Time SSE Streaming
 
@@ -17,12 +17,14 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
   - `Connection: keep-alive`
   - `X-Accel-Buffering: no` (disables reverse-proxy buffering in Nginx, Envoy, and cloud ingress)
 - **Frame Format**:
+
   ```text
   id: <event-id>
   event: <event-name>
   data: {"symbol":"BTC/USDT","price":65000.5}
 
   ```
+
 - **Keep-Alive Heartbeat**: Comment line `: ping\n\n` emitted periodically to prevent connection timeouts.
 
 ---
@@ -38,38 +40,41 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/montionugera/node-server-decorator/v2/go/sse"
+    "github.com/montionugera/node-server-decorator/v2/go/sse"
+
 )
 
 type MarketTick struct {
-	Symbol string  `json:"symbol"`
-	Price  float64 `json:"price"`
+Symbol string `json:"symbol"`
+Price float64 `json:"price"`
 }
 
 func main() {
-	// Broadcaster with 15s keep-alive heartbeat and 500-event ring buffer for reconnect replay
-	broadcaster := sse.NewBroadcaster[MarketTick](
-		sse.WithHeartbeat(15 * time.Second),
-		sse.WithHistoryLimit(500),
-	)
-	defer broadcaster.Close()
+// Broadcaster with 15s keep-alive heartbeat and 500-event ring buffer for reconnect replay
+broadcaster := sse.NewBroadcaster[MarketTick](
+sse.WithHeartbeat(15 \* time.Second),
+sse.WithHistoryLimit(500),
+)
+defer broadcaster.Close()
 
-	// Mount SSE endpoint on standard Go 1.22+ ServeMux
-	mux := http.NewServeMux()
-	mux.Handle("GET /market/ticks/stream", broadcaster)
+    // Mount SSE endpoint on standard Go 1.22+ ServeMux
+    mux := http.NewServeMux()
+    mux.Handle("GET /market/ticks/stream", broadcaster)
 
-	// Publish real-time events to all connected clients
-	go func() {
-		broadcaster.Broadcast(sse.Event[MarketTick]{
-			ID:    "tick-1001",
-			Event: "tick",
-			Data:  MarketTick{Symbol: "BTC/USDT", Price: 65432.10},
-		})
-	}()
+    // Publish real-time events to all connected clients
+    go func() {
+    	broadcaster.Broadcast(sse.Event[MarketTick]{
+    		ID:    "tick-1001",
+    		Event: "tick",
+    		Data:  MarketTick{Symbol: "BTC/USDT", Price: 65432.10},
+    	})
+    }()
 
-	http.ListenAndServe(":8080", mux)
+    http.ListenAndServe(":8080", mux)
+
 }
-```
+
+````
   </TabItem>
   <TabItem label="TypeScript / Node" icon="seti:typescript">
 ```typescript
@@ -103,7 +108,8 @@ broadcaster.broadcast({
 });
 
 server.listen(8080);
-```
+````
+
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
@@ -113,30 +119,33 @@ from starlette.responses import StreamingResponse
 from starlette.routing import Route
 
 broadcaster = AsyncSSEBroadcaster[dict](
-    heartbeat_seconds=15.0,
-    history_limit=500,
+heartbeat_seconds=15.0,
+history_limit=500,
 )
 
 async def stream_endpoint(request):
-    last_event_id = request.headers.get("last-event-id")
-    return StreamingResponse(
-        broadcaster.subscribe(last_event_id=last_event_id),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+last_event_id = request.headers.get("last-event-id")
+return StreamingResponse(
+broadcaster.subscribe(last_event_id=last_event_id),
+media_type="text/event-stream",
+headers={
+"Cache-Control": "no-cache, no-transform",
+"Connection": "keep-alive",
+"X-Accel-Buffering": "no",
+},
+)
 
 app = Starlette(routes=[Route("/market/ticks/stream", stream_endpoint)])
 
 # Broadcast ticks asynchronously
+
 await broadcaster.broadcast(SSEEvent(
-    id="tick-1001",
-    event="tick",
-    data={"symbol": "BTC/USDT", "price": 65432.10},
+id="tick-1001",
+event="tick",
+data={"symbol": "BTC/USDT", "price": 65432.10},
 ))
+
 ```
   </TabItem>
 </Tabs>
+```

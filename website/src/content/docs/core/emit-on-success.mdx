@@ -3,7 +3,7 @@ title: Queue Emission (@EmitOnSuccess)
 description: Declarative message queue publishing with transactional reliability.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # Queue Emission (@EmitOnSuccess)
 
@@ -34,14 +34,15 @@ export class OrderService {
 from server_decorator import emit_on_success
 
 class OrderService:
-    @emit_on_success(
-        topic="orders.completed",
-        queue="orders",
-    )
-    async def complete_order(self, order_id: str):
-        order = await db.orders.mark_complete(order_id)
-        return {"orderId": order["id"], "customerId": order["customerId"]}
-```
+@emit_on_success(
+topic="orders.completed",
+queue="orders",
+)
+async def complete_order(self, order_id: str):
+order = await db.orders.mark_complete(order_id)
+return {"orderId": order["id"], "customerId": order["customerId"]}
+
+````
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -61,7 +62,24 @@ completeOrder := core.EmitOnSuccess[string, *OrderResult](
         return &OrderResult{OrderID: order.ID, CustomerID: order.CustomerID}, nil
     },
 )
-```
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_core::QueueMessage;
+use serde_json::json;
+
+// Construct wire-compliant message envelope
+let msg = QueueMessage::new(
+"orders.completed",
+json!({ "orderId": order_id, "customerId": customer_id }),
+);
+
+// Dispatched transparently on success to configured queue adapter
+queue_adapter.publish("orders", &msg).await?;
+
+````
   </TabItem>
 </Tabs>
 
@@ -84,4 +102,4 @@ Published messages adhere to the strict JSON Schema defined in `contracts/schema
     "source": "OrderService.completeOrder"
   }
 }
-```
+````

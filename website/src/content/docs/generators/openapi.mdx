@@ -1,9 +1,9 @@
 ---
 title: OpenAPI 3.1 Generation
-description: Generating byte-identical OpenAPI 3.1 documents in TypeScript, Python, and Nim.
+description: Generating byte-identical OpenAPI 3.1 documents in TypeScript, Python, Nim, and Rust.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from "@astrojs/starlight/components";
 
 # OpenAPI 3.1 Generation
 
@@ -11,7 +11,7 @@ The OpenAPI generators compile an EntitySpec IR into a complete OpenAPI 3.1 spec
 
 ## Features
 
-- **Byte-Identical Output**: Node (`@montionugera/entity-spec-gen-openapi`), Python (`server-decorator-gen-openapi`), and Nim (`server_decorator/gen_openapi`) produce 100% byte-identical documents.
+- **Byte-Identical Output**: Node (`@montionugera/entity-spec-gen-openapi`), Python (`server-decorator-gen-openapi`), Nim (`server_decorator/gen_openapi`), and Rust (`server-decorator-openapi`) produce 100% byte-identical documents.
 - **REST Endpoints**:
   - `GET /{plural}` (List collection)
   - `POST /{plural}` (Create entity)
@@ -32,13 +32,14 @@ import { openapiDocument } from '@montionugera/entity-spec-gen-openapi';
 import { userSpec } from './user.entity';
 
 const doc = openapiDocument([userSpec], {
-  title: 'User Microservice API',
-  version: '2.0.0',
+title: 'User Microservice API',
+version: '2.0.0',
 });
 
 // Outputs standard OpenAPI 3.1 JSON
 console.log(JSON.stringify(doc, null, 2));
-```
+
+````
   </TabItem>
   <TabItem label="Python" icon="seti:python">
 ```python
@@ -53,7 +54,8 @@ doc = openapi_document(
 )
 
 print(json.dumps(doc, indent=2))
-```
+````
+
   </TabItem>
   <TabItem label="Go" icon="seti:go">
 ```go
@@ -65,11 +67,12 @@ import (
 
 docBytes, err := openapi.Generate([]entity.Spec{userSpec}, "1.2.0")
 if err != nil {
-    panic(err)
+panic(err)
 }
 
 fmt.Println(string(docBytes))
-```
+
+````
   </TabItem>
   <TabItem label="Nim" icon="seti:nim">
 ```nim
@@ -83,6 +86,19 @@ let doc = openapiDocument(
 )
 
 echo doc.pretty()
+````
+
+  </TabItem>
+  <TabItem label="Rust" icon="seti:rust">
+```rust
+use server_decorator_openapi::generate_openapi;
+
+let doc_json = generate_openapi(&[user_spec], "2.0.0")
+.expect("OpenAPI 3.1 generation");
+
+println!("{doc_json}");
+
 ```
   </TabItem>
 </Tabs>
+```
