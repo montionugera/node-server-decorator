@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Adopt release notes, GitHub Release with docs archive, and portal signal in the publish pipeline</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --surface: #10141b;
+      --surface-2: #161b24;
+      --surface-3: #1b212c;
+      --border: #2a3340;
+      --border-soft: #1c232e;
+      --ink: #d6dde7;
+      --ink-bright: #f6f8fb;
+      --ink-dim: #8392a3;
+      --accent: #4ee39b;
+      --accent-dim: #2f8f63;
+      --amber: #ffc746;
+      --amber-dim: #a37a1a;
+      --blue: #74b0ff;
+      --blue-dim: #3a5d8a;
+      --red: #ff6b6b;
+      --red-dim: #a14242;
+      --purple: #b288ff;
+      --purple-dim: #7a4dc5;
+      --teal: #4ed2c8;
+      --teal-dim: #347e7a;
+      --serif-display: "Fraunces", Georgia, serif;
+      --serif-body: "Spectral", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--serif-body);
+      font-size: 19.5px;
+      line-height: 1.66;
+      color: var(--ink);
+      background: var(--bg);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 64px 30px 160px;
+      counter-reset: sec;
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) both;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(78,227,155,.10), transparent 62%),
+        radial-gradient(720px 520px at -4% 110%, rgba(255,199,70,.055), transparent 60%),
+        linear-gradient(rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 100% 30px,
+        linear-gradient(90deg, rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 30px 100%;
+    }
+
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- headings ---------- */
+    h1, h2, h3, h4 { font-family: var(--serif-display); color: var(--ink-bright); line-height: 1.16; letter-spacing: -.012em; font-weight: 600; }
+    h1 {
+      font-size: 3.2rem; font-weight: 700; margin: 0 0 .25em; letter-spacing: -.028em;
+      background: linear-gradient(180deg, #ffffff, #afb9c5);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      counter-increment: sec;
+      font-size: 2rem; margin: 2.8em 0 .7em; padding-top: .65em;
+      border-top: 1px solid var(--border-soft);
+      display: flex; align-items: baseline; gap: .55em; flex-wrap: wrap;
+      font-weight: 700;
+    }
+    h2::before {
+      content: "§" counter(sec, decimal-leading-zero);
+      font-family: var(--mono); font-size: .74rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .04em;
+      border: 1px solid var(--accent-dim); border-radius: 6px;
+      padding: .3em .55em; transform: translateY(-.22em);
+      background: rgba(78,227,155,.06);
+    }
+    h3 { font-size: 1.42rem; margin: 2.1em 0 .55em; color: var(--ink-bright); font-weight: 600; }
+    h3 code { font-size: .88em; }
+    h4 { font-size: 1.1rem; margin: 1.5em 0 .4em; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); font-weight: 600; }
+
+    p { margin: .95em 0; }
+    strong { color: var(--ink-bright); font-weight: 600; }
+    em { color: #d4dce6; }
+
+    mark {
+      background: linear-gradient(180deg, rgba(255,199,70,.0) 60%, rgba(255,199,70,.32) 60%);
+      color: var(--ink-bright); padding: 0 .2em; border-radius: 3px;
+    }
+
+    /* ---------- links ---------- */
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(78,227,155,.32); transition: border-color .15s, color .15s; }
+    a:hover { color: #8af0c2; border-bottom-color: var(--accent); }
+
+    /* ---------- inline code & code blocks ---------- */
+    code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: #e0ecf6; padding: .14em .45em; border-radius: 5px; border: 1px solid var(--border-soft); }
+    pre {
+      position: relative; font-size: .82rem; line-height: 1.62;
+      background: linear-gradient(180deg, #0e1219, #0a0d13);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 20px 20px 18px; margin: 1.4em 0; overflow-x: auto;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 44px -28px rgba(0,0,0,.9);
+    }
+    pre::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--accent), transparent); border-radius: 11px 0 0 11px; opacity: .6; }
+    pre code { background: none; border: none; padding: 0; color: #d3e4f3; font-size: 1em; }
+
+    kbd { font-family: var(--mono); font-size: .82em; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; padding: 2px 8px; border-radius: 6px; color: var(--ink-bright); box-shadow: 0 1px 0 var(--border-soft); }
+
+    /* ---------- tables ---------- */
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .87rem; font-family: var(--mono); }
+    th, td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--surface); color: var(--ink-bright); font-weight: 600; border-bottom: 2px solid var(--accent-dim); text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    tr:hover td { background: rgba(78,227,155,.04); }
+    td code { font-size: .94em; }
+    td strong { color: var(--amber); }
+
+    /* ---------- lists ---------- */
+    ul, ol { padding-left: 1.5em; margin: .9em 0; }
+    li { margin: .4em 0; }
+    li::marker { color: var(--accent-dim); font-weight: 600; }
+    ul ul, ol ol, ul ol, ol ul { margin: .3em 0; }
+
+    /* ---------- blockquote (used by pandoc) ---------- */
+    blockquote { border-left: 3px solid var(--accent-dim); margin: 1.2em 0; padding: .2em 0 .2em 18px; color: var(--ink-dim); font-style: italic; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.6em 0; }
+
+    /* ---------- masthead (h1 + first p) ---------- */
+    h1 + p { font-family: var(--mono); font-size: .82rem; color: var(--ink-dim); line-height: 2; letter-spacing: .02em; border-bottom: 1px solid var(--border-soft); padding-bottom: 1.2em; }
+    h1 + p strong { color: var(--amber); font-weight: 500; }
+
+    /* ---------- TOC ---------- */
+    #TOC {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px; margin: 1.8em 0 2.4em; font-family: var(--mono); font-size: .78rem;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; color: var(--accent); letter-spacing: .22em; font-size: .7rem; margin-bottom: .7em; font-weight: 600; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC > ul > li { margin: .22em 0; }
+    #TOC ul ul { padding-left: 1.1em; border-left: 1px solid var(--border-soft); margin: .25em 0 .5em; }
+    #TOC a { color: var(--ink); border: none; }
+    #TOC a:hover { color: var(--accent); }
+
+    @media (min-width: 1320px) {
+      #TOC {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 300px; margin: 0;
+        border-radius: 0; border: none; border-right: 1px solid var(--border);
+        padding: 64px 28px; overflow-y: auto;
+        background: linear-gradient(180deg, rgba(13,17,23,.92), rgba(8,10,14,.92));
+        backdrop-filter: blur(6px);
+      }
+      body { max-width: 1320px; padding-left: 360px; }
+    }
+
+    /* ============================================================
+       CALLOUTS — info / warn / success / danger / idea / metric
+       Use via:
+         ::: callout-warn
+         **Heading**
+         body text
+         :::
+       or raw <div class="callout warn"> ... </div>
+       ============================================================ */
+    /* Robust layout: icon is absolutely positioned and the content is padded.
+       (An earlier `display:grid` + `.callout > * { grid-column: 2 }` approach broke
+       when pandoc emitted loose prose as bare text nodes — those became anonymous
+       grid items that fell into the icon column and wrapped one word per line.
+       Absolute icon + padding flows ANY content structure correctly: loose text,
+       multiple inline elements, nested lists.) */
+    .callout {
+      position: relative;
+      margin: 1.7em 0;
+      padding: 18px 22px 16px 58px;
+      border-radius: 13px;
+      border: 1px solid var(--callout-border, var(--border));
+      border-left-width: 4px;
+      background: var(--callout-bg, var(--surface));
+    }
+    .callout::before {
+      content: var(--callout-icon, "·");
+      position: absolute;
+      left: 14px; top: 16px;
+      width: 30px; text-align: center;
+      font-size: 28px; line-height: 1.1;
+      color: var(--callout-accent, var(--accent));
+    }
+    .callout > * { min-width: 0; margin-top: 0; }
+    .callout > * + * { margin-top: .55em; }
+    .callout > p:first-child strong:first-child {
+      display: block;
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--callout-accent, var(--ink-bright));
+      letter-spacing: -.01em;
+      margin-bottom: .35em;
+    }
+    .callout p { line-height: 1.55; }
+    .callout code { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); }
+
+    .callout.info,    .callout-info    { --callout-border: var(--blue-dim);   --callout-bg: rgba(116,176,255,.08);   --callout-accent: var(--blue);   --callout-icon: "ℹ"; }
+    .callout.warn,    .callout-warn    { --callout-border: var(--amber-dim);  --callout-bg: rgba(255,199,70,.09);    --callout-accent: var(--amber);  --callout-icon: "⚠"; }
+    .callout.success, .callout-success { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.08);    --callout-accent: var(--accent); --callout-icon: "✓"; }
+    .callout.danger,  .callout-danger  { --callout-border: var(--red-dim);    --callout-bg: rgba(255,107,107,.09);   --callout-accent: var(--red);    --callout-icon: "✕"; }
+    .callout.idea,    .callout-idea    { --callout-border: var(--purple-dim); --callout-bg: rgba(178,136,255,.08);   --callout-accent: var(--purple); --callout-icon: "✦"; }
+    .callout.metric,  .callout-metric  { --callout-border: var(--teal-dim);   --callout-bg: rgba(78,210,200,.08);    --callout-accent: var(--teal);   --callout-icon: "Σ"; }
+    .callout.action,  .callout-action  { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.04);    --callout-accent: var(--accent); --callout-icon: "▸"; }
+
+    /* ============================================================
+       METRIC TILES — grid of big-number cards
+       Use via raw HTML:
+         <div class="metric-grid">
+           <div class="metric-tile alarm">
+             <div class="label">Pass all gates</div>
+             <div class="value">21%</div>
+             <div class="delta">39 / 187 results</div>
+           </div>
+         </div>
+       Variants: .alarm (red), .win (green), .info (blue), .warn (amber)
+       ============================================================ */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 1.5em 0;
+    }
+    .metric-tile {
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--tile-accent, var(--accent));
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-tile .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-tile .value {
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 2.55rem;
+      color: var(--tile-accent, var(--ink-bright));
+      line-height: 1;
+      letter-spacing: -.025em;
+    }
+    .metric-tile .delta {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--ink-dim);
+    }
+    .metric-tile.alarm { --tile-accent: var(--red); }
+    .metric-tile.win   { --tile-accent: var(--accent); }
+    .metric-tile.info  { --tile-accent: var(--blue); }
+    .metric-tile.warn  { --tile-accent: var(--amber); }
+    .metric-tile.teal  { --tile-accent: var(--teal); }
+    .metric-tile.dim .value { color: var(--ink-bright); }
+
+    /* ============================================================
+       TOPIC CHIP — colored pill that can appear next to H2 text
+       ============================================================ */
+    .topic-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .topic-chip.warn   { background: var(--amber); }
+    .topic-chip.danger { background: var(--red);   color: #fff; }
+    .topic-chip.info   { background: var(--blue);  color: var(--bg); }
+    .topic-chip.idea   { background: var(--purple); color: #fff; }
+    .topic-chip.teal   { background: var(--teal);  color: var(--bg); }
+
+    /* ============================================================
+       PULL QUOTE
+       ============================================================ */
+    .pullquote {
+      font-family: var(--serif-display);
+      font-size: 1.55rem;
+      font-weight: 500;
+      line-height: 1.38;
+      color: var(--ink-bright);
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 22px;
+      margin: 1.8em 0;
+      letter-spacing: -.012em;
+    }
+
+    /* ============================================================
+       SCHEMATIC — ASCII box-drawing diagrams, monospace canvas
+       Use via:
+         <div class="schematic">
+         ┌─────────┐    ┌─────────┐
+         │ Phase 0 │ ─→ │ Phase 1 │
+         └─────────┘    └─────────┘
+         </div>
+       ============================================================ */
+    .schematic {
+      font-family: var(--mono);
+      font-size: .86rem;
+      line-height: 1.4;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      margin: 1.6em 0;
+      color: #cfdcec;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .schematic::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--teal), transparent); border-radius: 12px 0 0 12px; opacity: .6; }
+
+    /* ============================================================
+       RAW SVG / inline diagrams
+       ============================================================ */
+    .diagram, svg.diagram, .figure {
+      display: block; margin: 1.6em auto; max-width: 100%;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 14px;
+    }
+    .figure-caption {
+      text-align: center; font-family: var(--mono); font-size: .76rem;
+      color: var(--ink-dim); margin-top: -.6em; margin-bottom: 1.6em;
+      letter-spacing: .04em;
+    }
+
+    /* ============================================================
+       MERMAID block — bigger frame, softer glow
+       ============================================================ */
+    .mermaid {
+      margin: 1.6em 0; text-align: center;
+      background: linear-gradient(180deg, #0e1320, #0a0d13);
+      border: 1px solid var(--border); border-radius: 13px;
+      padding: 24px 14px;
+      box-shadow: 0 18px 50px -36px rgba(78,227,155,.55) inset;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    /* Hide pandoc's title-block if present */
+    #title-block-header { display: none; }
+
+    /* ============================================================
+       UTILITY ROW — two-up / three-up adjacent blocks
+       ============================================================ */
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      margin: 1.5em 0;
+    }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 760px) {
+      .row.two, .row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const render = () => {
+      const blocks = new Set();
+      document.querySelectorAll('pre.mermaid, pre.sourceCode.mermaid').forEach((p) => blocks.add(p));
+      document.querySelectorAll('code.mermaid, code.language-mermaid').forEach((c) => {
+        const pre = c.closest('pre'); if (pre) blocks.add(pre);
+      });
+      blocks.forEach((pre) => {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = pre.textContent.trim();
+        pre.replaceWith(div);
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        fontFamily: 'IBM Plex Mono, monospace',
+        themeVariables: {
+          background: '#0a0d13',
+          primaryColor: '#1a212c',
+          primaryTextColor: '#f0f3f7',
+          primaryBorderColor: '#4ee39b',
+          lineColor: '#6c7a8b',
+          secondaryColor: '#191e28',
+          tertiaryColor: '#11161e',
+          tertiaryBorderColor: '#2a3340',
+          clusterBkg: 'rgba(78,227,155,.05)',
+          clusterBorder: '#2f8f63',
+          titleColor: '#4ee39b',
+          actorBkg: '#1a212c',
+          actorBorder: '#4ee39b',
+          actorTextColor: '#f0f3f7',
+          signalColor: '#9aa7b6',
+          signalTextColor: '#d3dbe5',
+          noteBkgColor: 'rgba(255,199,70,.14)',
+          noteBorderColor: '#ffc746',
+          noteTextColor: '#f6f8fb',
+          fontSize: '14px'
+        }
+      });
+      mermaid.run();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+  </script>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Adopt release notes, GitHub Release with docs archive,
+and portal signal in the publish pipeline</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a
+href="#adopt-release-notes-github-release-with-docs-archive-and-portal-signal-in-the-publish-pipeline"
+id="toc-adopt-release-notes-github-release-with-docs-archive-and-portal-signal-in-the-publish-pipeline">Adopt
+release notes, GitHub Release with docs archive, and portal signal in
+the publish pipeline</a>
+<ul>
+<li><a href="#summary-in-plain-language"
+id="toc-summary-in-plain-language">Summary in plain language</a></li>
+<li><a href="#problem" id="toc-problem">Problem</a></li>
+<li><a href="#why-now" id="toc-why-now">Why now</a></li>
+<li><a href="#sketch" id="toc-sketch">Sketch</a></li>
+<li><a href="#acceptance-criteria"
+id="toc-acceptance-criteria">Acceptance criteria</a></li>
+<li><a href="#verification-plan-no-accidental-extra-publish"
+id="toc-verification-plan-no-accidental-extra-publish">Verification plan
+(no accidental extra publish)</a></li>
+<li><a href="#rollback" id="toc-rollback">Rollback</a></li>
+<li><a href="#out-of-scope" id="toc-out-of-scope">Out of scope</a></li>
+<li><a href="#risks" id="toc-risks">Risks</a></li>
+<li><a href="#separate-follow-ups-not-in-this-change"
+id="toc-separate-follow-ups-not-in-this-change">Separate follow-ups (not
+in this change)</a></li>
+<li><a href="#unverified" id="toc-unverified">UNVERIFIED</a></li>
+<li><a href="#audit-trail" id="toc-audit-trail">Audit trail</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1
+id="adopt-release-notes-github-release-with-docs-archive-and-portal-signal-in-the-publish-pipeline">Adopt
+release notes, GitHub Release with docs archive, and portal signal in
+the publish pipeline</h1>
+<h2 id="summary-in-plain-language">Summary in plain language</h2>
+<p>Every merge to <code>main</code> that touches library code already
+publishes a new version of this library (currently 2.0.21) to three
+package registries. What it does not do is tell anyone <strong>what
+changed</strong>. There is no changelog file, no release page on GitHub,
+and no downloadable copy of the documentation site.</p>
+<p>This spec adds four things to the existing publish run, without
+changing how or where packages are published:</p>
+<ol type="1">
+<li>A <code>CHANGELOG.md</code> entry per version, built from the titles
+of the pull requests in that version.</li>
+<li>A GitHub Release page for each version tag, with the documentation
+site attached as <code>docs-site.tgz</code>.</li>
+<li>A guard so the manual trigger can finish a half-published version
+instead of minting a second one or failing on “already published”.</li>
+<li>A signal step for the developer portal, shipped switched off,
+because the portal cannot use it yet.</li>
+</ol>
+<p>The recommendation is about 50 lines of shell inside this repo.
+Nothing is copied from <code>cli-state-handler</code> (the sibling repo
+that already has this), because its scripts solve a different
+problem.</p>
+<div class="callout danger">
+<p><strong>Merging this change publishes one real, permanent
+version</strong> (expected 2.0.22) to GitHub Packages, npmjs.com and
+PyPI, because the change edits <code>ci-node.yml</code>, which is in the
+push path filter. That one publish is also the acceptance run. See
+“Rollback” for how to undo the change without spending a further
+version.</p>
+</div>
+<h2 id="problem">Problem</h2>
+<ul>
+<li><strong>No record of what a version contains.</strong>
+<code>git tag</code> shows 9 version tags; the newest GitHub Release
+marked “Latest” is <code>v1.1.0</code> from 2025-07-29, and
+<code>v2.0.0</code> is still a draft. <code>CHANGELOG.md</code> does not
+exist.</li>
+<li><strong>The docs site is never built by automation.</strong> No
+workflow references <code>website/</code> (Astro + Storybook, root
+script <code>docs:build</code>). The developer portal shows a
+hand-copied snapshot (see “Portal” below).</li>
+<li><strong>A failed publish cannot be repaired cleanly.</strong> The
+manual trigger (<code>workflow_dispatch</code>) always bumps again, so a
+run that failed half-way leaves a version that exists on some registries
+and not others.</li>
+</ul>
+<h2 id="why-now">Why now</h2>
+<ul>
+<li><code>cli-state-handler</code> adopted the same four outputs on
+2026-10-09; the owner wants the two libraries to match.</li>
+<li>The npmjs.com publish was fixed the same day (pull request #17,
+merged as <code>974538c</code>), so the publish path is stable (checked:
+<code>npm view @montionugera/server-decorator version</code> on
+npmjs.com returns <code>2.0.21</code>; PyPI returns HTTP 200 for
+2.0.21).</li>
+<li>The portal-side work item (follow-up (a), the joy-design
+docs-archive download) needs an archive to download.</li>
+</ul>
+<h2 id="sketch">Sketch</h2>
+<h3 id="decisions-already-made-not-reopened">Decisions already made (not
+reopened)</h3>
+<p>This change is <strong>additive</strong>. GitHub Packages (GitHub’s
+own npm registry, scope <code>@montionugera</code>) stays the primary
+registry. The lock-step scheme (one version number shared by Node,
+Python, Go, Rust and Nim) and the patch bump on every qualifying merge
+stay. The npmjs.com step and the PyPI step stay in
+<code>.github/workflows/ci-node.yml</code>, in the <code>publish</code>
+job, under <code>environment: pypi</code>: both registries use
+<em>trusted publishing</em> (the registry trusts this exact repo +
+workflow file + environment through OIDC, a short-lived identity token,
+so no password is stored), and moving or renaming them can break that
+trust.</p>
+<h3 id="approaches-considered">Approaches considered</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th></th>
+<th>A. Port the <code>cli-state-handler</code> scripts</th>
+<th>B. Shared reusable workflow or package</th>
+<th><strong>C. Small in-repo shell (recommended)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New code here</td>
+<td>~470 lines copied (<code>next-release.mjs</code>,
+<code>lib.mjs</code>, tests)</td>
+<td>~10 lines of caller</td>
+<td>~50 lines: two scripts + one job</td>
+</tr>
+<tr>
+<td>Fit</td>
+<td>Poor. Its core job is choosing major/minor/patch from commit types
+and the feature catalog. Here the bump is always patch. Only ~18 lines
+(changelog prepend/extract) apply.</td>
+<td>Good in principle, and it is what “enhance upstream, never fork”
+asks for.</td>
+<td>Good. Reuses <code>git log</code>, <code>gh</code>,
+<code>tar</code>.</td>
+</tr>
+<tr>
+<td>Cost</td>
+<td>Forks a copy into a consumer; two copies drift.</td>
+<td>Needs a home repo that does not exist yet, plus a rewrite of
+<code>cli-state-handler</code>’s working pipeline, for two consumers
+whose decision logic differs.</td>
+<td>Not shared; a third consumer would repeat it.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommendation: C.</strong> It copies nothing, so the “never
+fork a copy” rule is respected by not needing the upstream code at all.
+B is the right move once a third consumer exists (follow-up (c),
+joy-design publishing <code>@joymify/*</code>, is the likely one); it is
+filed as a follow-up, not built here.</p>
+<p>A variant of C,
+<code>gh release create --generate-notes --notes-start-tag &lt;previous tag&gt;</code>
+(GitHub writes the notes), would need no change to the
+<code>publish</code> job for notes at all. It was rejected only because
+it produces no <code>CHANGELOG.md</code>, and matching
+<code>cli-state-handler</code> (which keeps one) is the stated goal. If
+the owner drops the file requirement, this variant is the smaller
+design.</p>
+<h3 id="how-notes-are-derived">How notes are derived</h3>
+<p>Merges here are squash merges (one pull request becomes one commit
+whose title ends in <code>(#N)</code>), and each release is “everything
+since the previous version tag”. So the notes are the commit titles in
+that range, oldest first, minus the bot’s own bump commits. The previous
+tag is the newest version tag reachable from the checked-out commit,
+read before the bump:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="va">PREV_TAG</span><span class="op">=</span><span class="va">$(</span><span class="fu">git</span> describe <span class="at">--tags</span> <span class="at">--abbrev</span><span class="op">=</span>0 <span class="at">--match</span> <span class="st">&#39;v[0-9]*&#39;</span> HEAD<span class="va">)</span>   <span class="co"># v2.0.21 on today&#39;s main (checked)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> log <span class="st">&quot;</span><span class="va">$PREV_TAG</span><span class="st">..HEAD&quot;</span> <span class="at">--no-merges</span> <span class="at">--reverse</span> <span class="at">--format</span><span class="op">=</span><span class="st">&#39;- %s&#39;</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-v</span> <span class="st">&#39;^- chore: bump patch version&#39;</span></span></code></pre></div>
+<p>Real output for 2.0.21 (<code>v2.0.20..v2.0.21</code>):
+<code>- fix(ci): publish to npmjs.com via trusted publishing instead of NPM_TOKEN (#17)</code>.
+GitHub turns <code>(#17)</code> into a link on the release page. Usually
+a release has one line. It has more when merges that do not trigger a
+publish (docs-only, for example pull request #18) sit before it. An
+empty range prints <code>- Maintenance release</code>. The same text is
+used for <code>CHANGELOG.md</code> and the release page.</p>
+<h3 id="where-the-new-steps-go">Where the new steps go</h3>
+<pre class="mermaid"><code>flowchart TD
+  subgraph Before[&quot;publish job today&quot;]
+    b1[bump patch] --&gt; b2[commit + push] --&gt; b3[GitHub Packages] --&gt; b4[npmjs.com] --&gt; b5[PyPI] --&gt; b6[tag vX.Y.Z]
+  end
+  subgraph After[&quot;publish job after&quot;]
+    a0[&quot;NEW decide: release or repair&quot;] --&gt; a1[bump patch] --&gt; a2[&quot;NEW write CHANGELOG entry&quot;] --&gt; a3[&quot;commit + push (now includes CHANGELOG.md)&quot;]
+    a3 --&gt; a4[GitHub Packages] --&gt; a5[&quot;npmjs.com + NEW skip if present&quot;] --&gt; a6[&quot;PyPI + NEW skip-existing on repair&quot;] --&gt; a7[tag vX.Y.Z]
+  end
+  a7 --&gt; r1
+  subgraph Rel[&quot;NEW release job (needs publish, contents: write only)&quot;]
+    r1[checkout tag] --&gt; r2[build docs archive] --&gt; r3[create GitHub Release] --&gt; r4[signal portal]
+  end</code></pre>
+<p>Changes inside the existing <code>publish</code> job (file, job,
+<code>environment: pypi</code> and permissions unchanged; no step moved
+or renamed; <strong>no new step between the first publish and the
+tag</strong>, so nothing new can fail a run after packages are out):</p>
+<ol type="1">
+<li>Checkout gains <code>fetch-depth: 0</code> only. Required: the notes
+need the previous tag and the commits since it, and the default checkout
+fetches one commit and no tags. The checked-out commit stays the
+triggering commit, as today.</li>
+<li><strong>New step “Decide”</strong>, before the bump, runs new
+<code>scripts/release-decide.sh</code> (about 10 lines), which prints
+one of:
+<ul>
+<li><code>action=repair</code>: HEAD is the bot’s bump commit
+(<code>chore: bump patch version [skip ci]</code>) and its version has
+<strong>no tag</strong> on origin: a run died before tagging and nothing
+has merged since. Publish that version; do not bump.</li>
+<li><code>action=release</code>: everything else. Bump as today. A
+manual run on a tagged <code>main</code> still forces a new version, as
+today.</li>
+</ul>
+Required: the manual trigger is the only way to retry a publish (the
+workflow comment says re-running the <code>publish</code> job fails at
+the bump push), and today it always bumps, so without
+<code>repair</code> the skip guards in item 4 would never see an
+already-published version. Only a manual run can hit
+<code>repair</code>: a push run checks out its own merge commit, which
+is never the bot’s commit. The bump, lockfile, changelog and commit
+steps get <code>if: steps.decide.outputs.action == 'release'</code>;
+everything else runs as today. “No tag” means
+<code>git ls-remote --exit-code</code> returned 2; any other error fails
+the step.</li>
+<li><strong>New step “Write CHANGELOG entry”</strong>, after the
+lockfile update, runs new
+<code>scripts/release-notes.sh &lt;previous tag&gt; [&lt;end&gt;, default HEAD]</code>
+and prepends <code>## X.Y.Z - YYYY-MM-DD</code> plus the lines to
+<code>CHANGELOG.md</code>. <code>CHANGELOG.md</code> is added to the
+existing <code>git add</code> list.</li>
+<li>Skip guards, all edits inside existing steps. GitHub Packages needs
+none: <code>pnpm -r publish</code> only publishes versions not yet in
+the registry (pnpm docs). The npmjs.com loop skips a tarball when
+<code>npm view &lt;name&gt;@&lt;version&gt; version</code>
+<strong>prints that version</strong> (test the output, not the exit
+status, which differs between npm versions). The PyPI action gains
+<code>skip-existing: ${{ steps.decide.outputs.action == 'repair' }}</code>,
+so a normal release still fails loudly on a duplicate, as the action’s
+README advises.</li>
+</ol>
+<p>A <strong>new job <code>release</code></strong> in the same file,
+<code>needs: [publish]</code>, <code>permissions: contents: write</code>
+only, no <code>environment</code>. It checks out
+<code>needs.publish.outputs.tag</code> (so the tag always exists first)
+and reads the notes from that version’s <code>CHANGELOG.md</code>
+section. It is a separate job on purpose: building the docs runs Astro
+and Storybook dependencies, which must not run in a job that can mint
+registry identity tokens, and a separate job can be re-run alone without
+publishing. Registry trust is unaffected: it is bound to the workflow
+file name and, for PyPI, the environment, and neither publish step
+moves.</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Step</th>
+<th>On failure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decide</td>
+<td><strong>Fails the run.</strong> Nothing is published yet.</td>
+</tr>
+<tr>
+<td>Write CHANGELOG entry</td>
+<td>Warns, writes <code>- Release X.Y.Z</code>, continues. A notes bug
+must not block a release.</td>
+</tr>
+<tr>
+<td>GitHub Packages, PyPI, tag</td>
+<td><strong>Fails the run</strong> (unchanged).</td>
+</tr>
+<tr>
+<td>npmjs.com</td>
+<td>Warns only (<code>continue-on-error</code>, unchanged).</td>
+</tr>
+<tr>
+<td><code>release</code>: build docs archive</td>
+<td>Warns. The release is still created, without the asset.</td>
+</tr>
+<tr>
+<td><code>release</code>: create GitHub Release
+(<code>gh release create --verify-tag</code>, or
+<code>gh release upload --clobber</code> if it exists)</td>
+<td><strong>Fails the <code>release</code> job.</strong> Packages are
+already out; re-run this job alone.</td>
+</tr>
+<tr>
+<td><code>release</code>: signal portal</td>
+<td>Warns only. Skipped when the secret is missing or no archive was
+uploaded.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sequencing-with-the-live-npmjs-branch">Sequencing with the live
+npmjs branch</h3>
+<p><code>fix/npmjs-trusted-publishing</code> <strong>already
+landed</strong> as pull request #17 (it looks 2 commits ahead only
+because of the squash merge);
+<code>git diff origin/main fix/npmjs-trusted-publishing -- .github/workflows/ci-node.yml .github/SETUP.md</code>
+is empty. Implementation must branch from current
+<code>origin/main</code> and re-run that empty-diff check first.</p>
+<h3 id="portal-what-consumes-these-docs-today">Portal: what consumes
+these docs today</h3>
+<div class="callout warn">
+<p><strong>Nothing downloads a release asset today.</strong> In
+<code>joy-design</code>, <code>scripts/assemble-portal.sh</code> copies
+<code>website/dist</code> from a sibling checkout on the same machine,
+or else a hand-committed copy at
+<code>apps/storybook-hub/portal-bundles/server-decorator</code> (197
+tracked files, last refreshed by hand in joy-design pull request #56).
+<code>apps/storybook-hub/build.js</code> copies that tracked folder; the
+<code>Dockerfile</code> only creates the empty path. No
+<code>gh release download</code> exists anywhere in that repo.</p>
+</div>
+<p>So running joy-design’s <code>ci.yml</code> after a release here
+would rebuild the portal with the <strong>same old docs</strong>. The
+signal step is therefore shipped inert: it is identical to
+<code>cli-state-handler</code>’s
+(<code>gh workflow run ci.yml -R montionugera/joy-design --ref main</code>
+with the <code>PORTAL_DISPATCH_TOKEN</code> secret), it skips with a
+warning while the secret is unset, and the secret is
+<strong>not</strong> to be set in this repo until follow-up (a) teaches
+the portal to download <code>docs-site.tgz</code>. The secret is
+confirmed absent today (<code>gh secret list</code> shows only
+<code>NPM_TOKEN</code> and <code>SLACK_WEBHOOK_URL</code>;
+<code>gh-secrets/secrets.yaml</code> has no entry for it). The absent
+secret is the only switch: if someone sets it early, each release
+rebuilds the portal with the old docs, which is wasteful but harmless.
+This repo is also <strong>private</strong>, so the portal will need a
+token that can read this repo’s releases; that belongs to (a).</p>
+<h3 id="readme-and-docs-task">README and docs task</h3>
+<p>Add a “Releases” paragraph under README “Versioning” (where notes
+live, what <code>docs-site.tgz</code> is, how to re-run the
+<code>release</code> job). Add a “Release notes and repair” section to
+<code>.github/SETUP.md</code> covering the decide rule, the inert portal
+step and the secret. Create <code>CHANGELOG.md</code> with a one-line
+header.</p>
+<h2 id="acceptance-criteria">Acceptance criteria</h2>
+<p><code>$V</code> is the first version released after this lands
+(expected 2.0.22).</p>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>bash scripts/release-notes.sh v2.0.20 v2.0.21</code>
+prints exactly
+<code>- fix(ci): publish to npmjs.com via trusted publishing instead of     NPM_TOKEN (#17)</code>.</label></li>
+<li><label><input type="checkbox" />In a throwaway clone of a throwaway
+clone (so “origin” is local and nothing can be pushed to GitHub),
+<code>bash     scripts/release-decide.sh</code> prints
+<code>action=repair</code> when HEAD is titled
+<code>chore: bump patch version [skip ci]</code> and its version has no
+tag on that origin, <code>action=release</code> once the tag exists
+there, and <code>action=release</code> at a normally-titled
+commit.</label></li>
+<li><label><input
+type="checkbox" /><code>actionlint .github/workflows/ci-node.yml</code>
+exits 0.</label></li>
+<li><label><input
+type="checkbox" /><code>git diff --stat origin/main...HEAD -- .github/workflows</code>
+lists only <code>ci-node.yml</code>, and
+<code>grep -c 'environment: pypi'     .github/workflows/ci-node.yml</code>
+prints <code>1</code>.</label></li>
+<li><label><input
+type="checkbox" /><code>gh release view v$V --json isDraft,assets --jq '[.isDraft,.assets[].name]|@csv'</code>
+prints <code>false,"docs-site.tgz"</code>.</label></li>
+<li><label><input
+type="checkbox" /><code>git show origin/main:CHANGELOG.md | grep -c "^## $V - "</code>
+prints <code>1</code>, and
+<code>gh release view v$V --json body --jq .body | grep -c     '^- '</code>
+prints the same count as
+<code>bash scripts/release-notes.sh v2.0.21 v$V | wc -l</code>.</label></li>
+<li><label><input
+type="checkbox" /><code>gh release download v$V -p docs-site.tgz -O - | tar -tzf - | grep -c '^\./index\.html$'</code>
+prints <code>1</code>.</label></li>
+<li><label><input type="checkbox" />With <code>$RUN</code> the id of the
+run that released <code>$V</code>:
+<code>gh run view $RUN --json conclusion --jq .conclusion</code> prints
+<code>success</code>, and
+<code>gh run     view $RUN --log | grep -c 'PORTAL_DISPATCH_TOKEN is not set'</code>
+prints <code>1</code> or more.</label></li>
+<li><label><input
+type="checkbox" /><code>npm view @montionugera/server-decorator@$V version --registry https://registry.npmjs.org</code>
+prints <code>$V</code>, and exactly one new tag exists:
+<code>git ls-remote --tags origin "v$V"</code> prints one
+line.</label></li>
+<li><label><input type="checkbox" />README and
+<code>.github/SETUP.md</code> contain the sections named
+above.</label></li>
+</ul>
+<h2 id="verification-plan-no-accidental-extra-publish">Verification plan
+(no accidental extra publish)</h2>
+<ol type="1">
+<li><strong>Before merge, nothing can publish.</strong>
+<code>publish</code> and <code>release</code> only run on
+<code>main</code>. Verify with the two script checks,
+<code>actionlint</code>, and a local
+<code>pnpm docs:build &amp;&amp; tar -czf /tmp/docs-site.tgz -C website/dist .</code>.</li>
+<li><strong>Never use the manual trigger
+(<code>workflow_dispatch</code>) to “try it”.</strong> It still bumps
+and publishes a real version.</li>
+<li><strong>The merge itself is one release, by design.</strong> The
+change edits <code>ci-node.yml</code>, which is in the push path filter,
+so merging it publishes <code>$V</code>. That is the one expected
+publish; check the criteria against it.</li>
+<li><strong>Repair paths.</strong> A failed <code>release</code> job:
+re-run only that job (<code>gh run rerun --job &lt;id&gt;</code>); it
+re-creates or re-uploads and cannot publish. A <code>publish</code> job
+that died before tagging: use the manual trigger, not a re-run. The
+<code>repair</code> branch is covered by the throwaway-clone check only;
+it is first exercised for real on a genuine mid-run failure.</li>
+</ol>
+<h2 id="rollback">Rollback</h2>
+<ul>
+<li>Revert the pull request. <strong>A plain revert merge touches
+<code>ci-node.yml</code>, so it publishes one more permanent patch
+version.</strong> To avoid that, put <code>[skip ci]</code> in the
+squash-merge title of the revert (GitHub skips push workflows for such a
+commit); the old workflow then applies from the next qualifying merge.
+Keep <code>CHANGELOG.md</code> when reverting.</li>
+<li>Versions already published stay published; nothing here can or
+should unpublish them.</li>
+<li><code>gh release delete vX.Y.Z --yes</code> removes a release page.
+Never add <code>--cleanup-tag</code>: Go consumers resolve versions from
+the tags.</li>
+</ul>
+<h2 id="out-of-scope">Out of scope</h2>
+<ul>
+<li>Switching the primary registry; changing the bump rule; moving,
+renaming or splitting the npmjs.com or PyPI steps; a
+<code>release.yml</code> file.</li>
+<li>Making the portal download the archive, and setting
+<code>PORTAL_DISPATCH_TOKEN</code> (follow-up (a)).</li>
+<li>A shared reusable release workflow (approach B). Backfilling
+releases for 2.0.0 to 2.0.21.</li>
+<li>Other backlog ideas, none of which overlap: I-011 (Go and Nim ship
+jobs) is the existing <code>smoke</code> job, untouched; I-029 (Rust
+lock-step bump) concerns the <code>git add</code> list, which gains one
+file; I-012 (multilingual docs system) is an empty skeleton.</li>
+<li>Filed, not chased: <code>.github/SETUP.md</code> describes
+<code>publish.yml</code> and <code>version-bump.yml</code>, which do not
+exist; merges touching only <code>python/**</code>, <code>rust/**</code>
+or <code>website/**</code> do not trigger a publish, so a docs fix
+reaches the archive only with the next code release; the
+<code>NPM_TOKEN</code> secret is set but no workflow reads it.</li>
+</ul>
+<h2 id="risks">Risks</h2>
+<ul>
+<li><strong>Permanent publishes.</strong> A version number on npmjs.com
+or PyPI can never be reused, even after deletion, and every
+<code>publish</code> run on <code>main</code> spends one. This design
+adds no new path that publishes; the <code>release</code> job has no
+registry permission.</li>
+<li><strong>Half-published version left behind.</strong> If a run dies
+after GitHub Packages and a new merge lands before repair, the decide
+rule bumps, leaving the dead version partial. Deliberate: repairing
+would put newer code under a number GitHub Packages already holds. The
+guard also does not cover an npmjs.com-only gap: that step is warn-only,
+so the tag is still created and a manual run bumps.</li>
+<li><strong>Trust break by accident.</strong> An edit that renames the
+workflow, the job’s <code>environment</code>, or moves a publish step
+can make npmjs.com or PyPI reject the next release. The fourth
+acceptance check guards this.</li>
+<li><strong>Notes can miss a line.</strong> A pull request merged in the
+minute between checkout and the bump push is rebased under the bump, so
+it ships in that version but its title appears in no entry (the rebase
+itself is today’s behaviour).</li>
+</ul>
+<h2 id="separate-follow-ups-not-in-this-change">Separate follow-ups (not
+in this change)</h2>
+<p>None of these is needed for the four additions; each changes existing
+publish behaviour and deserves its own review.</p>
+<ul>
+<li><strong>Stop cancelling a publish on <code>main</code>.</strong>
+Existing behaviour (<code>ci-node.yml</code> lines 14-16,
+<code>cancel-in-progress: true</code> for every ref): a second
+qualifying merge cancels a publish in flight and can leave a version
+half-published.</li>
+<li><strong>Check out <code>ref: main</code> in the <code>publish</code>
+job.</strong> New behaviour: it would let a queued or re-run job see
+earlier bumps, at the price of always publishing the tip of
+<code>main</code> rather than the tested commit. Only useful together
+with the item above.</li>
+<li><strong>A third decide outcome, <code>none</code></strong> (skip
+bump and publishes for a queued run already released). Reachable only
+once both items above land; it addresses a queued run minting an empty
+version.</li>
+<li><strong>A shared reusable release workflow</strong> (approach B),
+once a third consumer exists.</li>
+</ul>
+<h2 id="unverified">UNVERIFIED</h2>
+<ul>
+<li><code>pnpm -r publish</code> skipping existing versions is
+documented by pnpm (“versions not yet published to the registry”); not
+exercised against GitHub Packages.</li>
+<li><code>skip-existing</code> is a documented input of
+<code>pypa/gh-action-pypi-publish</code>, and its README names no
+conflict with trusted publishing; not exercised here, in particular not
+together with the attestations that trusted publishing turns on by
+default.</li>
+<li>What happens today when the <code>publish</code> job is re-run (the
+workflow comment says the bump push fails).</li>
+<li>Which Node version <code>website/</code> needs in CI, and the docs
+build time; the build was not run for this spec.</li>
+<li>The scope of <code>cli-state-handler</code>’s
+<code>PORTAL_DISPATCH_TOKEN</code>, and whether one token can serve both
+repos.</li>
+<li>How <code>--generate-notes</code> picks its start tag when none is
+given (GitHub’s API docs do not say); moot unless that variant is
+chosen.</li>
+</ul>
+<h2 id="audit-trail">Audit trail</h2>
+<p>Independent audit, 2026-10-09, against <code>ci-node.yml</code> on
+<code>origin/main</code>.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Finding</th>
+<th>What changed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HIGH</td>
+<td>Turning off <code>cancel-in-progress</code> on <code>main</code>
+changes existing behaviour and no addition needs it.</td>
+<td>Moved to follow-ups.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td><code>ref: main</code> is a new behaviour change (publish untested
+tip) and no addition needs it.</td>
+<td>Moved to follow-ups; <code>fetch-depth: 0</code> kept.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>The <code>none</code> outcome only exists because of the two items
+above.</td>
+<td>Decide reduced to release / repair; reason for <code>repair</code>
+stated.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>The one unavoidable real publish was stated only deep in the
+verification plan; rollback offered no way to avoid a second.</td>
+<td>Callout added at the top; <code>[skip ci]</code> revert added.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>npmjs.com skip relied on the <code>npm view</code> exit status.</td>
+<td>Now tests the printed version.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>Unconditional PyPI <code>skip-existing</code> hides duplicates on
+normal releases.</td>
+<td>Limited to <code>repair</code>.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td><code>release-notes.sh</code> had one argument in the design and two
+in the criteria; previous tag undefined.</td>
+<td>Signature and <code>git describe</code> rule stated.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>Two criteria were not runnable commands; the decide check could
+reach the real origin.</td>
+<td>Rewritten as commands against a local origin.</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td>Two UNVERIFIED items resolvable from docs.</td>
+<td>Resolved to “documented, not exercised”.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
