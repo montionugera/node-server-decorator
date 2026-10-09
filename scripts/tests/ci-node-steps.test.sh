@@ -38,4 +38,28 @@ check "decide: a failing script fails the step and sets no action" "$([ "$rc" -n
 mk "$T/n"; for p in a b; do mkdir -p "packages/$p"; echo "{\"name\":\"@x/$p\",\"version\":\"1.0.0\"}" > "packages/$p/package.json"; done
 git add -A; git commit -qm base; : > "$LOG"; step publish 'Publish Node to npmjs.com' >/dev/null; rc=$?
 check "npmjs: publishes only the missing package" "$rc:$(grep -c '^npm publish' "$LOG"):$(grep -c '^npm publish .*/b.tgz' "$LOG")" "0:1:1"
+# Hostile squash-merge titles are text: they must land in the entry byte-for-byte and never execute.
+mk "$T/h"; printf '# Changelog\n' > CHANGELOG.md; mkdir -p node/packages/core; echo '{"version":"2.0.1"}' > node/packages/core/package.json; cp -R "$R/scripts" .
+git add -A; git commit -qm base; git tag v2.0.0
+H1='fix: say "hi" (#1)'; H2="fix: it's (#2)"; H3='fix: `touch PWNED` (#3)'; H4='fix: $(touch PWNED) (#4)'; H5='fix: $HOME and ${HOME} (#5)'
+for m in "$H1" "$H2" "$H3" "$H4" "$H5"; do git commit -q --allow-empty -m "$m"; done
+step publish 'Write CHANGELOG entry' >/dev/null 2>&1
+check "hostile titles: entry holds all five subjects byte-for-byte" "$(sed -n '5,$p' CHANGELOG.md)" "$(printf -- '- %s\n' "$H1" "$H2" "$H3" "$H4" "$H5")"
+check "hostile titles: nothing was executed (no PWNED file anywhere)" "$(find "$T" "$PWD" -name 'PWNED*' 2>/dev/null | wc -l | tr -d ' ')" "0"
+# Prepending keeps every older entry intact and in order.
+mk "$T/o"; mkdir -p node/packages/core; echo '{"version":"3.0.3"}' > node/packages/core/package.json; cp -R "$R/scripts" .
+OLD=$'## 3.0.2 - 2026-02-02\n\n- b: two (#2)\n- b: three (#3)\n\n## 3.0.1 - 2026-01-01\n\n- a: one (#1)'
+printf '# Changelog\n\n%s\n' "$OLD" > CHANGELOG.md; git add -A; git commit -qm base; git tag v3.0.2; git commit -q --allow-empty -m 'feat: new (#9)'
+step publish 'Write CHANGELOG entry' >/dev/null 2>&1
+check "changelog: older entries intact and in order after the new one" "$(tail -n +7 CHANGELOG.md)" "$OLD"
+check "changelog: new entry sits between the header and the older entries" "$(sed -n '1,6p' CHANGELOG.md)" "$(printf '# Changelog\n\n## 3.0.3 - %s\n\n- feat: new (#9)\n' "$(date -u +%F)")"
+# npmjs guard when the registry lookup fails: the guard must not match, so the publish is attempted.
+mkdir "$T/bin2"; printf '#!/bin/sh\necho "npm $*" >> "$LOG"\n[ "$1" = view ] && exit 1\nexit 0\n' > "$T/bin2/npm"; chmod +x "$T/bin2/npm"
+cd "$T/n" || exit 1; : > "$LOG"; PATH="$T/bin2:$PATH" step publish 'Publish Node to npmjs.com' >/dev/null 2>&1; rc=$?
+check "npmjs: failed registry lookup does not skip, both packages are published" "$rc:$(grep -c '^npm publish' "$LOG")" "0:2"
+# skip-existing is true only for a repair run (evaluates the YAML expression, simple == comparisons only).
+skip_for(){ ruby -ryaml -e 's=YAML.load_file(ARGV[0])["jobs"]["publish"]["steps"].find{|x|x["uses"].to_s.start_with?("pypa/gh-action-pypi-publish")} or abort "no pypi step"; e=s["with"]["skip-existing"][/\$\{\{(.*)\}\}/,1] or abort "no expr"; puts eval(e.sub("steps.decide.outputs.action", ARGV[1].inspect))' "$WF" "$1"; }
+check "skip-existing: true for repair" "$(skip_for repair)" "true"
+check "skip-existing: false for release" "$(skip_for release)" "false"
+check "skip-existing: false when the action is empty" "$(skip_for '')" "false"
 exit "$fail"

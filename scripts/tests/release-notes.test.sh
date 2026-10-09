@@ -13,4 +13,10 @@ check "oldest first, bump commits dropped" "$(bash "$S" v1.0.0)" $'- feat: one (
 check "explicit end ref" "$(bash "$S" v1.0.0 HEAD~2)" "- feat: one (#1)"
 bash "$S" >/dev/null 2>&1; check "missing argument -> non-zero" "$([ $? -ne 0 ] && echo nonzero)" "nonzero"
 bash "$S" v0.0.0-nope >/dev/null 2>&1; check "unknown tag -> non-zero" "$([ $? -ne 0 ] && echo nonzero)" "nonzero"
+git tag v1.0.1
+H=('fix: say "hi" (#1)' "fix: it's (#2)" 'fix: `touch PWNED` (#3)' 'fix: $(touch PWNED) (#4)' 'fix: $HOME and ${HOME} (#5)')
+for m in "${H[@]}"; do c "$m"; done
+want=$(printf -- '- %s\n' "${H[@]}"); want=${want%$'\n'}
+check "hostile titles are output byte-for-byte" "$(bash "$S" v1.0.1)" "$want"
+check "hostile titles are never executed (no PWNED file)" "$(find "$T" -name 'PWNED*' | wc -l | tr -d ' ')" "0"
 exit "$fail"
