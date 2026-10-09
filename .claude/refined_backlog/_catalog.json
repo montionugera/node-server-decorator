@@ -324,8 +324,9 @@
     "title": "Adopt release notes, GitHub Release with docs archive, and portal signal in the publish pipeline",
     "from_idea": "I-030",
     "created_at": "2026-10-09T13:27:27.616837+00:00",
-    "claimed_by": null,
-    "status": "open",
-    "release_version": null
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
+    "release_version": null,
+    "claimed_at": "2026-10-09T13:27:46.374978+00:00"
   }
 ]
