@@ -47,6 +47,14 @@ rust_cargo_file=rust/Cargo.toml
 if [ -f "$rust_cargo_file" ]; then
   sed -i.bak -E "s/^(version[[:space:]]*=[[:space:]]*)\"[^\"]+\"/\1\"$new_version\"/" "$rust_cargo_file" \
     && rm "$rust_cargo_file.bak"
+  # Internal crate deps in [workspace.dependencies] carry the same version next to their path
+  # (crates.io rejects path-only deps), so move them in the same step.
+  sed -i.bak -E "/^server-decorator-/s/(version[[:space:]]*=[[:space:]]*)\"[^\"]+\"/\1\"$new_version\"/" "$rust_cargo_file" \
+    && rm "$rust_cargo_file.bak"
+  # Cargo.lock records each workspace member's own version (like uv.lock below); refresh it.
+  if command -v cargo >/dev/null 2>&1; then
+    cargo update --manifest-path "$rust_cargo_file" --workspace
+  fi
 fi
 # uv.lock pins each workspace member's own version (python/uv.lock's `[[package]]
 # name = "server-decorator" version = "..."` entry) — refresh it so the lockfile doesn't

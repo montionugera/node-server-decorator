@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+description = "Cache key algorithm, cache adapter trait, retry, circuit breaker, rate limiter, batch loader and trace context for server-decorator"
 
 [dependencies]
 serde = { workspace = true }

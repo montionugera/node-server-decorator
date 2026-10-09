@@ -8,7 +8,7 @@ Polyglot library shipping decorators for **caching, tracking, queue emission**, 
 | Python | [`./python`](./python) | `pip install server-decorator` | [`python/packages/core/README.md`](./python/packages/core/README.md) |
 | Go | [`./go`](./go) | `go get github.com/montionugera/node-server-decorator/v2` | [`go/README.md`](./go/README.md) |
 | Nim | [`./nim`](./nim) | `nimble install server_decorator` | [`nim/README.md`](./nim/README.md) |
-| Rust | [`./rust`](./rust) | `cargo add server-decorator` | [`rust/README.md`](./rust/README.md) |
+| Rust | [`./rust`](./rust) | `cargo add server-decorator-core` (also `-entity`, `-dto`, `-openapi`, `-axum`) | [`rust/README.md`](./rust/README.md) |
 
 The wire format and shared rules (cache key algorithm, queue message schema, topic naming) live in [`./contracts`](./contracts) and are the source of truth all implementations validate against.
 
@@ -111,6 +111,28 @@ Contract `1.3.0` writes down rules that were previously implicit and aligns the 
 ## Versioning
 
 Lockstep semver: one tag, all packages publish together. See `DECISIONS.md` (decision #2) and [`docs/adr/`](./docs/adr) for the rationale.
+
+## Publishing
+
+Every push to `main` that touches `node/`, `contracts/`, `go/`, `go.mod`, `nim/` or `rust/` runs the `publish` job in `.github/workflows/ci-node.yml`: it patch-bumps every package (`scripts/bump-version.sh`), then publishes in this order and tags `vX.Y.Z` last.
+
+| Registry | Packages | Auth | A failure blocks the tag? |
+| --- | --- | --- | --- |
+| GitHub Packages (npm) | `@montionugera/*` | `GITHUB_TOKEN` | yes |
+| npmjs.com | `@montionugera/*` | OIDC trusted publishing | no (`continue-on-error`) |
+| PyPI | `server-decorator*` | OIDC trusted publishing, environment `pypi` | yes |
+| crates.io | `server-decorator-entity`, `-core`, `-dto`, `-openapi`, `-axum` (dependency order; versions already on crates.io are skipped) | `CARGO_REGISTRY_TOKEN` secret if set, else OIDC trusted publishing | no (`continue-on-error`) |
+
+Go and Nim have no registry: clients install straight from the git tag, so **public Go and Nim installs require this GitHub repository to be public**. While it is private, only clients with repo access (and `GOPRIVATE=github.com/montionugera/*`) can install.
+
+Go caveat: only the root module `github.com/montionugera/node-server-decorator/v2` (every package under `go/` except the two below) is installable at a tag. The nested modules `go/adapter/gin` and `go/adapter/pgxlock` are **not installable by any client today**: their module paths put `/v2` in the middle (`.../v2/go/adapter/gin`), so Go looks for them inside the root module and reports "does not contain package". No tag can fix that; it needs a module-path rename (for example `.../go/adapter/gin/v2`, tagged `go/adapter/gin/vX.Y.Z`) or folding them into the root module.
+
+### One-time setup (repo owner, by hand)
+
+1. **crates.io first publish.** Create a crates.io API token (scopes `publish-new` and `publish-update`), store it as the Actions secret `CARGO_REGISTRY_TOKEN` (repo-level, or on the `pypi` environment) and let one release run. A trusted publisher can only be attached to a crate that already exists, so the first publish needs the token.
+2. **crates.io trusted publishers.** For each of the five crates, in crates.io Settings > Trusted Publishing add GitHub repo `montionugera/node-server-decorator`, workflow `ci-node.yml`, environment `pypi`. Then delete the `CARGO_REGISTRY_TOKEN` secret; the workflow falls back to OIDC by itself.
+3. **npmjs.com and PyPI trusted publishers.** Each package needs the same repo/workflow registered as a trusted publisher on its registry (see the comments in `ci-node.yml`).
+4. **Go and Nim.** Make the repository public (see above).
 
 ## License
 

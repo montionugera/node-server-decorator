@@ -4,9 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+description = "Runtime DTO validation (create, update, read, action) compiled from server-decorator EntitySpec IR"
 
 [dependencies]
-server-decorator-entity = { path = "../server-decorator-entity" }
+server-decorator-entity = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 regex = { workspace = true }

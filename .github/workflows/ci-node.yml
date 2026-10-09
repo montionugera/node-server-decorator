@@ -6,7 +6,7 @@ on:
     paths: ['node/**', 'contracts/**', '.github/workflows/ci-node.yml']
   push:
     branches: [main]
-    paths: ['node/**', 'contracts/**', 'go/**', 'go.mod', 'nim/**', '.github/workflows/ci-node.yml']
+    paths: ['node/**', 'contracts/**', 'go/**', 'go.mod', 'nim/**', 'rust/**', '.github/workflows/ci-node.yml']
   # Manual retrigger for the publish lane (e.g. after fixing registry-side
   # trusted-publisher config) — publishes whatever main currently holds.
   workflow_dispatch:
@@ -66,7 +66,10 @@ jobs:
     permissions:
       contents: write
       packages: write
-      id-token: write   # required for PyPI trusted publisher
+      id-token: write   # required for PyPI and crates.io trusted publishing
+    env:
+      # `secrets` is not readable in a step `if:`, so expose only whether the token is set.
+      HAS_CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -183,6 +186,38 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist
+
+      # crates.io: a stored CARGO_REGISTRY_TOKEN wins when set (required for the very first
+      # publish, because a trusted publisher can only be attached to a crate that already
+      # exists); otherwise exchange this workflow's OIDC identity for a short-lived token
+      # (each crate needs a trusted publisher on crates.io: repo
+      # montionugera/node-server-decorator, workflow ci-node.yml, environment `pypi`).
+      - name: Authenticate to crates.io (trusted publishing)
+        id: crates-auth
+        if: env.HAS_CARGO_REGISTRY_TOKEN != 'true'
+        continue-on-error: true
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish Rust crates to crates.io
+        # Same policy as the npmjs.com step: a failure here must not block the
+        # release tag below.
+        continue-on-error: true
+        working-directory: rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.crates-auth.outputs.token }}
+        run: |
+          version=$(grep -m1 -oE '^version[[:space:]]*=[[:space:]]*"[^"]+"' Cargo.toml | grep -oE '"[^"]+"' | tr -d '"')
+          # Dependency order: entity before dto/openapi, dto before axum.
+          for crate in server-decorator-entity server-decorator-core server-decorator-dto server-decorator-openapi server-decorator-axum; do
+            # Skip versions already on crates.io so a re-run is safe (the API wants a User-Agent).
+            code=$(curl -s -o /dev/null -w '%{http_code}' -A 'node-server-decorator-ci' "https://crates.io/api/v1/crates/$crate/$version")
+            if [ "$code" = "200" ]; then
+              echo "$crate $version already on crates.io; skipping."
+              continue
+            fi
+            # Stop at the first failure: later crates depend on earlier ones.
+            cargo publish -p "$crate"
+          done
 
       # Go resolves module versions only from vX.Y.Z tags (I-006); this also gives Node and
       # Python releases the single tag ADR 0002 assumes. Last step, so a tag marks only a

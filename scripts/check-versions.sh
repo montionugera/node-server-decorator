@@ -34,6 +34,12 @@ versions+="nim/server_decorator.nimble=$nim_v\n"
 rust_v=$(grep -oE '^version\s*=\s*"[^"]+"' rust/Cargo.toml | grep -oE '"[^"]+"' | tr -d '"') \
   || { echo "FAIL: no 'version = \"x.y.z\"' in rust/Cargo.toml" >&2; exit 1; }
 versions+="rust/Cargo.toml=$rust_v\n"
+# Internal crate deps in [workspace.dependencies] must carry that same version (crates.io publish).
+while IFS= read -r line; do
+  dep=${line%%[[:space:]=]*}
+  dep_v=$(printf '%s' "$line" | grep -oE 'version[[:space:]]*=[[:space:]]*"[^"]+"' | grep -oE '"[^"]+"' | tr -d '"')
+  versions+="rust/Cargo.toml[$dep]=$dep_v\n"
+done < <(grep -E '^server-decorator-' rust/Cargo.toml)
 
 count=$(printf "%b" "$versions" | cut -d= -f2 | sort -u | wc -l | tr -d ' ')
 if [ "$count" != "1" ]; then
