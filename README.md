@@ -112,6 +112,8 @@ Contract `1.3.0` writes down rules that were previously implicit and aligns the 
 
 Lockstep semver: one tag, all packages publish together. See `DECISIONS.md` (decision #2) and [`docs/adr/`](./docs/adr) for the rationale.
 
+**Releases.** Each published version has a `CHANGELOG.md` entry (one line per merged commit title since the previous tag, written by the publish run) and a GitHub Release page whose text is that entry. The release carries `docs-site.tgz`, the built docs site (`website/dist`). If the release page or the archive is missing, re-run only the `release` job (`gh run rerun --job <job id>`); that job cannot publish packages.
+
 ## License
 
 MIT.

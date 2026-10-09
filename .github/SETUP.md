@@ -46,6 +46,17 @@ A package must already exist on npmjs.com before a trusted publisher can be adde
 2. Commit and push to `main`
 3. Publish workflow runs automatically
 
+## Release notes and repair
+
+Applies to `.github/workflows/ci-node.yml` (the `publish` job, then the `release` job).
+
+- **Decide rule.** The first step of `publish` runs `scripts/release-decide.sh`. If the newest commit on `main` is the bot's bump commit (`chore: bump patch version [skip ci]`) and the tag for the version in `node/packages/core/package.json` is not on `origin`, the run is a **repair**: it skips the bump, changelog and commit steps, publishes that version, and PyPI uses `skip-existing`. Anything else is a normal **release** that bumps a new patch version. If `git ls-remote` itself fails, the step fails and nothing is published.
+- **Never use the manual trigger (`workflow_dispatch`) to test.** It bumps and publishes a real, permanent version.
+- **A `publish` job that died before tagging** is repaired with the manual trigger on `main`, not a re-run, and only works if nothing has merged since; otherwise the trigger bumps a new version and the dead one stays partial. Re-running the job after a failure is not verified and is not recommended.
+- **Release page.** The separate `release` job (`contents: write` only, no registry access) writes the page for the new tag from the `CHANGELOG.md` entry and attaches `docs-site.tgz`. If the docs build fails the page is still created, without the archive, and the run shows a warning.
+- **Portal signal is inert.** The last `release` step only dispatches the developer-portal workflow when the secret `PORTAL_DISPATCH_TOKEN` is set; leave it unset until the portal can download `docs-site.tgz`.
+- **Verified locally only** (stubbed `npm`, `pnpm`, `gh`; throwaway git repos; `scripts/tests/*.test.sh`, not run in CI). **Unproven until the first real merge:** that GitHub and the registries accept the edited workflow, the `release` job against the real GitHub API, and the docs build on the runner. **Unproven until a genuine mid-run failure:** the repair path end to end, `pnpm -r publish` skipping versions already on GitHub Packages, and PyPI `skip-existing` with attestations.
+
 ## Security
 - NPM token stored as encrypted secret
 - Publishes only from `main` branch
