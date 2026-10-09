@@ -266,3 +266,51 @@ jobs:
           GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/montionugera/.insteadOf
           GIT_CONFIG_VALUE_0: https://github.com/montionugera/
         run: bash scripts/smoke-install-nim.sh "${{ needs.publish.outputs.tag }}"
+
+  # Separate job on purpose: the docs build runs third-party build tooling, which must not run in a
+  # job that can mint registry identity tokens, and this job can be re-run alone without publishing.
+  release:
+    name: GitHub Release + docs archive
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    env: { TAG: '${{ needs.publish.outputs.tag }}' }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ needs.publish.outputs.tag }}' }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Build docs archive
+        id: docs
+        continue-on-error: true
+        run: |
+          (cd website && pnpm install --frozen-lockfile && pnpm build)
+          tar -czf docs-site.tgz -C website/dist .
+          echo "built=true" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET: ${{ steps.docs.outputs.built == 'true' && 'docs-site.tgz' || '' }}
+        run: |
+          v="${TAG#v}"
+          awk -v h="## $v - " 'index($0,h)==1{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          grep -q '[^[:space:]]' notes.md || echo "- Release $v" > notes.md
+          [ -n "$ASSET" ] || echo "::warning::docs archive was not built; releasing without docs-site.tgz"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ -n "$ASSET" ]; then gh release upload "$TAG" "$ASSET" --clobber; fi
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md ${ASSET:+"$ASSET"}
+          fi
+      - name: Signal the developer portal
+        if: steps.docs.outputs.built == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::PORTAL_DISPATCH_TOKEN is not set; the developer portal was not signalled"
+            exit 0
+          fi
+          gh workflow run ci.yml -R montionugera/joy-design --ref main
