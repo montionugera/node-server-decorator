@@ -132,9 +132,9 @@ jobs:
       # (OIDC): npmjs trusts this workflow directly, so there is no token to
       # store or expire. Each package needs a trusted publisher configured on
       # npmjs.com (repo montionugera/node-server-decorator, workflow
-      # ci-node.yml, "npm publish" allowed). Needs Node >= 22.14 and
-      # npm >= 11.5.1, hence the second setup-node; nothing after this step
-      # uses Node.
+      # ci-node.yml, environment blank or `pypi` to match this job,
+      # "npm publish" allowed). Needs Node >= 22.14 and npm >= 11.5.1, hence
+      # the second setup-node.
       - name: Use Node 22 for npmjs.com trusted publishing
         uses: actions/setup-node@v4
         with:
@@ -166,10 +166,14 @@ jobs:
               (cd "$(dirname "$pkg")" && pnpm pack --pack-destination "$RUNNER_TEMP/npmjs")
             fi
           done
+          # Try every package even if one is rejected, and always restore
+          # the tree before reporting the result.
+          rc=0
           for tgz in "$RUNNER_TEMP"/npmjs/*.tgz; do
-            npm publish "$tgz" --access public
+            npm publish "$tgz" --access public || rc=1
           done
           git checkout -- .
+          exit "$rc"
 
       - name: Build Python packages (core, entity, gen_pydantic, gen_openapi)
         working-directory: python

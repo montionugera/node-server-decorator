@@ -2,15 +2,17 @@
 
 ## Required Secrets
 
-### NPM_TOKEN
-1. Go to [npmjs.com](https://www.npmjs.com/) and log in
-2. Click your profile → **Access Tokens**
-3. Click **Generate New Token** → **Automation**
-4. Copy the token
-5. In your GitHub repo: **Settings** → **Secrets and variables** → **Actions**
-6. Click **New repository secret**
-7. Name: `NPM_TOKEN`
-8. Value: paste your NPM token
+None for publishing. npmjs.com and PyPI both use trusted publishing (OIDC), so there is no token to store or rotate.
+
+### npmjs.com trusted publisher (once per package)
+1. On [npmjs.com](https://www.npmjs.com/), open the package → **Settings** → **Trusted Publisher** → **GitHub Actions**
+2. Organization or user: `montionugera`
+3. Repository: `node-server-decorator`
+4. Workflow filename: `ci-node.yml`
+5. Environment: leave blank (or `pypi`, the environment the publish job runs in)
+6. Allowed actions: tick **npm publish**
+
+A package must already exist on npmjs.com before a trusted publisher can be added, so a brand-new package needs one manual first publish.
 
 ## Workflows
 
