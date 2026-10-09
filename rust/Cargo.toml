@@ -15,6 +15,9 @@ edition = "2021"
 license = "MIT"
 authors = ["Montionugera"]
 repository = "https://github.com/montionugera/node-server-decorator"
+# Relative to this workspace root; cargo copies it into each crate tarball. The MIT text
+# ships through each crate's LICENSE symlink to the repo-root LICENSE.
+readme = "README.md"
 
 [workspace.dependencies]
 # Internal crates: crates.io needs a version next to the path. scripts/bump-version.sh keeps

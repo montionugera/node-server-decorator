@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+readme.workspace = true
 description = "Axum REST route mounting with DTO validation and RFC 9457 problem details for server-decorator entities"
 
 [dependencies]

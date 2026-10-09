@@ -121,7 +121,9 @@ Every push to `main` that touches `node/`, `contracts/`, `go/`, `go.mod`, `nim/`
 | GitHub Packages (npm) | `@montionugera/*` | `GITHUB_TOKEN` | yes |
 | npmjs.com | `@montionugera/*` | OIDC trusted publishing | no (`continue-on-error`) |
 | PyPI | `server-decorator*` | OIDC trusted publishing, environment `pypi` | yes |
-| crates.io | `server-decorator-entity`, `-core`, `-dto`, `-openapi`, `-axum` (dependency order; versions already on crates.io are skipped) | `CARGO_REGISTRY_TOKEN` secret if set, else OIDC trusted publishing | no (`continue-on-error`) |
+| crates.io | `server-decorator-entity`, `-core`, `-dto`, `-openapi`, `-axum` (dependency order) | `CARGO_REGISTRY_TOKEN` secret if set, else OIDC trusted publishing | no (`continue-on-error`) |
+
+The crates.io step is non-blocking and stops at the first crate that fails, so a `vX.Y.Z` tag does **not** guarantee that all five crates are on crates.io at that version. Nothing retries the missed version: the next run publishes the full set at the next version. The published crates carry the library only; the `emit-fixture` / `emit-openapi` fixture bins and the parity tests stay in the repo.
 
 Go and Nim have no registry: clients install straight from the git tag, so **public Go and Nim installs require this GitHub repository to be public**. While it is private, only clients with repo access (and `GOPRIVATE=github.com/montionugera/*`) can install.
 
