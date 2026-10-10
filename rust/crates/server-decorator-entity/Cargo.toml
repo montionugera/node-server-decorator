@@ -4,6 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+# The fixture-emitter bin and the parity tests need repo files outside this crate (contracts/),
+# so neither ships: `cargo install` of the published crate must not get a bin that cannot run.
+exclude = ["src/bin/", "tests/"]
+description = "EntitySpec IR declaration: fluent builder and canonical JSON encoder, byte-identical across the server-decorator languages"
 
 [dependencies]
 serde = { workspace = true }

@@ -4,9 +4,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+# The fixture-emitter bin and the parity tests need repo files outside this crate (contracts/),
+# so neither ships: `cargo install` of the published crate must not get a bin that cannot run.
+exclude = ["src/bin/", "tests/"]
+description = "OpenAPI 3.1 document generator for server-decorator EntitySpec IR"
 
 [dependencies]
-server-decorator-entity = { path = "../server-decorator-entity" }
+server-decorator-entity = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

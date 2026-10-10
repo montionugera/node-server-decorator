@@ -14,8 +14,16 @@ version = "2.0.22"
 edition = "2021"
 license = "MIT"
 authors = ["Montionugera"]
+repository = "https://github.com/montionugera/node-server-decorator"
+# Relative to this workspace root; cargo copies it into each crate tarball. The MIT text
+# ships through each crate's LICENSE symlink to the repo-root LICENSE.
+readme = "README.md"
 
 [workspace.dependencies]
+# Internal crates: crates.io needs a version next to the path. scripts/bump-version.sh keeps
+# these in lock-step with [workspace.package].version; scripts/check-versions.sh asserts it.
+server-decorator-entity = { path = "crates/server-decorator-entity", version = "2.0.22" }
+server-decorator-dto = { path = "crates/server-decorator-dto", version = "2.0.22" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 thiserror = "2.0"
