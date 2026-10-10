@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>render-spec-DkuZp3</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --surface: #10141b;
+      --surface-2: #161b24;
+      --surface-3: #1b212c;
+      --border: #2a3340;
+      --border-soft: #1c232e;
+      --ink: #d6dde7;
+      --ink-bright: #f6f8fb;
+      --ink-dim: #8392a3;
+      --accent: #4ee39b;
+      --accent-dim: #2f8f63;
+      --amber: #ffc746;
+      --amber-dim: #a37a1a;
+      --blue: #74b0ff;
+      --blue-dim: #3a5d8a;
+      --red: #ff6b6b;
+      --red-dim: #a14242;
+      --purple: #b288ff;
+      --purple-dim: #7a4dc5;
+      --teal: #4ed2c8;
+      --teal-dim: #347e7a;
+      --serif-display: "Fraunces", Georgia, serif;
+      --serif-body: "Spectral", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--serif-body);
+      font-size: 19.5px;
+      line-height: 1.66;
+      color: var(--ink);
+      background: var(--bg);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 64px 30px 160px;
+      counter-reset: sec;
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) both;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(78,227,155,.10), transparent 62%),
+        radial-gradient(720px 520px at -4% 110%, rgba(255,199,70,.055), transparent 60%),
+        linear-gradient(rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 100% 30px,
+        linear-gradient(90deg, rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 30px 100%;
+    }
+
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- headings ---------- */
+    h1, h2, h3, h4 { font-family: var(--serif-display); color: var(--ink-bright); line-height: 1.16; letter-spacing: -.012em; font-weight: 600; }
+    h1 {
+      font-size: 3.2rem; font-weight: 700; margin: 0 0 .25em; letter-spacing: -.028em;
+      background: linear-gradient(180deg, #ffffff, #afb9c5);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      counter-increment: sec;
+      font-size: 2rem; margin: 2.8em 0 .7em; padding-top: .65em;
+      border-top: 1px solid var(--border-soft);
+      display: flex; align-items: baseline; gap: .55em; flex-wrap: wrap;
+      font-weight: 700;
+    }
+    h2::before {
+      content: "§" counter(sec, decimal-leading-zero);
+      font-family: var(--mono); font-size: .74rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .04em;
+      border: 1px solid var(--accent-dim); border-radius: 6px;
+      padding: .3em .55em; transform: translateY(-.22em);
+      background: rgba(78,227,155,.06);
+    }
+    h3 { font-size: 1.42rem; margin: 2.1em 0 .55em; color: var(--ink-bright); font-weight: 600; }
+    h3 code { font-size: .88em; }
+    h4 { font-size: 1.1rem; margin: 1.5em 0 .4em; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); font-weight: 600; }
+
+    p { margin: .95em 0; }
+    strong { color: var(--ink-bright); font-weight: 600; }
+    em { color: #d4dce6; }
+
+    mark {
+      background: linear-gradient(180deg, rgba(255,199,70,.0) 60%, rgba(255,199,70,.32) 60%);
+      color: var(--ink-bright); padding: 0 .2em; border-radius: 3px;
+    }
+
+    /* ---------- links ---------- */
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(78,227,155,.32); transition: border-color .15s, color .15s; }
+    a:hover { color: #8af0c2; border-bottom-color: var(--accent); }
+
+    /* ---------- inline code & code blocks ---------- */
+    code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: #e0ecf6; padding: .14em .45em; border-radius: 5px; border: 1px solid var(--border-soft); }
+    pre {
+      position: relative; font-size: .82rem; line-height: 1.62;
+      background: linear-gradient(180deg, #0e1219, #0a0d13);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 20px 20px 18px; margin: 1.4em 0; overflow-x: auto;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 44px -28px rgba(0,0,0,.9);
+    }
+    pre::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--accent), transparent); border-radius: 11px 0 0 11px; opacity: .6; }
+    pre code { background: none; border: none; padding: 0; color: #d3e4f3; font-size: 1em; }
+
+    kbd { font-family: var(--mono); font-size: .82em; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; padding: 2px 8px; border-radius: 6px; color: var(--ink-bright); box-shadow: 0 1px 0 var(--border-soft); }
+
+    /* ---------- tables ---------- */
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .87rem; font-family: var(--mono); }
+    th, td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--surface); color: var(--ink-bright); font-weight: 600; border-bottom: 2px solid var(--accent-dim); text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    tr:hover td { background: rgba(78,227,155,.04); }
+    td code { font-size: .94em; }
+    td strong { color: var(--amber); }
+
+    /* ---------- lists ---------- */
+    ul, ol { padding-left: 1.5em; margin: .9em 0; }
+    li { margin: .4em 0; }
+    li::marker { color: var(--accent-dim); font-weight: 600; }
+    ul ul, ol ol, ul ol, ol ul { margin: .3em 0; }
+
+    /* ---------- blockquote (used by pandoc) ---------- */
+    blockquote { border-left: 3px solid var(--accent-dim); margin: 1.2em 0; padding: .2em 0 .2em 18px; color: var(--ink-dim); font-style: italic; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.6em 0; }
+
+    /* ---------- masthead (h1 + first p) ---------- */
+    h1 + p { font-family: var(--mono); font-size: .82rem; color: var(--ink-dim); line-height: 2; letter-spacing: .02em; border-bottom: 1px solid var(--border-soft); padding-bottom: 1.2em; }
+    h1 + p strong { color: var(--amber); font-weight: 500; }
+
+    /* ---------- TOC ---------- */
+    #TOC {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px; margin: 1.8em 0 2.4em; font-family: var(--mono); font-size: .78rem;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; color: var(--accent); letter-spacing: .22em; font-size: .7rem; margin-bottom: .7em; font-weight: 600; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC > ul > li { margin: .22em 0; }
+    #TOC ul ul { padding-left: 1.1em; border-left: 1px solid var(--border-soft); margin: .25em 0 .5em; }
+    #TOC a { color: var(--ink); border: none; }
+    #TOC a:hover { color: var(--accent); }
+
+    @media (min-width: 1320px) {
+      #TOC {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 300px; margin: 0;
+        border-radius: 0; border: none; border-right: 1px solid var(--border);
+        padding: 64px 28px; overflow-y: auto;
+        background: linear-gradient(180deg, rgba(13,17,23,.92), rgba(8,10,14,.92));
+        backdrop-filter: blur(6px);
+      }
+      body { max-width: 1320px; padding-left: 360px; }
+    }
+
+    /* ============================================================
+       CALLOUTS — info / warn / success / danger / idea / metric
+       Use via:
+         ::: callout-warn
+         **Heading**
+         body text
+         :::
+       or raw <div class="callout warn"> ... </div>
+       ============================================================ */
+    /* Robust layout: icon is absolutely positioned and the content is padded.
+       (An earlier `display:grid` + `.callout > * { grid-column: 2 }` approach broke
+       when pandoc emitted loose prose as bare text nodes — those became anonymous
+       grid items that fell into the icon column and wrapped one word per line.
+       Absolute icon + padding flows ANY content structure correctly: loose text,
+       multiple inline elements, nested lists.) */
+    .callout {
+      position: relative;
+      margin: 1.7em 0;
+      padding: 18px 22px 16px 58px;
+      border-radius: 13px;
+      border: 1px solid var(--callout-border, var(--border));
+      border-left-width: 4px;
+      background: var(--callout-bg, var(--surface));
+    }
+    .callout::before {
+      content: var(--callout-icon, "·");
+      position: absolute;
+      left: 14px; top: 16px;
+      width: 30px; text-align: center;
+      font-size: 28px; line-height: 1.1;
+      color: var(--callout-accent, var(--accent));
+    }
+    .callout > * { min-width: 0; margin-top: 0; }
+    .callout > * + * { margin-top: .55em; }
+    .callout > p:first-child strong:first-child {
+      display: block;
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--callout-accent, var(--ink-bright));
+      letter-spacing: -.01em;
+      margin-bottom: .35em;
+    }
+    .callout p { line-height: 1.55; }
+    .callout code { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); }
+
+    .callout.info,    .callout-info    { --callout-border: var(--blue-dim);   --callout-bg: rgba(116,176,255,.08);   --callout-accent: var(--blue);   --callout-icon: "ℹ"; }
+    .callout.warn,    .callout-warn    { --callout-border: var(--amber-dim);  --callout-bg: rgba(255,199,70,.09);    --callout-accent: var(--amber);  --callout-icon: "⚠"; }
+    .callout.success, .callout-success { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.08);    --callout-accent: var(--accent); --callout-icon: "✓"; }
+    .callout.danger,  .callout-danger  { --callout-border: var(--red-dim);    --callout-bg: rgba(255,107,107,.09);   --callout-accent: var(--red);    --callout-icon: "✕"; }
+    .callout.idea,    .callout-idea    { --callout-border: var(--purple-dim); --callout-bg: rgba(178,136,255,.08);   --callout-accent: var(--purple); --callout-icon: "✦"; }
+    .callout.metric,  .callout-metric  { --callout-border: var(--teal-dim);   --callout-bg: rgba(78,210,200,.08);    --callout-accent: var(--teal);   --callout-icon: "Σ"; }
+    .callout.action,  .callout-action  { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.04);    --callout-accent: var(--accent); --callout-icon: "▸"; }
+
+    /* ============================================================
+       METRIC TILES — grid of big-number cards
+       Use via raw HTML:
+         <div class="metric-grid">
+           <div class="metric-tile alarm">
+             <div class="label">Pass all gates</div>
+             <div class="value">21%</div>
+             <div class="delta">39 / 187 results</div>
+           </div>
+         </div>
+       Variants: .alarm (red), .win (green), .info (blue), .warn (amber)
+       ============================================================ */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 1.5em 0;
+    }
+    .metric-tile {
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--tile-accent, var(--accent));
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-tile .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-tile .value {
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 2.55rem;
+      color: var(--tile-accent, var(--ink-bright));
+      line-height: 1;
+      letter-spacing: -.025em;
+    }
+    .metric-tile .delta {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--ink-dim);
+    }
+    .metric-tile.alarm { --tile-accent: var(--red); }
+    .metric-tile.win   { --tile-accent: var(--accent); }
+    .metric-tile.info  { --tile-accent: var(--blue); }
+    .metric-tile.warn  { --tile-accent: var(--amber); }
+    .metric-tile.teal  { --tile-accent: var(--teal); }
+    .metric-tile.dim .value { color: var(--ink-bright); }
+
+    /* ============================================================
+       TOPIC CHIP — colored pill that can appear next to H2 text
+       ============================================================ */
+    .topic-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .topic-chip.warn   { background: var(--amber); }
+    .topic-chip.danger { background: var(--red);   color: #fff; }
+    .topic-chip.info   { background: var(--blue);  color: var(--bg); }
+    .topic-chip.idea   { background: var(--purple); color: #fff; }
+    .topic-chip.teal   { background: var(--teal);  color: var(--bg); }
+
+    /* ============================================================
+       PULL QUOTE
+       ============================================================ */
+    .pullquote {
+      font-family: var(--serif-display);
+      font-size: 1.55rem;
+      font-weight: 500;
+      line-height: 1.38;
+      color: var(--ink-bright);
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 22px;
+      margin: 1.8em 0;
+      letter-spacing: -.012em;
+    }
+
+    /* ============================================================
+       SCHEMATIC — ASCII box-drawing diagrams, monospace canvas
+       Use via:
+         <div class="schematic">
+         ┌─────────┐    ┌─────────┐
+         │ Phase 0 │ ─→ │ Phase 1 │
+         └─────────┘    └─────────┘
+         </div>
+       ============================================================ */
+    .schematic {
+      font-family: var(--mono);
+      font-size: .86rem;
+      line-height: 1.4;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      margin: 1.6em 0;
+      color: #cfdcec;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .schematic::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--teal), transparent); border-radius: 12px 0 0 12px; opacity: .6; }
+
+    /* ============================================================
+       RAW SVG / inline diagrams
+       ============================================================ */
+    .diagram, svg.diagram, .figure {
+      display: block; margin: 1.6em auto; max-width: 100%;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 14px;
+    }
+    .figure-caption {
+      text-align: center; font-family: var(--mono); font-size: .76rem;
+      color: var(--ink-dim); margin-top: -.6em; margin-bottom: 1.6em;
+      letter-spacing: .04em;
+    }
+
+    /* ============================================================
+       MERMAID block — bigger frame, softer glow
+       ============================================================ */
+    .mermaid {
+      margin: 1.6em 0; text-align: center;
+      background: linear-gradient(180deg, #0e1320, #0a0d13);
+      border: 1px solid var(--border); border-radius: 13px;
+      padding: 24px 14px;
+      box-shadow: 0 18px 50px -36px rgba(78,227,155,.55) inset;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    /* Hide pandoc's title-block if present */
+    #title-block-header { display: none; }
+
+    /* ============================================================
+       UTILITY ROW — two-up / three-up adjacent blocks
+       ============================================================ */
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      margin: 1.5em 0;
+    }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 760px) {
+      .row.two, .row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const render = () => {
+      const blocks = new Set();
+      document.querySelectorAll('pre.mermaid, pre.sourceCode.mermaid').forEach((p) => blocks.add(p));
+      document.querySelectorAll('code.mermaid, code.language-mermaid').forEach((c) => {
+        const pre = c.closest('pre'); if (pre) blocks.add(pre);
+      });
+      blocks.forEach((pre) => {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = pre.textContent.trim();
+        pre.replaceWith(div);
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        fontFamily: 'IBM Plex Mono, monospace',
+        themeVariables: {
+          background: '#0a0d13',
+          primaryColor: '#1a212c',
+          primaryTextColor: '#f0f3f7',
+          primaryBorderColor: '#4ee39b',
+          lineColor: '#6c7a8b',
+          secondaryColor: '#191e28',
+          tertiaryColor: '#11161e',
+          tertiaryBorderColor: '#2a3340',
+          clusterBkg: 'rgba(78,227,155,.05)',
+          clusterBorder: '#2f8f63',
+          titleColor: '#4ee39b',
+          actorBkg: '#1a212c',
+          actorBorder: '#4ee39b',
+          actorTextColor: '#f0f3f7',
+          signalColor: '#9aa7b6',
+          signalTextColor: '#d3dbe5',
+          noteBkgColor: 'rgba(255,199,70,.14)',
+          noteBorderColor: '#ffc746',
+          noteTextColor: '#f6f8fb',
+          fontSize: '14px'
+        }
+      });
+      mermaid.run();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+  </script>
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a
+href="#release-notes-github-release-with-docs-archive-and-portal-signal-implementation-plan"
+id="toc-release-notes-github-release-with-docs-archive-and-portal-signal-implementation-plan">Release
+notes, GitHub Release with docs archive, and portal signal:
+Implementation Plan</a>
+<ul>
+<li><a href="#global-constraints" id="toc-global-constraints">Global
+Constraints</a></li>
+<li><a href="#file-map" id="toc-file-map">File Map</a></li>
+<li><a href="#how-this-is-verified-without-publishing"
+id="toc-how-this-is-verified-without-publishing">How this is verified
+without publishing</a></li>
+<li><a href="#if-it-goes-wrong" id="toc-if-it-goes-wrong">If it goes
+wrong</a></li>
+<li><a href="#audit-trail" id="toc-audit-trail">Audit trail</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1
+id="release-notes-github-release-with-docs-archive-and-portal-signal-implementation-plan">Release
+notes, GitHub Release with docs archive, and portal signal:
+Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use
+subagent-driven-development to implement this plan task-by-task. Steps
+use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Make the existing publish run of
+<code>node-server-decorator</code> also write a
+<code>CHANGELOG.md</code> entry, create a GitHub Release with the docs
+site attached as <code>docs-site.tgz</code>, repair a half-published
+version from the manual trigger, and carry a switched-off
+developer-portal signal, without changing how or where packages are
+published.</p>
+<p><strong>Architecture:</strong> Two small shell scripts
+(<code>release-notes.sh</code>, <code>release-decide.sh</code>) plus
+edits inside the existing <code>publish</code> job of
+<code>.github/workflows/ci-node.yml</code>, and one new
+<code>release</code> job in the same file that only has
+<code>contents: write</code>. No step is moved or renamed, and nothing
+new sits between the first registry publish and the version tag.</p>
+<p><strong>Tech Stack:</strong> bash, git, <code>gh</code> (GitHub CLI),
+GitHub Actions YAML, <code>actionlint</code> (workflow linter, installed
+at <code>/usr/local/bin/actionlint</code>), ruby (stdlib YAML; used only
+on the developer machine, by one test and the Task 0 step lister, to
+read step bodies; no workflow runs these tests, so the runner needs no
+ruby and CI gains no dependency), pnpm 9.14.2, Astro + Storybook (docs
+site in <code>website/</code>).</p>
+<p><strong>Spec:</strong>
+<code>.claude/idea_backlog/I-030-adopt-release-notes-github-release-with/spec.md</code>
+(I-030 is this idea’s backlog id; after <code>psrw refine</code> the
+same file lives under
+<code>.claude/refined_backlog/F-NNN-*/spec.md</code>). Read it before
+starting.</p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li><strong>Merging this change to <code>main</code> publishes one real,
+permanent version</strong> (expected 2.0.22) to GitHub Packages,
+npmjs.com and PyPI. Nothing in this plan assumes that approval. Every
+irreversible step is prefixed
+<code>STOP — needs the owner's yes:</code>.</li>
+<li>The npmjs.com step and the PyPI step stay in
+<code>.github/workflows/ci-node.yml</code>, job <code>publish</code>,
+<code>environment: pypi</code>. Both registries use trusted publishing
+(the registry trusts this repo + workflow file + environment through a
+short-lived identity token), so a rename or move can break the next
+release.</li>
+<li>No new workflow file. No change to the bump rule, the primary
+registry (GitHub Packages), or <code>concurrency</code>.
+<code>ref: main</code> is <strong>not</strong> added to the
+checkout.</li>
+<li>Out of scope, do not build: anything in the spec’s “Separate
+follow-ups” list (stop cancelling a publish on <code>main</code>,
+<code>ref: main</code>, a third decide outcome <code>none</code>, a
+shared reusable workflow), the portal downloading the archive, setting
+<code>PORTAL_DISPATCH_TOKEN</code>, backfilling old releases. Off-goal
+discoveries go as one line in <code>docs/superpowers/ideas.md</code>,
+not into this change.</li>
+<li>Never run the manual trigger (<code>workflow_dispatch</code>,
+<code>gh workflow run</code>) to “try it”: it bumps and publishes a real
+version.</li>
+<li>Never <code>git commit --amend</code>; one commit per logical unit.
+Do not touch the sibling worktrees
+<code>../node-server-decorator-*</code>. The main checkout blocks edits;
+all work is in the feature worktree.</li>
+<li>Bot bump commit title, exact:
+<code>chore: bump patch version [skip ci]</code>. Fallback note lines,
+exact: <code>- Maintenance release</code> (empty range) and
+<code>- Release X.Y.Z</code> (notes failed).</li>
+</ul>
+<h2 id="file-map">File Map</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>Action</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scripts/release-notes.sh</code></td>
+<td>create</td>
+<td>Print one <code>- &lt;commit title&gt;</code> per commit between a
+previous tag and an end ref</td>
+</tr>
+<tr>
+<td><code>scripts/release-decide.sh</code></td>
+<td>create</td>
+<td>Print <code>action=repair</code> or <code>action=release</code></td>
+</tr>
+<tr>
+<td><code>scripts/tests/release-notes.test.sh</code>,
+<code>release-decide.test.sh</code>,
+<code>ci-node-steps.test.sh</code></td>
+<td>create</td>
+<td>Plain-bash tests (the repo has no bash test runner; none is
+added)</td>
+</tr>
+<tr>
+<td><code>.github/workflows/ci-node.yml</code></td>
+<td>modify</td>
+<td><code>publish</code> job edits + new <code>release</code> job</td>
+</tr>
+<tr>
+<td><code>CHANGELOG.md</code></td>
+<td>create</td>
+<td>One-line header; entries are written by the publish run</td>
+</tr>
+<tr>
+<td><code>README.md</code>, <code>.github/SETUP.md</code>,
+<code>CLAUDE.md</code> (line 84 only)</td>
+<td>modify</td>
+<td>Describe the new behaviour</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-this-is-verified-without-publishing">How this is verified
+without publishing</h2>
+<ul>
+<li><strong>Scripts</strong> run against throwaway git repositories
+under <code>mktemp -d</code>, with a local bare repository as
+<code>origin</code>. They never contact GitHub.</li>
+<li><strong>Workflow step bodies</strong> are read out of the YAML by
+<code>scripts/tests/ci-node-steps.test.sh</code> and executed in a
+fixture with <code>npm</code>, <code>pnpm</code> and <code>gh</code>
+replaced by stub scripts first on <code>PATH</code> that only append
+their arguments to a log file. No registry or GitHub call is possible.
+Step bodies are run with <code>bash -e</code> and no
+<code>pipefail</code>, which is how GitHub runs a step that has no
+<code>shell:</code> key. All three test files are <strong>local
+only</strong>: nothing in <code>.github/workflows</code> runs them
+(checked: no workflow on <code>main</code> references
+<code>scripts/tests</code>), and this change does not wire them in.</li>
+<li><strong>Workflow structure</strong> is checked by
+<code>actionlint</code> and by diff commands against
+<code>origin/main</code>. <strong>Docs archive</strong> is built locally
+with <code>pnpm docs:build</code> and <code>tar</code>.</li>
+<li><strong>Only the one real merge can prove:</strong> that GitHub
+accepts the edited workflow, that npmjs.com and PyPI still trust it,
+that the <code>release</code> job creates the page and uploads the asset
+with the run’s token, and the live-run acceptance criteria.
+<strong>Nothing before a genuine mid-run failure can prove</strong> the
+<code>repair</code> path end to end, that <code>pnpm -r publish</code>
+skips versions already on GitHub Packages, or that PyPI
+<code>skip-existing</code> works together with attestations.</li>
+</ul>
+<hr />
+<h3 id="task-0-workspace-and-baseline">Task 0: Workspace and
+baseline</h3>
+<p><strong>Files:</strong> none edited. <strong>Produces:</strong> a
+feature worktree, <code>$BASE</code> (a saved copy of the workflow as on
+<code>main</code>).</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Promote the idea and
+claim it.</strong> From the <code>_release</code> worktree
+(<code>.claude/worktrees/_release</code>, the long-lived checkout of
+branch <code>release/2.9</code>): run <code>psrw refine I-030</code>
+(mints feature id F-NNN and commits the backlog move locally), then
+<code>psrw claim F-NNN</code> (creates the isolated feature worktree; it
+prints the path). <code>cd</code> into that path for everything below.
+Neither command pushes or contacts GitHub (checked in the toolkit
+source,
+<code>~/.claude/ps-release-workflow/scripts/promote_idea_to_refined.py</code>
+and <code>init_work_refined_backlog.py</code>: no <code>git push</code>,
+no <code>gh</code> call); both only commit on the local
+<code>release/2.9</code> branch.</label></li>
+<li><label><input type="checkbox" /><strong>Step 2: Install
+dependencies</strong> (a fresh worktree has none):
+<code>(cd node &amp;&amp; pnpm install --frozen-lockfile) &amp;&amp; (cd website &amp;&amp; pnpm install --frozen-lockfile)</code>.
+Expected: both exit 0.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Confirm the starting
+point matches <code>main</code>.</strong> Run
+<code>git fetch origin main &amp;&amp; git diff --stat origin/main -- .github/workflows scripts README.md .github/SETUP.md</code>.
+Expected: no output. Then the spec’s sequencing check:
+<code>git diff origin/main fix/npmjs-trusted-publishing -- .github/workflows/ci-node.yml .github/SETUP.md</code>.
+Expected: no output (or “unknown revision” if that branch was deleted,
+which is equally fine). Any other output: stop and report.</label></li>
+<li><label><input type="checkbox" /><strong>Step 4: Save the baseline
+and define the step lister</strong> used by later gates:</label></li>
+</ul>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="va">BASE</span><span class="op">=</span><span class="va">$(</span><span class="fu">mktemp</span><span class="va">)</span><span class="kw">;</span> <span class="fu">git</span> show origin/main:.github/workflows/ci-node.yml <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$BASE</span><span class="st">&quot;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">steps()</span><span class="kw">{</span> <span class="ex">ruby</span> <span class="at">-ryaml</span> <span class="at">-e</span> <span class="st">&#39;j=YAML.load_file(ARGV[0])[&quot;jobs&quot;][&quot;publish&quot;]; puts &quot;env=#{j[&quot;environment&quot;]}&quot;; j[&quot;steps&quot;].each{|s| puts(s[&quot;name&quot;]||s[&quot;uses&quot;])}&#39;</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">steps</span> <span class="st">&quot;</span><span class="va">$BASE</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">head</span> <span class="at">-3</span>   <span class="co"># Expected: env=pypi / actions/checkout@v4 / pnpm/action-setup@v4</span></span></code></pre></div>
+<h3 id="task-1-scriptsrelease-notes.sh">Task 1:
+<code>scripts/release-notes.sh</code></h3>
+<p><strong>Files:</strong> Create <code>scripts/release-notes.sh</code>;
+Test <code>scripts/tests/release-notes.test.sh</code>.
+<strong>Interfaces:</strong> Produces
+<code>bash scripts/release-notes.sh &lt;previous tag&gt; [&lt;end ref&gt;, default HEAD]</code>:
+stdout is one <code>- &lt;title&gt;</code> line per non-merge commit in
+<code>&lt;previous tag&gt;..&lt;end&gt;</code>, oldest first, bot bump
+commits removed; <code>- Maintenance release</code> when the range is
+empty; non-zero exit when the argument is missing or the tag is
+unknown.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Write the failing
+test</strong>
+<code>scripts/tests/release-notes.test.sh</code>:</label></li>
+</ul>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Run: bash scripts/tests/release-notes.test.sh   (throwaway repo; never touches a remote)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-uo</span> pipefail</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="va">R</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">dirname</span> <span class="st">&quot;</span><span class="va">$0</span><span class="st">&quot;</span><span class="va">)</span><span class="st">/../..&quot;</span> <span class="kw">&amp;&amp;</span> <span class="bu">pwd</span><span class="va">)</span><span class="st">&quot;</span><span class="kw">;</span> <span class="va">S</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$R</span><span class="st">/scripts/release-notes.sh&quot;</span><span class="kw">;</span> <span class="va">T</span><span class="op">=</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="at">-d</span><span class="va">)</span><span class="kw">;</span> <span class="bu">trap</span> <span class="st">&#39;rm -rf &quot;$T&quot;&#39;</span> EXIT<span class="kw">;</span> <span class="va">fail</span><span class="op">=</span>0</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">check()</span><span class="kw">{</span> <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span> <span class="ot">=</span> <span class="st">&quot;</span><span class="va">$3</span><span class="st">&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span> <span class="bu">echo</span> <span class="st">&quot;ok - </span><span class="va">$1</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">else</span> <span class="bu">echo</span> <span class="st">&quot;FAIL - </span><span class="va">$1</span><span class="st">: got &#39;</span><span class="va">$2</span><span class="st">&#39;, want &#39;</span><span class="va">$3</span><span class="st">&#39;&quot;</span><span class="kw">;</span> <span class="va">fail</span><span class="op">=</span>1<span class="kw">;</span> <span class="cf">fi</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;real history v2.0.20..v2.0.21&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$R</span><span class="st">&quot;</span> <span class="kw">&amp;&amp;</span> <span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> v2.0.20 v2.0.21<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;- fix(ci): publish to npmjs.com via trusted publishing instead of NPM_TOKEN (#17)&quot;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> init <span class="at">-q</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/w&quot;</span><span class="kw">;</span> <span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/w&quot;</span> <span class="kw">||</span> <span class="bu">exit</span> 1<span class="kw">;</span> <span class="fu">git</span> config user.email t@t<span class="kw">;</span> <span class="fu">git</span> config user.name t<span class="kw">;</span> <span class="fu">git</span> config commit.gpgsign false</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="fu">c()</span><span class="kw">{</span> <span class="fu">git</span> commit <span class="at">-q</span> <span class="at">--allow-empty</span> <span class="at">-m</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="ex">c</span> <span class="st">&#39;feat: base&#39;</span><span class="kw">;</span> <span class="fu">git</span> tag v1.0.0</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;empty range -&gt; maintenance line&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> v1.0.0<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;- Maintenance release&quot;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="ex">c</span> <span class="st">&#39;feat: one (#1)&#39;</span><span class="kw">;</span> <span class="ex">c</span> <span class="st">&#39;chore: bump patch version [skip ci]&#39;</span><span class="kw">;</span> <span class="ex">c</span> <span class="st">&#39;fix: two (#2)&#39;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;oldest first, bump commits dropped&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> v1.0.0<span class="va">)</span><span class="st">&quot;</span> <span class="st">$&#39;- feat: one (#1)</span><span class="dt">\n</span><span class="st">- fix: two (#2)&#39;</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;explicit end ref&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> v1.0.0 HEAD~2<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;- feat: one (#1)&quot;</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="kw">;</span> <span class="ex">check</span> <span class="st">&quot;missing argument -&gt; non-zero&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="bu">[</span> <span class="va">$?</span> <span class="ot">-ne</span> 0 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> nonzero<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;nonzero&quot;</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> v0.0.0-nope <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="kw">;</span> <span class="ex">check</span> <span class="st">&quot;unknown tag -&gt; non-zero&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="bu">[</span> <span class="va">$?</span> <span class="ot">-ne</span> 0 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> nonzero<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;nonzero&quot;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span> <span class="st">&quot;</span><span class="va">$fail</span><span class="st">&quot;</span></span></code></pre></div>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 2: Run it and watch it
+fail.</strong> <code>bash scripts/tests/release-notes.test.sh</code>.
+Expected: <code>FAIL - real history v2.0.20..v2.0.21</code> (script
+missing), exit 1.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Write
+<code>scripts/release-notes.sh</code>:</strong></label></li>
+</ul>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Usage: release-notes.sh &lt;previous tag&gt; [&lt;end ref&gt;, default HEAD]</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Prints &quot;- &lt;commit title&gt;&quot; for each commit in the range, oldest first, minus the bot&#39;s bump commits.</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-euo</span> pipefail</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="va">prev</span><span class="op">=</span><span class="st">&quot;</span><span class="va">${1</span><span class="op">:?</span>usage: release-notes.sh &lt;previous tag&gt; [&lt;end ref&gt;]<span class="va">}</span><span class="st">&quot;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="va">log</span><span class="op">=</span><span class="va">$(</span><span class="fu">git</span> log <span class="st">&quot;</span><span class="va">$prev</span><span class="st">..</span><span class="va">${2</span><span class="op">:-</span>HEAD<span class="va">}</span><span class="st">&quot;</span> <span class="at">--no-merges</span> <span class="at">--reverse</span> <span class="at">--format</span><span class="op">=</span><span class="st">&#39;- %s&#39;</span><span class="va">)</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="va">notes</span><span class="op">=</span><span class="va">$(</span><span class="bu">printf</span> <span class="st">&#39;%s\n&#39;</span> <span class="st">&quot;</span><span class="va">$log</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-v</span> <span class="st">&#39;^- chore: bump patch version&#39;</span> <span class="kw">|</span> <span class="fu">grep</span> . <span class="kw">||</span> <span class="fu">true</span><span class="va">)</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">&#39;%s\n&#39;</span> <span class="st">&quot;</span><span class="va">${notes</span><span class="op">:-</span>- Maintenance release<span class="va">}</span><span class="st">&quot;</span></span></code></pre></div>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 4: Run it and watch it
+pass.</strong> <code>bash scripts/tests/release-notes.test.sh</code>.
+Expected: six <code>ok -</code> lines, exit 0.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5: Commit.</strong>
+<code>git add scripts/release-notes.sh scripts/tests/release-notes.test.sh &amp;&amp; git commit -m "feat(release): release-notes.sh derives notes from commit titles since the previous tag"</code></label></li>
+</ul>
+<h3 id="task-2-scriptsrelease-decide.sh">Task 2:
+<code>scripts/release-decide.sh</code></h3>
+<p><strong>Files:</strong> Create
+<code>scripts/release-decide.sh</code>; Test
+<code>scripts/tests/release-decide.test.sh</code>.
+<strong>Interfaces:</strong> Produces
+<code>bash scripts/release-decide.sh</code> (run from the repo root):
+stdout is exactly <code>action=repair</code> or
+<code>action=release</code>. <code>repair</code> only when the HEAD
+commit title is the bot bump title <strong>and</strong>
+<code>v&lt;version in node/packages/core/package.json&gt;</code> has no
+tag on <code>origin</code> (<code>git ls-remote --exit-code</code>
+returned 2). Any other <code>ls-remote</code> failure exits
+non-zero.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Write the failing
+test</strong>
+<code>scripts/tests/release-decide.test.sh</code>:</label></li>
+</ul>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Run: bash scripts/tests/release-decide.test.sh   (&quot;origin&quot; is a local bare repo; never touches GitHub)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-uo</span> pipefail</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="va">S</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">dirname</span> <span class="st">&quot;</span><span class="va">$0</span><span class="st">&quot;</span><span class="va">)</span><span class="st">/..&quot;</span> <span class="kw">&amp;&amp;</span> <span class="bu">pwd</span><span class="va">)</span><span class="st">/release-decide.sh&quot;</span><span class="kw">;</span> <span class="va">T</span><span class="op">=</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="at">-d</span><span class="va">)</span><span class="kw">;</span> <span class="bu">trap</span> <span class="st">&#39;rm -rf &quot;$T&quot;&#39;</span> EXIT<span class="kw">;</span> <span class="va">fail</span><span class="op">=</span>0</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="fu">check()</span><span class="kw">{</span> <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span> <span class="ot">=</span> <span class="st">&quot;</span><span class="va">$3</span><span class="st">&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span> <span class="bu">echo</span> <span class="st">&quot;ok - </span><span class="va">$1</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">else</span> <span class="bu">echo</span> <span class="st">&quot;FAIL - </span><span class="va">$1</span><span class="st">: got &#39;</span><span class="va">$2</span><span class="st">&#39;, want &#39;</span><span class="va">$3</span><span class="st">&#39;&quot;</span><span class="kw">;</span> <span class="va">fail</span><span class="op">=</span>1<span class="kw">;</span> <span class="cf">fi</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> init <span class="at">-q</span> <span class="at">--bare</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/origin.git&quot;</span><span class="kw">;</span> <span class="fu">git</span> clone <span class="at">-q</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/origin.git&quot;</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/w&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/w&quot;</span> <span class="kw">||</span> <span class="bu">exit</span> 1</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> config user.email t@t<span class="kw">;</span> <span class="fu">git</span> config user.name t<span class="kw">;</span> <span class="fu">git</span> config commit.gpgsign false</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> node/packages/core<span class="kw">;</span> <span class="bu">echo</span> <span class="st">&#39;{&quot;version&quot;:&quot;9.9.9&quot;}&#39;</span> <span class="op">&gt;</span> node/packages/core/package.json</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add <span class="at">-A</span><span class="kw">;</span> <span class="fu">git</span> commit <span class="at">-qm</span> <span class="st">&#39;feat: something (#1)&#39;</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;normal commit -&gt; release&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;action=release&quot;</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-q</span> <span class="at">--allow-empty</span> <span class="at">-m</span> <span class="st">&#39;chore: bump patch version [skip ci]&#39;</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;bump commit, no tag on origin -&gt; repair&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;action=repair&quot;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> tag v9.9.9<span class="kw">;</span> <span class="fu">git</span> push <span class="at">-q</span> origin v9.9.9</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;bump commit, tag on origin -&gt; release&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;action=release&quot;</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> remote set-url origin <span class="st">&quot;</span><span class="va">$T</span><span class="st">/missing.git&quot;</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="va">out</span><span class="op">=</span><span class="va">$(</span><span class="fu">bash</span> <span class="st">&quot;</span><span class="va">$S</span><span class="st">&quot;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="va">)</span><span class="kw">;</span> <span class="va">rc</span><span class="op">=</span><span class="va">$?</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;unreachable origin -&gt; fails and prints no action&quot;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">:</span><span class="va">$out</span><span class="st">&quot;</span> <span class="st">&quot;128:&quot;</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span> <span class="st">&quot;</span><span class="va">$fail</span><span class="st">&quot;</span></span></code></pre></div>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 2: Run it and watch it
+fail.</strong> <code>bash scripts/tests/release-decide.test.sh</code>.
+Expected: <code>FAIL - normal commit -&gt; release</code>, exit
+1.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Write
+<code>scripts/release-decide.sh</code>:</strong></label></li>
+</ul>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Prints action=repair when HEAD is the bot&#39;s bump commit and its version has no tag on origin</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># (a publish run died before tagging and nothing merged since). Otherwise action=release.</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-euo</span> pipefail</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="va">action</span><span class="op">=</span>release</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">git</span> log <span class="at">-1</span> <span class="at">--format</span><span class="op">=</span>%s<span class="va">)</span><span class="st">&quot;</span> <span class="ot">=</span> <span class="st">&quot;chore: bump patch version [skip ci]&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="va">tag</span><span class="op">=</span><span class="st">&quot;v</span><span class="va">$(</span><span class="ex">node</span> <span class="at">-p</span> <span class="st">&quot;require(&#39;./node/packages/core/package.json&#39;).version&quot;</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="va">rc</span><span class="op">=</span>0<span class="kw">;</span> <span class="fu">git</span> ls-remote <span class="at">--exit-code</span> <span class="at">--tags</span> origin <span class="st">&quot;refs/tags/</span><span class="va">$tag</span><span class="st">&quot;</span> <span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="va">rc</span><span class="op">=</span><span class="va">$?</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">case</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span> <span class="kw">in</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="ss">0</span><span class="kw">)</span> <span class="cf">;;</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="ss">2</span><span class="kw">)</span> <span class="va">action</span><span class="op">=</span>repair <span class="cf">;;</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="pp">*</span><span class="kw">)</span> <span class="bu">echo</span> <span class="st">&quot;release-decide: git ls-remote failed with status </span><span class="va">$rc</span><span class="st">&quot;</span> <span class="op">&gt;&amp;</span><span class="dv">2</span><span class="kw">;</span> <span class="bu">exit</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span> <span class="cf">;;</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>  <span class="cf">esac</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> <span class="st">&quot;action=</span><span class="va">$action</span><span class="st">&quot;</span></span></code></pre></div>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 4: Run it and watch it
+pass.</strong> <code>bash scripts/tests/release-decide.test.sh</code>.
+Expected: four <code>ok -</code> lines, exit 0. If the last check
+reports a status other than 128 on this git version, change the test’s
+expected value to the observed non-zero, non-2 status; do not change the
+script.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5: Commit.</strong>
+<code>git add scripts/release-decide.sh scripts/tests/release-decide.test.sh &amp;&amp; git commit -m "feat(release): release-decide.sh chooses release or repair"</code></label></li>
+<li><label><input type="checkbox" /><strong>Step 6: Phase gate for Tasks
+1 and 2</strong> (one gate; both are small and in
+<code>scripts/</code>):</label>
+<ol type="1">
+<li>Implement: Steps above, committed.</li>
+<li>Verify:
+<code>bash scripts/tests/release-notes.test.sh &amp;&amp; bash scripts/tests/release-decide.test.sh &amp;&amp; shellcheck -S warning scripts/release-notes.sh scripts/release-decide.sh scripts/tests/*.test.sh</code>.
+Expected: ten <code>ok -</code> lines, no shellcheck output, exit 0.
+Also the spec’s own check in a clone of a clone:
+<code>T=$(mktemp -d) &amp;&amp; git clone -q . "$T/a" &amp;&amp; git clone -q "$T/a" "$T/b" &amp;&amp; (cd "$T/b" &amp;&amp; bash scripts/release-decide.sh)</code>.
+Expected: <code>action=release</code>.</li>
+<li>Review: dispatch the <code>code-reviewer</code> agent on
+<code>git diff origin/main...HEAD -- scripts/</code>, asking
+specifically whether any path can print <code>action=repair</code>
+wrongly or hide a <code>git</code> failure.</li>
+<li>Refactor: apply the review’s findings (new commit).</li>
+<li>Re-verify: repeat the command in item 2; same expected output.</li>
+</ol></li>
+</ul>
+<h3 id="task-3-edits-inside-the-existing-publish-job">Task 3: Edits
+inside the existing <code>publish</code> job</h3>
+<p><strong>Files:</strong> Modify
+<code>.github/workflows/ci-node.yml</code> (job <code>publish</code>
+only); Create <code>CHANGELOG.md</code>; Test
+<code>scripts/tests/ci-node-steps.test.sh</code>.
+<strong>Interfaces:</strong> Consumes both scripts. Produces step id
+<code>decide</code> with output <code>action</code>; a
+<code>CHANGELOG.md</code> whose line 1 is <code># Changelog</code> and
+whose newest entry starts at line 3 as
+<code>## X.Y.Z - YYYY-MM-DD</code>.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Write the failing
+test</strong> <code>scripts/tests/ci-node-steps.test.sh</code> (it reads
+step bodies from the YAML, so the workflow is the single source; step
+names here must match the YAML exactly):</label></li>
+</ul>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env bash</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Run: bash scripts/tests/ci-node-steps.test.sh   (npm, pnpm and gh are stubs that only log; nothing is published)</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="at">-uo</span> pipefail</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="va">R</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$(</span><span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">dirname</span> <span class="st">&quot;</span><span class="va">$0</span><span class="st">&quot;</span><span class="va">)</span><span class="st">/../..&quot;</span> <span class="kw">&amp;&amp;</span> <span class="bu">pwd</span><span class="va">)</span><span class="st">&quot;</span><span class="kw">;</span> <span class="va">WF</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$R</span><span class="st">/.github/workflows/ci-node.yml&quot;</span><span class="kw">;</span> <span class="va">T</span><span class="op">=</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="at">-d</span><span class="va">)</span><span class="kw">;</span> <span class="bu">trap</span> <span class="st">&#39;rm -rf &quot;$T&quot;&#39;</span> EXIT<span class="kw">;</span> <span class="va">fail</span><span class="op">=</span>0</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">check()</span><span class="kw">{</span> <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span> <span class="ot">=</span> <span class="st">&quot;</span><span class="va">$3</span><span class="st">&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span> <span class="bu">echo</span> <span class="st">&quot;ok - </span><span class="va">$1</span><span class="st">&quot;</span><span class="kw">;</span> <span class="cf">else</span> <span class="bu">echo</span> <span class="st">&quot;FAIL - </span><span class="va">$1</span><span class="st">: got &#39;</span><span class="va">$2</span><span class="st">&#39;, want &#39;</span><span class="va">$3</span><span class="st">&#39;&quot;</span><span class="kw">;</span> <span class="va">fail</span><span class="op">=</span>1<span class="kw">;</span> <span class="cf">fi</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="fu">run_of()</span><span class="kw">{</span> <span class="ex">ruby</span> <span class="at">-ryaml</span> <span class="at">-e</span> <span class="st">&#39;s=YAML.load_file(ARGV[0])[&quot;jobs&quot;][ARGV[1]][&quot;steps&quot;].find{|x|x[&quot;name&quot;]==ARGV[2]} or abort &quot;no step: #{ARGV[2]}&quot;; puts s[&quot;run&quot;]&#39;</span> <span class="st">&quot;</span><span class="va">$WF</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="bu">command</span> <span class="at">-v</span> ruby <span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="kw">{</span> <span class="bu">echo</span> <span class="st">&quot;FAIL - this test needs ruby (it is run locally only, never in CI)&quot;</span><span class="kw">;</span> <span class="bu">exit</span> 1<span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># GitHub runs a step that has no `shell:` key as `bash -e` WITHOUT pipefail; run the bodies the same way.</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="fu">step()</span><span class="kw">{</span> <span class="fu">bash</span> <span class="at">-e</span> <span class="at">-c</span> <span class="st">&quot;</span><span class="va">$(</span><span class="ex">run_of</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$2</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LOG</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$T</span><span class="st">/log&quot;</span> <span class="va">RUNNER_TEMP</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$T</span><span class="st">/rt&quot;</span> <span class="va">GITHUB_OUTPUT</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$T</span><span class="st">/out&quot;</span><span class="kw">;</span> <span class="bu">:</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="kw">;</span> <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/bin&quot;</span> <span class="st">&quot;</span><span class="va">$RUNNER_TEMP</span><span class="st">&quot;</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">&#39;#!/bin/sh\necho &quot;npm $*&quot; &gt;&gt; &quot;$LOG&quot;\n[ &quot;$1&quot; = view ] &amp;&amp; [ &quot;$2&quot; = &quot;@x/a@1.0.0&quot; ] &amp;&amp; echo 1.0.0\nexit 0\n&#39;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/bin/npm&quot;</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">&#39;#!/bin/sh\nmkdir -p .t/package &amp;&amp; cp package.json .t/package/ &amp;&amp; tar -czf &quot;$3/$(basename &quot;$PWD&quot;).tgz&quot; -C .t package &amp;&amp; rm -rf .t\n&#39;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/bin/pnpm&quot;</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">&#39;#!/bin/sh\necho &quot;gh $*&quot; &gt;&gt; &quot;$LOG&quot;\n[ &quot;$1 $2&quot; = &quot;release view&quot; ] &amp;&amp; exit &quot;${GH_VIEW_RC:-1}&quot;\nexit 0\n&#39;</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/bin/gh&quot;</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="fu">chmod</span> +x <span class="st">&quot;</span><span class="va">$T</span><span class="st">/bin&quot;</span>/<span class="pp">*</span><span class="kw">;</span> <span class="bu">export</span> <span class="va">PATH</span><span class="op">=</span><span class="st">&quot;</span><span class="va">$T</span><span class="st">/bin:</span><span class="va">$PATH</span><span class="st">&quot;</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="fu">mk()</span><span class="kw">{</span> <span class="fu">git</span> init <span class="at">-q</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span><span class="kw">;</span> <span class="bu">cd</span> <span class="st">&quot;</span><span class="va">$1</span><span class="st">&quot;</span> <span class="kw">||</span> <span class="bu">exit</span> 1<span class="kw">;</span> <span class="fu">git</span> config user.email t@t<span class="kw">;</span> <span class="fu">git</span> config user.name t<span class="kw">;</span> <span class="fu">git</span> config commit.gpgsign false<span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="ex">mk</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/w&quot;</span><span class="kw">;</span> <span class="fu">cp</span> <span class="at">-R</span> <span class="st">&quot;</span><span class="va">$R</span><span class="st">/scripts&quot;</span> .<span class="kw">;</span> <span class="fu">mkdir</span> <span class="at">-p</span> node/packages/core<span class="kw">;</span> <span class="bu">echo</span> <span class="st">&#39;{&quot;version&quot;:&quot;9.9.10&quot;}&#39;</span> <span class="op">&gt;</span> node/packages/core/package.json</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">&#39;# Changelog\n\n## 9.9.9 - 2026-01-01\n\n- old: thing (#1)\n&#39;</span> <span class="op">&gt;</span> CHANGELOG.md<span class="kw">;</span> <span class="fu">git</span> add <span class="at">-A</span><span class="kw">;</span> <span class="fu">git</span> commit <span class="at">-qm</span> <span class="st">&#39;feat: base&#39;</span><span class="kw">;</span> <span class="fu">git</span> tag v9.9.9<span class="kw">;</span> <span class="fu">git</span> commit <span class="at">-q</span> <span class="at">--allow-empty</span> <span class="at">-m</span> <span class="st">&#39;feat: thing (#7)&#39;</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="bu">:</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$GITHUB_OUTPUT</span><span class="st">&quot;</span><span class="kw">;</span> <span class="ex">step</span> publish <span class="st">&#39;Decide release or repair&#39;</span> <span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="va">rc</span><span class="op">=</span><span class="va">$?</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;decide: writes the action to the step output&quot;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">:</span><span class="va">$(</span><span class="fu">cat</span> <span class="st">&quot;</span><span class="va">$GITHUB_OUTPUT</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;0:action=release&quot;</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="ex">step</span> publish <span class="st">&#39;Write CHANGELOG entry&#39;</span> <span class="op">&gt;</span>/dev/null</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;changelog: header kept, entry at line 3, notes at line 5&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">sed</span> <span class="at">-n</span> <span class="st">&#39;1p;3p;5p&#39;</span> CHANGELOG.md<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="bu">printf</span> <span class="st">&#39;# Changelog\n## 9.9.10 - %s\n- feat: thing (#7)&#39;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">date</span> <span class="at">-u</span> +%F<span class="va">)</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">TAG</span><span class="op">=</span>v9.9.10 <span class="va">ASSET</span><span class="op">=</span>docs-site.tgz<span class="kw">;</span> <span class="bu">:</span> <span class="op">&gt;</span> docs-site.tgz</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="va">GH_VIEW_RC</span><span class="op">=</span>1 <span class="ex">step</span> release <span class="st">&#39;Create GitHub Release&#39;</span> <span class="op">&gt;</span>/dev/null</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;release: creates with verified tag, notes file and asset&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;^gh release create v9.9.10 --verify-tag --title v9.9.10 --notes-file notes.md docs-site.tgz$&#39;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;1&quot;</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;release: notes come from that version&#39;s section&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;^- &#39;</span> notes.md<span class="va">)</span><span class="st">:</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;feat: thing (#7)&#39;</span> notes.md<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;1:1&quot;</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="va">GH_VIEW_RC</span><span class="op">=</span>0 <span class="ex">step</span> release <span class="st">&#39;Create GitHub Release&#39;</span> <span class="op">&gt;</span>/dev/null</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;release: existing release gets the asset re-uploaded, not re-created&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;^gh release upload v9.9.10 docs-site.tgz --clobber$&#39;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="va">)</span><span class="st">:</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;^gh release create&#39;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;1:1&quot;</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="bu">:</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="kw">;</span> <span class="va">out</span><span class="op">=</span><span class="va">$(ASSET</span><span class="op">=</span><span class="st">&quot;&quot;</span> <span class="va">GH_VIEW_RC</span><span class="op">=</span>1 <span class="ex">step</span> release <span class="st">&#39;Create GitHub Release&#39;</span><span class="va">)</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;release: without the archive it still creates the release, and warns&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;^gh release create v9.9.10 --verify-tag --title v9.9.10 --notes-file notes.md$&#39;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="va">)</span><span class="st">:</span><span class="va">$(</span><span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$out</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;::warning::&#39;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;1:1&quot;</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="va">out</span><span class="op">=</span><span class="va">$(GH_TOKEN</span><span class="op">=</span><span class="st">&quot;&quot;</span> <span class="ex">step</span> release <span class="st">&#39;Signal the developer portal&#39;</span><span class="va">)</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;portal: warns and sends nothing while the secret is unset&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$out</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;PORTAL_DISPATCH_TOKEN is not set&#39;</span><span class="va">)</span><span class="st">:</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;workflow run&#39;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;1:0&quot;</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> tag <span class="at">-d</span> v9.9.9 <span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="va">out</span><span class="op">=</span><span class="va">$(</span><span class="ex">step</span> publish <span class="st">&#39;Write CHANGELOG entry&#39;</span><span class="va">)</span><span class="kw">;</span> <span class="va">rc</span><span class="op">=</span><span class="va">$?</span></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;changelog: failure warns, writes placeholder, exits 0&quot;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">:</span><span class="va">$(</span><span class="bu">echo</span> <span class="st">&quot;</span><span class="va">$out</span><span class="st">&quot;</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;::warning::&#39;</span><span class="va">)</span><span class="st">:</span><span class="va">$(</span><span class="fu">sed</span> <span class="at">-n</span> 5p CHANGELOG.md<span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;0:1:- Release 9.9.10&quot;</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a><span class="ex">mk</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/d&quot;</span><span class="kw">;</span> <span class="fu">cp</span> <span class="at">-R</span> <span class="st">&quot;</span><span class="va">$R</span><span class="st">/scripts&quot;</span> .<span class="kw">;</span> <span class="fu">mkdir</span> <span class="at">-p</span> node/packages/core<span class="kw">;</span> <span class="bu">echo</span> <span class="st">&#39;{&quot;version&quot;:&quot;9.9.9&quot;}&#39;</span> <span class="op">&gt;</span> node/packages/core/package.json</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add <span class="at">-A</span><span class="kw">;</span> <span class="fu">git</span> commit <span class="at">-qm</span> <span class="st">&#39;chore: bump patch version [skip ci]&#39;</span><span class="kw">;</span> <span class="fu">git</span> remote add origin <span class="st">&quot;</span><span class="va">$T</span><span class="st">/missing.git&quot;</span></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a><span class="bu">:</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$GITHUB_OUTPUT</span><span class="st">&quot;</span><span class="kw">;</span> <span class="ex">step</span> publish <span class="st">&#39;Decide release or repair&#39;</span> <span class="op">&gt;</span>/dev/null <span class="dv">2</span><span class="op">&gt;&amp;</span><span class="dv">1</span><span class="kw">;</span> <span class="va">rc</span><span class="op">=</span><span class="va">$?</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;decide: a failing script fails the step and sets no action&quot;</span> <span class="st">&quot;</span><span class="va">$(</span><span class="bu">[</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">&quot;</span> <span class="ot">-ne</span> 0 <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> nonzero<span class="va">)</span><span class="st">:</span><span class="va">$(</span><span class="fu">cat</span> <span class="st">&quot;</span><span class="va">$GITHUB_OUTPUT</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;nonzero:&quot;</span></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="ex">mk</span> <span class="st">&quot;</span><span class="va">$T</span><span class="st">/n&quot;</span><span class="kw">;</span> <span class="cf">for</span> p <span class="kw">in</span> a b<span class="kw">;</span> <span class="cf">do</span> <span class="fu">mkdir</span> <span class="at">-p</span> <span class="st">&quot;packages/</span><span class="va">$p</span><span class="st">&quot;</span><span class="kw">;</span> <span class="bu">echo</span> <span class="st">&quot;{</span><span class="dt">\&quot;</span><span class="st">name</span><span class="dt">\&quot;</span><span class="st">:</span><span class="dt">\&quot;</span><span class="st">@x/</span><span class="va">$p</span><span class="dt">\&quot;</span><span class="st">,</span><span class="dt">\&quot;</span><span class="st">version</span><span class="dt">\&quot;</span><span class="st">:</span><span class="dt">\&quot;</span><span class="st">1.0.0</span><span class="dt">\&quot;</span><span class="st">}&quot;</span> <span class="op">&gt;</span> <span class="st">&quot;packages/</span><span class="va">$p</span><span class="st">/package.json&quot;</span><span class="kw">;</span> <span class="cf">done</span></span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add <span class="at">-A</span><span class="kw">;</span> <span class="fu">git</span> commit <span class="at">-qm</span> base<span class="kw">;</span> <span class="bu">:</span> <span class="op">&gt;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="kw">;</span> <span class="ex">step</span> publish <span class="st">&#39;Publish Node to npmjs.com&#39;</span> <span class="op">&gt;</span>/dev/null<span class="kw">;</span> <span class="va">rc</span><span class="op">=</span><span class="va">$?</span></span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a><span class="ex">check</span> <span class="st">&quot;npmjs: publishes only the missing package&quot;</span> <span class="st">&quot;</span><span class="va">$rc</span><span class="st">:</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;^npm publish&#39;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="va">)</span><span class="st">:</span><span class="va">$(</span><span class="fu">grep</span> <span class="at">-c</span> <span class="st">&#39;^npm publish .*/b.tgz&#39;</span> <span class="st">&quot;</span><span class="va">$LOG</span><span class="st">&quot;</span><span class="va">)</span><span class="st">&quot;</span> <span class="st">&quot;0:1:1&quot;</span></span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span> <span class="st">&quot;</span><span class="va">$fail</span><span class="st">&quot;</span></span></code></pre></div>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 2: Run it and watch it
+fail.</strong> <code>bash scripts/tests/ci-node-steps.test.sh</code>.
+Expected: <code>no step: Decide release or repair</code>, then
+<code>FAIL</code> lines, exit 1.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Edit the
+<code>publish</code> job.</strong> Six edits, nothing else in the job
+changes:</label>
+<ol type="1">
+<li><p>Checkout: add <code>fetch-depth: 0</code> under the existing
+<code>with:</code> (keep <code>token:</code>). Do not add
+<code>ref:</code>.</p></li>
+<li><p>New step directly after “Configure git”:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Decide release or repair</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">id</span><span class="kw">:</span><span class="at"> decide</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>          out=$(bash scripts/release-decide.sh)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>          echo &quot;$out&quot; | tee -a &quot;$GITHUB_OUTPUT&quot;</span></code></pre></div>
+<p>Do not shorten this to
+<code>bash scripts/release-decide.sh | tee ...</code>: GitHub runs the
+step as <code>bash -e</code> without <code>pipefail</code>, so a failing
+script behind a pipe leaves the step green with an empty
+<code>action</code>, every <code>if: ... == 'release'</code> step is
+then skipped, and the job goes on to publish. The assignment form makes
+the step fail, as the spec requires (“Decide: fails the run”).</p></li>
+<li><p>Add <code>if: steps.decide.outputs.action == 'release'</code> to
+exactly these steps: “Bump patch version (Node + Python in lock-step)”,
+“Update Node lockfile”, “Commit version bump”, and the new step in edit
+4.</p></li>
+<li><p>New step directly after “Update Node lockfile”:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Write CHANGELOG entry</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> steps.decide.outputs.action == &#39;release&#39;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>          v=$(node -p &quot;require(&#39;./node/packages/core/package.json&#39;).version&quot;)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>          notes=$(bash scripts/release-notes.sh &quot;$(git describe --tags --abbrev=0 --match &#39;v[0-9]*&#39; HEAD)&quot;) || notes=&quot;&quot;</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>          if [ -z &quot;$notes&quot; ]; then</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>            echo &quot;::warning::release notes could not be derived; writing a placeholder entry&quot;</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>            notes=&quot;- Release $v&quot;</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>          fi</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>          [ -f CHANGELOG.md ] || echo &#39;# Changelog&#39; &gt; CHANGELOG.md</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>          { head -n 1 CHANGELOG.md; printf &#39;\n## %s - %s\n\n%s\n&#39; &quot;$v&quot; &quot;$(date -u +%F)&quot; &quot;$notes&quot;; tail -n +2 CHANGELOG.md; } &gt; CHANGELOG.tmp</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>          mv CHANGELOG.tmp CHANGELOG.md</span></code></pre></div></li>
+<li><p>“Commit version bump”: append <code>CHANGELOG.md</code> to the
+end of the existing <code>git add</code> line. Nothing else in that
+step.</p></li>
+<li><p>“Publish Node to npmjs.com”: replace only the body of the final
+<code>for tgz in ...</code> loop; and “Publish Python to PyPI”: add one
+input. The guard compares the version <code>npm view</code>
+<strong>prints</strong>, never its exit status. A package whose name
+cannot be read is counted as a failure and the loop moves on
+(<code>|| { rc=1; continue; }</code>), so the step still tries every
+package and still reaches <code>git checkout -- .</code>, as it does
+today.</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>          <span class="cf">for</span> tgz <span class="kw">in</span> <span class="st">&quot;</span><span class="va">$RUNNER_TEMP</span><span class="st">&quot;</span>/npmjs/<span class="pp">*</span>.tgz<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>            <span class="va">spec</span><span class="op">=</span><span class="va">$(</span><span class="fu">tar</span> <span class="at">-xOzf</span> <span class="st">&quot;</span><span class="va">$tgz</span><span class="st">&quot;</span> package/package.json <span class="kw">|</span> <span class="ex">node</span> <span class="at">-p</span> <span class="st">&quot;const p=JSON.parse(require(&#39;fs&#39;).readFileSync(0,&#39;utf8&#39;)); p.name+&#39;@&#39;+p.version&quot;</span><span class="va">)</span> <span class="kw">||</span> <span class="kw">{</span> <span class="va">rc</span><span class="op">=</span>1<span class="kw">;</span> <span class="cf">continue</span><span class="kw">;</span> <span class="kw">}</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">[</span> <span class="st">&quot;</span><span class="va">$(</span><span class="ex">npm</span> view <span class="st">&quot;</span><span class="va">$spec</span><span class="st">&quot;</span> version <span class="dv">2</span><span class="op">&gt;</span>/dev/null<span class="va">)</span><span class="st">&quot;</span> <span class="ot">=</span> <span class="st">&quot;</span><span class="va">${spec</span><span class="op">##</span><span class="pp">*</span>@<span class="va">}</span><span class="st">&quot;</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>              <span class="bu">echo</span> <span class="st">&quot;::notice::</span><span class="va">$spec</span><span class="st"> is already on npmjs.com; skipping&quot;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>              <span class="cf">continue</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">fi</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>            <span class="ex">npm</span> publish <span class="st">&quot;</span><span class="va">$tgz</span><span class="st">&quot;</span> <span class="at">--access</span> public <span class="kw">||</span> <span class="va">rc</span><span class="op">=</span>1</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>          <span class="cf">done</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">packages-dir</span><span class="kw">:</span><span class="at"> python/dist</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">skip-existing</span><span class="kw">:</span><span class="at"> ${{ steps.decide.outputs.action == &#39;repair&#39; }}</span></span></code></pre></div></li>
+</ol></li>
+<li><label><input type="checkbox" /><strong>Step 4: Create
+<code>CHANGELOG.md</code></strong> containing the single line
+<code># Changelog</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5: Run the
+test.</strong> <code>bash scripts/tests/ci-node-steps.test.sh</code>.
+Expected: five <code>ok -</code> lines (two <code>decide:</code>, two
+<code>changelog:</code>, one <code>npmjs:</code>); the five
+<code>release:</code> / <code>portal:</code> checks still fail
+(<code>no step: ...</code>) until Task 4.</label></li>
+<li><label><input type="checkbox" /><strong>Step 6: Checks for the
+spec’s UNVERIFIED items that are checkable now</strong> (read-only;
+record each result in the commit body):</label>
+<ul>
+<li><code>gh api 'repos/pypa/gh-action-pypi-publish/contents/action.yml?ref=release/v1' --jq .content | base64 -d | grep -n -A4 'skip-existing'</code>.
+Expected: the input exists. If it does not, stop and report; do not
+invent another input.</li>
+<li><code>pnpm help publish | head -20</code> and the pnpm docs line the
+spec quotes (“versions not yet published to the registry”). This
+confirms documentation only; behaviour against GitHub Packages stays
+unproven until a real repair.</li>
+<li>“What happens when the <code>publish</code> job is re-run” stays
+unverified on purpose: checking it would publish. The docs in Task 5 say
+to use the manual trigger for a genuine failure, never a re-run.</li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>Step 7: Commit.</strong>
+<code>git add .github/workflows/ci-node.yml CHANGELOG.md scripts/tests/ci-node-steps.test.sh &amp;&amp; git commit -m "feat(ci): changelog entry, release-or-repair decision and skip guards in the publish job"</code></label></li>
+<li><label><input type="checkbox" /><strong>Step 8: Phase gate</strong>
+(full gate: publish path):</label>
+<ol type="1">
+<li>Implement: Steps 1-7.</li>
+<li>Verify, all four:
+<ul>
+<li><code>actionlint .github/workflows/ci-node.yml</code> → exit 0, no
+output.</li>
+<li><strong>Publish steps unmoved:</strong>
+<code>diff &lt;(steps "$BASE") &lt;(steps .github/workflows/ci-node.yml) | grep '^[&lt;&gt;]'</code>
+→ exactly two lines, both starting with <code>&gt;</code>:
+<code>Decide release or repair</code> and
+<code>Write CHANGELOG entry</code>. No line starts with
+<code>&lt;</code>: every step that existed is still there, in the same
+order, under the same name. (<code>steps</code> and <code>$BASE</code>
+come from Task 0 Step 4; it prints <code>env=pypi</code> first, so a
+changed environment shows as a <code>&lt;</code> line.)</li>
+<li><code>git diff --stat origin/main...HEAD -- .github/workflows</code>
+→ lists only <code>ci-node.yml</code>;
+<code>grep -c 'environment: pypi' .github/workflows/ci-node.yml</code> →
+<code>1</code>;
+<code>git diff origin/main...HEAD -- .github/workflows/ci-node.yml | grep -c '^-.*\(uses: pypa\|npm publish\|pnpm -r publish\|id-token\)'</code>
+→ <code>0</code> (no publish line removed; this is why edit 6 keeps the
+<code>npm publish "$tgz" --access public || rc=1</code> line
+byte-identical, indentation included).</li>
+<li><code>bash scripts/tests/ci-node-steps.test.sh 2&gt;&amp;1 | grep -c '^ok - \(decide\|changelog\|npmjs\)'</code>
+→ <code>5</code>.</li>
+</ul></li>
+<li>Review: dispatch <code>code-reviewer</code> and
+<code>security-reviewer</code> on
+<code>git diff origin/main...HEAD -- .github/workflows/ci-node.yml</code>,
+with the spec path, asking: can any new line fail the run after the
+first publish; can <code>repair</code> be reached by a push run; is any
+<code>${{ }}</code> expression interpolated into a shell body.</li>
+<li>Refactor: apply findings (new commit).</li>
+<li>Re-verify: repeat item 2.</li>
+</ol></li>
+</ul>
+<h3 id="task-4-new-release-job">Task 4: New <code>release</code>
+job</h3>
+<p><strong>Files:</strong> Modify
+<code>.github/workflows/ci-node.yml</code> (append one job after
+<code>smoke</code>). <strong>Interfaces:</strong> Consumes
+<code>needs.publish.outputs.tag</code> (already an output of
+<code>publish</code>) and the <code>CHANGELOG.md</code> section written
+in Task 3. Produces a GitHub Release for the tag with asset
+<code>docs-site.tgz</code>.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Failing test already
+exists</strong>: the five <code>release:</code> / <code>portal:</code>
+checks in <code>scripts/tests/ci-node-steps.test.sh</code> fail with
+<code>no step: Create GitHub Release</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 2: Check the spec’s
+UNVERIFIED docs-build items.</strong>
+<code>node -p "require('./website/node_modules/astro/package.json').engines.node"</code>
+gives the Node range the docs site needs; use the lowest current LTS
+major that satisfies it as <code>node-version</code> below (the block
+assumes <code>'22'</code>; change that one value if the range says
+otherwise). Then
+<code>time pnpm docs:build &amp;&amp; A=$(mktemp -d)/docs-site.tgz &amp;&amp; tar -czf "$A" -C website/dist . &amp;&amp; tar -tzf "$A" | grep -c '^\./index\.html$'</code>.
+Expected: build exits 0, prints <code>1</code>. Note the build time in
+the commit body. <code>website/dist</code> is build output; do not
+commit it.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Append the
+job</strong> (the signal step’s shell body is the same as the one in the
+sibling repo <code>cli-state-handler</code>,
+<code>.github/workflows/release.yml</code>):</label></li>
+</ul>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">  # Separate job on purpose: the docs build runs third-party build tooling, which must not run in a</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">  # job that can mint registry identity tokens, and this job can be re-run alone without publishing.</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">release</span><span class="kw">:</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">name</span><span class="kw">:</span><span class="at"> GitHub Release + docs archive</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">needs</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">publish</span><span class="kw">]</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">runs-on</span><span class="kw">:</span><span class="at"> ubuntu-latest</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">permissions</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="at"> </span><span class="fu">contents</span><span class="kw">:</span><span class="at"> write </span><span class="kw">}</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">env</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="at"> </span><span class="fu">TAG</span><span class="kw">:</span><span class="at"> </span><span class="st">&#39;${{ needs.publish.outputs.tag }}&#39;</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v4</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="at"> </span><span class="fu">ref</span><span class="kw">:</span><span class="at"> </span><span class="st">&#39;${{ needs.publish.outputs.tag }}&#39;</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> pnpm/action-setup@v4</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="at"> </span><span class="fu">version</span><span class="kw">:</span><span class="at"> </span><span class="fl">9.14.2</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/setup-node@v4</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span><span class="at"> </span><span class="kw">{</span><span class="at"> </span><span class="fu">node-version</span><span class="kw">:</span><span class="at"> </span><span class="st">&#39;22&#39;</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Build docs archive</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">id</span><span class="kw">:</span><span class="at"> docs</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">continue-on-error</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>          (cd website &amp;&amp; pnpm install --frozen-lockfile &amp;&amp; pnpm build)</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>          tar -czf docs-site.tgz -C website/dist .</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>          echo &quot;built=true&quot; &gt;&gt; &quot;$GITHUB_OUTPUT&quot;</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Create GitHub Release</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">env</span><span class="kw">:</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">GH_TOKEN</span><span class="kw">:</span><span class="at"> ${{ github.token }}</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">ASSET</span><span class="kw">:</span><span class="at"> ${{ steps.docs.outputs.built == &#39;true&#39; &amp;&amp; &#39;docs-site.tgz&#39; || &#39;&#39; }}</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>          v=&quot;${TAG#v}&quot;</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>          awk -v h=&quot;## $v - &quot; &#39;index($0,h)==1{f=1;next} /^## /{f=0} f&#39; CHANGELOG.md &gt; notes.md</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>          grep -q &#39;[^[:space:]]&#39; notes.md || echo &quot;- Release $v&quot; &gt; notes.md</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>          [ -n &quot;$ASSET&quot; ] || echo &quot;::warning::docs archive was not built; releasing without docs-site.tgz&quot;</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>          if gh release view &quot;$TAG&quot; &gt;/dev/null 2&gt;&amp;1; then</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>            if [ -n &quot;$ASSET&quot; ]; then gh release upload &quot;$TAG&quot; &quot;$ASSET&quot; --clobber; fi</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>          else</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>            gh release create &quot;$TAG&quot; --verify-tag --title &quot;$TAG&quot; --notes-file notes.md ${ASSET:+&quot;$ASSET&quot;}</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>          fi</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Signal the developer portal</span></span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> steps.docs.outputs.built == &#39;true&#39;</span></span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">continue-on-error</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">env</span><span class="kw">:</span></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">GH_TOKEN</span><span class="kw">:</span><span class="at"> ${{ secrets.PORTAL_DISPATCH_TOKEN }}</span></span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>          if [ -z &quot;$GH_TOKEN&quot; ]; then</span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>            echo &quot;::warning::PORTAL_DISPATCH_TOKEN is not set; the developer portal was not signalled&quot;</span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>            exit 0</span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>          fi</span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a>          gh workflow run ci.yml -R montionugera/joy-design --ref main</span></code></pre></div>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 4: Run the
+test.</strong> <code>bash scripts/tests/ci-node-steps.test.sh</code>.
+Expected: ten <code>ok -</code> lines, exit 0.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5: Confirm the secret
+is absent</strong> (read-only):
+<code>gh secret list -R montionugera/node-server-decorator | grep -c PORTAL_DISPATCH_TOKEN</code>.
+Expected: <code>0</code>. <strong>STOP — needs the owner’s yes:</strong>
+creating or changing any secret or repository variable, here or in
+<code>gh-secrets</code>; this plan never does it. The token’s scope and
+whether one token can serve both repos belong to follow-up (a) (the
+joy-design docs-archive download) and stay unverified here.</label></li>
+<li><label><input type="checkbox" /><strong>Step 6: Commit.</strong>
+<code>git add .github/workflows/ci-node.yml &amp;&amp; git commit -m "feat(ci): release job creates the GitHub Release with docs-site.tgz and an inert portal signal"</code></label></li>
+<li><label><input type="checkbox" /><strong>Step 7: Phase gate</strong>
+(full gate: release path):</label>
+<ol type="1">
+<li>Implement: Steps 1-6.</li>
+<li>Verify: <code>actionlint .github/workflows/ci-node.yml</code> → exit
+0; <code>bash scripts/tests/ci-node-steps.test.sh</code> → ten
+<code>ok -</code>, exit 0; the three “publish steps unmoved” commands
+from Task 3 Step 8 → same expected output;
+<code>ruby -ryaml -e 'j=YAML.load_file(ARGV[0])["jobs"]["release"]; puts j["permissions"].inspect, j.key?("environment")' .github/workflows/ci-node.yml</code>
+→ <code>{"contents"=&gt;"write"}</code> and <code>false</code>.</li>
+<li>Review: dispatch <code>code-reviewer</code> and
+<code>security-reviewer</code> on the <code>release</code> job diff,
+asking: can this job publish to any registry; can a docs-build failure
+block the release page; does the tag always exist before checkout.</li>
+<li>Refactor: apply findings (new commit).</li>
+<li>Re-verify: repeat item 2.</li>
+</ol></li>
+</ul>
+<h3 id="task-5-documentation-written-after-tasks-1-4-are-verified">Task
+5: Documentation (written after Tasks 1-4 are verified)</h3>
+<p><strong>Files:</strong> Modify <code>README.md</code> (section
+“Versioning”, line 111), <code>.github/SETUP.md</code>,
+<code>CLAUDE.md</code> (line 84, the <code>ci-node.yml</code>
+bullet).</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Find every
+description of the release flow:</strong>
+<code>grep -rn -i 'publish\|release' README.md CONTRIBUTING.md CLAUDE.md .github/SETUP.md | grep -i 'ci-node\|tag\|workflow' | head -30</code>.
+Edit only the three files above; if another file states something this
+change makes false, fix that sentence and nothing around
+it.</label></li>
+<li><label><input type="checkbox" /><strong>Step 2:
+<code>README.md</code></strong>: add a paragraph titled
+<strong>Releases</strong> under “Versioning”: each version has a
+<code>CHANGELOG.md</code> entry and a GitHub Release page whose text is
+that entry; <code>docs-site.tgz</code> on the release is the built docs
+site (<code>website/dist</code>); if the release page or asset is
+missing, re-run only the <code>release</code> job
+(<code>gh run rerun --job &lt;job id&gt;</code>), which cannot publish
+packages.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3:
+<code>.github/SETUP.md</code></strong>: add a section <strong>Release
+notes and repair</strong> covering: the decide rule in plain words
+(manual trigger on a bump commit with no tag finishes that version;
+anything else bumps a new one); never use the manual trigger to test; a
+<code>publish</code> job that died before tagging is repaired with the
+manual trigger, not a re-run; the portal signal is inert and
+<code>PORTAL_DISPATCH_TOKEN</code> must stay unset until the portal can
+download <code>docs-site.tgz</code>. Do not rewrite the stale
+<code>publish.yml</code> / <code>version-bump.yml</code> sections (filed
+in the spec as a separate cleanup).</label></li>
+<li><label><input type="checkbox" /><strong>Step 4:
+<code>CLAUDE.md</code> line 84</strong>: extend the existing
+<code>ci-node.yml</code> bullet with one clause: the publish run also
+writes <code>CHANGELOG.md</code>, and a <code>release</code> job creates
+the GitHub Release with <code>docs-site.tgz</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5: Format and
+commit.</strong>
+<code>npx prettier --check README.md .github/SETUP.md CLAUDE.md</code>
+(fix only lines you added), then
+<code>git add README.md .github/SETUP.md CLAUDE.md &amp;&amp; git commit -m "docs: release notes, GitHub Release, docs archive and repair flow"</code></label></li>
+<li><label><input type="checkbox" /><strong>Step 6: Phase gate:</strong>
+verify <code>grep -c 'Releases' README.md</code> → <code>1</code> or
+more and
+<code>grep -c 'Release notes and repair' .github/SETUP.md</code> →
+<code>1</code>; review: dispatch <code>code-reviewer</code> to compare
+each documented statement with the workflow as written; refactor on
+findings (new commit); re-verify with the same two commands plus the
+full local suite:
+<code>bash scripts/tests/release-notes.test.sh &amp;&amp; bash scripts/tests/release-decide.test.sh &amp;&amp; bash scripts/tests/ci-node-steps.test.sh &amp;&amp; actionlint .github/workflows/ci-node.yml</code>.</label></li>
+</ul>
+<h3
+id="task-6-ship-promote-merge-and-the-acceptance-run-owner-gated">Task
+6: Ship, promote, merge, and the acceptance run (owner-gated)</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Pre-ship check, run
+by hand.</strong> This repo has no <code>scripts/precheck.sh</code>
+(Gate 1, the pre-ship build/test script <code>psrw ship</code> looks
+for) and no <code>scripts/integration.sh</code> (Gate 2, the pre-promote
+script). Checked in the toolkit source
+(<code>~/.claude/ps-release-workflow/scripts/ship_current_work_to_release.py</code>,
+<code>_run_precheck</code>): when <code>precheck.sh</code> is absent,
+<code>psrw ship</code> prints
+<code>⚠️ Gate 1 SKIPPED — &lt;path&gt; not found</code> to stderr and
+<strong>carries on with the merge</strong>; it does not fail. So the
+only pre-ship check is the one run here. Do not create a
+<code>precheck.sh</code> in this change. Run:
+<code>git status --short</code> → empty; then
+<code>bash scripts/tests/release-notes.test.sh &amp;&amp; bash scripts/tests/release-decide.test.sh &amp;&amp; bash scripts/tests/ci-node-steps.test.sh &amp;&amp; actionlint .github/workflows/ci-node.yml</code>
+→ twenty <code>ok -</code> lines, exit 0.</label></li>
+<li><label><input type="checkbox" /><strong>Step 2:</strong>
+<strong>STOP — needs the owner’s yes:</strong>
+<code>psrw ship --no-deploy</code>, run from the feature worktree.
+<strong>Local only, pushes nothing</strong> (checked: the ship script
+has no <code>git push</code> and no <code>gh</code> call). What it does:
+fetches <code>origin/main</code> (read-only) and merges it into the
+local <code>release/2.9</code> if that branch is behind, merges the
+feature branch into local <code>release/2.9</code>, marks the feature
+shipped in the catalog, and <strong>removes the feature
+worktree</strong> (the branch is kept). Expect the
+<code>Gate 1 SKIPPED</code> warning from Step 1; that warning is not a
+failure. Everything after this step runs from the <code>_release</code>
+worktree.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3:</strong>
+<strong>STOP — needs the owner’s yes:</strong>
+<code>psrw promote --allow-missing-gate2</code>, run from the
+<code>_release</code> worktree. <strong>This is the first step that
+pushes:</strong> it pushes <code>release/2.9</code> to GitHub and opens
+the pull request to <code>main</code> (<code>gh pr create</code>). The
+flag is needed because plain <code>psrw promote</code> refuses when
+<code>scripts/integration.sh</code> is missing
+(<code>Gate 2 requested but ... is missing</code>); with the flag the
+pull request body says Gate 2 did not run. Do not pass
+<code>--babysit</code> (it would also merge). No other
+<code>git push</code> is part of this plan; any other push needs its own
+yes.</label></li>
+<li><label><input type="checkbox" /><strong>Step 4:</strong>
+<strong>STOP — needs the owner’s yes:</strong> squash-merging that pull
+request. Say plainly when asking: this publishes one permanent version
+(expected 2.0.22) to GitHub Packages, npmjs.com and PyPI; the squash
+title becomes that version’s changelog line and release text, so it
+should describe the change; the title must not contain
+<code>[skip ci]</code>; no other merge should land on <code>main</code>
+while the run is in flight (a second qualifying merge cancels it,
+existing behaviour).</label></li>
+<li><label><input type="checkbox" /><strong>Step 5: After the merge,
+check the spec’s live acceptance criteria</strong> with <code>V</code>
+the released version and <code>RUN</code> the run id (all read-only).
+Run from the <code>_release</code> worktree (the feature worktree was
+removed by <code>psrw ship</code>) after
+<code>git fetch origin --tags</code>, so the scripts and the new tag are
+both present:</label>
+<ul>
+<li><code>gh run view $RUN --json conclusion --jq .conclusion</code> →
+<code>success</code>;
+<code>gh run view $RUN --log | grep -c 'PORTAL_DISPATCH_TOKEN is not set'</code>
+→ <code>1</code> or more.</li>
+<li><code>gh release view v$V --json isDraft,assets --jq '[.isDraft,.assets[].name]|@csv'</code>
+→ <code>false,"docs-site.tgz"</code>.</li>
+<li><code>git fetch origin &amp;&amp; git show origin/main:CHANGELOG.md | grep -c "^## $V - "</code>
+→ <code>1</code>;
+<code>gh release view v$V --json body --jq .body | grep -c '^- '</code>
+equals
+<code>bash scripts/release-notes.sh v2.0.21 v$V | wc -l</code>.</li>
+<li><code>gh release download v$V -p docs-site.tgz -O - | tar -tzf - | grep -c '^\./index\.html$'</code>
+→ <code>1</code>.</li>
+<li><code>npm view @montionugera/server-decorator@$V version --registry https://registry.npmjs.org</code>
+→ <code>$V</code>; <code>git ls-remote --tags origin "v$V"</code> → one
+line.</li>
+<li>If only the <code>release</code> job failed: <strong>STOP — needs
+the owner’s yes:</strong>
+<code>gh run rerun --job &lt;release job id&gt;</code> (re-runs that job
+alone; it cannot publish).</li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>Step 6: Report</strong> each
+criterion with its command output. The <code>repair</code> path, pnpm’s
+skip on GitHub Packages and PyPI <code>skip-existing</code> remain
+proven only by local tests and documentation; say so.</label></li>
+</ul>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<ul>
+<li><strong>Before merge:</strong> nothing is published; fix forward on
+the feature branch with new commits, or <code>psrw unclaim</code> to
+abandon (the branch is kept).</li>
+<li><strong>A <code>publish</code> job died before tagging:</strong>
+<strong>STOP — needs the owner’s yes:</strong> the manual trigger
+(<code>workflow_dispatch</code>) on <code>main</code>, which takes the
+<code>repair</code> path only if nothing has merged since; otherwise it
+bumps a new version and the dead one stays partial (deliberate, see the
+spec’s Risks).</li>
+<li><strong>Reverting the change:</strong> <strong>STOP — needs the
+owner’s yes:</strong> merge a revert pull request with
+<code>[skip ci]</code> in the squash title. A plain revert touches
+<code>ci-node.yml</code> and would publish one more permanent version.
+Keep <code>CHANGELOG.md</code> when reverting.</li>
+<li><strong>Published versions stay published;</strong> nothing here can
+or should unpublish them.</li>
+<li><strong>Removing a release page:</strong> <strong>STOP — needs the
+owner’s yes:</strong> <code>gh release delete vX.Y.Z --yes</code>. Never
+add <code>--cleanup-tag</code>: Go consumers resolve versions from the
+tags.</li>
+</ul>
+<h2 id="audit-trail">Audit trail</h2>
+<p>Independent audit, 2026-10-09. All embedded code was copied out of
+this plan into a scratch clone whose <code>origin</code> is a local bare
+repository, the planned workflow edits were applied to a copy of
+<code>ci-node.yml</code> from <code>origin/main</code>, and the tests
+were run there. Nothing was run in the repo, and no workflow was
+dispatched.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Finding</th>
+<th>What changed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HIGH</td>
+<td>The Decide step was <code>release-decide.sh \| tee</code>. GitHub
+runs steps as <code>bash -e</code> without <code>pipefail</code>, so a
+failing script left the step green with an empty <code>action</code>
+(reproduced: exit 0, no output); the bump and commit steps would be
+skipped and the job would go on to publish.</td>
+<td>Step now assigns the output first, so a failure fails the step. Two
+<code>decide:</code> checks added to the step test.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>The step test ran bodies with <code>bash -eo pipefail</code>,
+stricter than the runner, which is why it could not see the finding
+above; the Decide step had no test at all.</td>
+<td>Bodies now run with <code>bash -e</code>.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>The “notes come from that version’s section” check could not fail:
+the fixture changelog had one section, so an extractor that returned the
+whole file still passed.</td>
+<td>Fixture now has an older section; breaking the extractor fails the
+check.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>Task 6 Step 3 said <code>psrw promote</code>; it refuses when
+<code>scripts/integration.sh</code> is missing, which it is.</td>
+<td>Command is now <code>psrw promote --allow-missing-gate2</code>, with
+what that means.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>Task 6 left “what does <code>psrw ship</code> do without
+<code>precheck.sh</code>” to be discovered at run time, and did not say
+which commands push.</td>
+<td>Stated from the toolkit source: Gate 1 is skipped with a warning and
+the merge proceeds; <code>refine</code>, <code>claim</code>,
+<code>ship</code> are local, <code>promote</code> pushes and opens the
+pull request. The plan’s own suite is now the explicit pre-ship
+check.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td><code>shellcheck -S warning</code> was expected silent but printed
+SC2164 for a bare <code>cd</code> in all three tests.</td>
+<td><code>cd ... \|\| exit 1</code>.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>A failed package-name read inside the npmjs.com loop would have
+ended the step early, skipping the remaining packages and the tree
+restore.</td>
+<td><code>\|\| { rc=1; continue; }</code>.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>Release without the docs archive was untested.</td>
+<td>One check added.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td><code>psrw ship</code> removes the feature worktree, so the
+post-merge checks had no stated place to run.</td>
+<td>Run from the <code>_release</code> worktree after
+<code>git fetch origin --tags</code>.</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td>Counts of expected <code>ok -</code> lines and the expected first
+failure were wrong for the step test.</td>
+<td>Corrected (ten checks; five pass after Task 3).</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td>Ruby dependency was not scoped.</td>
+<td>Stated: local only, no workflow runs the tests.</td>
+</tr>
+</tbody>
+</table>
+<p>Checked and found correct: the six <code>publish</code> edits add
+exactly two steps, both before the first publish
+(<code>Decide release or repair</code>,
+<code>Write CHANGELOG entry</code>), remove no publish line, keep
+<code>environment: pypi</code> once, and change the checkout only by
+<code>fetch-depth: 0</code>; <code>cancel-in-progress</code>,
+<code>ref: main</code> and a <code>none</code> outcome are absent; the
+<code>release</code> job has <code>contents: write</code> only and no
+<code>environment</code>, and checks out the tag;
+<code>gh release create --verify-tag --title --notes-file</code> and
+<code>gh release upload --clobber</code> are valid flags;
+<code>skip-existing</code> is an input of the PyPI action at
+<code>release/v1</code>. The portal step is inert because its shell body
+exits early when <code>GH_TOKEN</code> (from
+<code>secrets.PORTAL_DISPATCH_TOKEN</code>) is empty: the repository has
+only <code>NPM_TOKEN</code> and <code>SLACK_WEBHOOK_URL</code>, its
+owner is a user account so there are no organisation secrets, and the
+job names no environment.</p>
+<p>Scratch test result. Before the fixes: 6/6, 4/4 and 7/7 checks
+passed, <code>actionlint</code> exit 0, <code>shellcheck</code> exit 1
+(SC2164), and two defects were invisible to the tests (the Decide pipe;
+the section extractor). After the fixes: 6/6, 4/4 and 10/10 passed,
+<code>actionlint</code> exit 0, <code>shellcheck</code> silent. Each of
+19 deliberate breakages (9 of the two scripts, 10 of the workflow step
+bodies) made at least one check fail.</p>
+<p>Still unproven until the one real merge or a genuine mid-run failure:
+the docs build on the runner (it was not run in this audit), the
+<code>release</code> job against the real GitHub API, the
+<code>repair</code> path end to end, pnpm skipping versions already on
+GitHub Packages, and PyPI <code>skip-existing</code> with
+attestations.</p>
+</body>
+</html>

@@ -74,6 +74,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with: { version: 9.14.2 }
@@ -100,16 +101,38 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Decide release or repair
+        id: decide
+        run: |
+          out=$(bash scripts/release-decide.sh)
+          echo "$out" | tee -a "$GITHUB_OUTPUT"
+
       - name: Bump patch version (Node + Python in lock-step)
+        if: steps.decide.outputs.action == 'release'
         run: bash scripts/bump-version.sh patch
 
       - name: Update Node lockfile
+        if: steps.decide.outputs.action == 'release'
         working-directory: node
         run: pnpm install
 
-      - name: Commit version bump
+      - name: Write CHANGELOG entry
+        if: steps.decide.outputs.action == 'release'
         run: |
-          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go nim/server_decorator.nimble rust/Cargo.toml rust/Cargo.lock
+          v=$(node -p "require('./node/packages/core/package.json').version")
+          notes=$(bash scripts/release-notes.sh "$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD)") || notes=""
+          if [ -z "$notes" ]; then
+            echo "::warning::release notes could not be derived; writing a placeholder entry"
+            notes="- Release $v"
+          fi
+          [ -f CHANGELOG.md ] || echo '# Changelog' > CHANGELOG.md
+          { head -n 1 CHANGELOG.md; printf '\n## %s - %s\n\n%s\n' "$v" "$(date -u +%F)" "$notes"; tail -n +2 CHANGELOG.md; } > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+
+      - name: Commit version bump
+        if: steps.decide.outputs.action == 'release'
+        run: |
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go nim/server_decorator.nimble rust/Cargo.toml rust/Cargo.lock CHANGELOG.md
           git commit -m "chore: bump patch version [skip ci]"
           # main can move while this job runs (e.g. a follow-up commit pushed right
           # after a release merge), which rejects a plain push as non-fast-forward.
@@ -173,6 +196,11 @@ jobs:
           # the tree before reporting the result.
           rc=0
           for tgz in "$RUNNER_TEMP"/npmjs/*.tgz; do
+            spec=$(tar -xOzf "$tgz" package/package.json | node -p "const p=JSON.parse(require('fs').readFileSync(0,'utf8')); p.name+'@'+p.version") || { rc=1; continue; }
+            if [ "$(npm view "$spec" version 2>/dev/null)" = "${spec##*@}" ]; then
+              echo "::notice::$spec is already on npmjs.com; skipping"
+              continue
+            fi
             npm publish "$tgz" --access public || rc=1
           done
           git checkout -- .
@@ -186,6 +214,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/dist
+          skip-existing: ${{ steps.decide.outputs.action == 'repair' }}
 
       # crates.io: a stored CARGO_REGISTRY_TOKEN wins when set (required for the very first
       # publish, because a trusted publisher can only be attached to a crate that already
@@ -266,3 +295,51 @@ jobs:
           GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/montionugera/.insteadOf
           GIT_CONFIG_VALUE_0: https://github.com/montionugera/
         run: bash scripts/smoke-install-nim.sh "${{ needs.publish.outputs.tag }}"
+
+  # Separate job on purpose: the docs build runs third-party build tooling, which must not run in a
+  # job that can mint registry identity tokens, and this job can be re-run alone without publishing.
+  release:
+    name: GitHub Release + docs archive
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    env: { TAG: '${{ needs.publish.outputs.tag }}' }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ needs.publish.outputs.tag }}' }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.14.2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Build docs archive
+        id: docs
+        continue-on-error: true
+        run: |
+          (cd website && pnpm install --frozen-lockfile && pnpm build)
+          tar -czf docs-site.tgz -C website/dist .
+          echo "built=true" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET: ${{ steps.docs.outputs.built == 'true' && 'docs-site.tgz' || '' }}
+        run: |
+          v="${TAG#v}"
+          awk -v h="## $v - " 'index($0,h)==1{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          grep -q '[^[:space:]]' notes.md || echo "- Release $v" > notes.md
+          [ -n "$ASSET" ] || echo "::warning::docs archive was not built; releasing without docs-site.tgz"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ -n "$ASSET" ]; then gh release upload "$TAG" "$ASSET" --clobber; fi
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md ${ASSET:+"$ASSET"}
+          fi
+      - name: Signal the developer portal
+        if: steps.docs.outputs.built == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::PORTAL_DISPATCH_TOKEN is not set; the developer portal was not signalled"
+            exit 0
+          fi
+          gh workflow run ci.yml -R montionugera/joy-design --ref main
