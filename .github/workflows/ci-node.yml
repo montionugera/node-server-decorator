@@ -321,6 +321,8 @@ jobs:
         continue-on-error: true
         run: |
           (cd website && pnpm install --frozen-lockfile && pnpm build)
+          # The developer portal cross-checks this against the release tag; TAG is the publish job's tag output.
+          printf '{"version":"%s"}' "${TAG#v}" > website/dist/version.json
           tar -czf docs-site.tgz -C website/dist .
           echo "built=true" >> "$GITHUB_OUTPUT"
       - name: Create GitHub Release
