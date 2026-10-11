@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.25 - 2026-10-11
+
+- release 2.10 (#21)
+
 ## 2.0.24 - 2026-10-11
 
 - Maintenance release
