@@ -42,6 +42,9 @@ sed -i.bak -E "s/^const Version = \"[^\"]+\"$/const Version = \"$new_version\"/"
 gin_mod_file=go/adapter/gin/go.mod
 sed -i.bak -E "s#^([[:space:]]*github.com/montionugera/node-server-decorator/v2 )v[0-9]+\\.[0-9]+\\.[0-9]+\$#\\1v$new_version#" "$gin_mod_file" \
   && rm "$gin_mod_file.bak"
+# The sed above changes nothing when the require line has an unexpected shape; fail loudly.
+grep -qE "^[[:space:]]*(require[[:space:]]+)?github\.com/montionugera/node-server-decorator/v2 v${new_version//./\\.}([[:space:]]|\$)" "$gin_mod_file" \
+  || { echo "error: $gin_mod_file does not require github.com/montionugera/node-server-decorator/v2 v$new_version (unexpected require line shape?)" >&2; exit 1; }
 # Mirror into the Nim package manifest (F-006) — nimble reads `version` from it and
 # check-versions.sh asserts it. The capture group keeps the manifest's own spacing.
 nimble_file=nim/server_decorator.nimble
@@ -71,4 +74,4 @@ fi
 
 bash scripts/check-versions.sh
 echo "Bumped all packages to v$new_version"
-echo "Next: git add -A && git commit -m \"chore: bump to v$new_version\" && git tag v$new_version && git push --tags"
+echo "Next: git add -A && git commit -m \"chore: bump to v$new_version\" && git tag v$new_version && git tag go/adapter/gin/v$new_version && git tag go/adapter/pgxlock/v$new_version && git push --atomic origin v$new_version go/adapter/gin/v$new_version go/adapter/pgxlock/v$new_version"

@@ -116,7 +116,7 @@ Lockstep semver: one tag, all packages publish together. See `DECISIONS.md` (dec
 
 ## Publishing
 
-Every push to `main` that touches `node/`, `contracts/`, `go/`, `go.mod`, `nim/` or `rust/` runs the `publish` job in `.github/workflows/ci-node.yml`: it patch-bumps every package (`scripts/bump-version.sh`), then publishes in this order and tags `vX.Y.Z` last.
+Every push to `main` that touches `node/`, `contracts/`, `go/`, `go.mod`, `nim/` or `rust/` runs the `publish` job in `.github/workflows/ci-node.yml`: it patch-bumps every package (`scripts/bump-version.sh`), then publishes in this order and, last, pushes three tags in one atomic push: `vX.Y.Z` plus the Go adapter tags `go/adapter/gin/vX.Y.Z` and `go/adapter/pgxlock/vX.Y.Z`.
 
 | Registry | Packages | Auth | A failure blocks the tag? |
 | --- | --- | --- | --- |
@@ -129,7 +129,7 @@ The crates.io step is non-blocking and stops at the first crate that fails, so a
 
 Go and Nim have no registry: clients install straight from the git tag, so **public Go and Nim installs require this GitHub repository to be public**. While it is private, only clients with repo access (and `GOPRIVATE=github.com/montionugera/*`) can install.
 
-Go ships three modules, tagged in lock-step on the same commit: the root module `github.com/montionugera/node-server-decorator/v2` (every package under `go/` except the two adapters below, tag `vX.Y.Z`), `github.com/montionugera/node-server-decorator/go/adapter/gin/v2` (tag `go/adapter/gin/vX.Y.Z`) and `github.com/montionugera/node-server-decorator/go/adapter/pgxlock/v2` (tag `go/adapter/pgxlock/vX.Y.Z`). Install each with `go get <module>@vX.Y.Z`. The adapter paths end in `/v2` (not `.../v2/go/adapter/...`) because a path under the root module's would be resolved inside the root module. Releases cut before the adapter tags existed declare the old, uninstallable paths.
+Go ships three modules, tagged in lock-step on the same commit: the root module `github.com/montionugera/node-server-decorator/v2` (every package under `go/` except the two adapters below, tag `vX.Y.Z`), `github.com/montionugera/node-server-decorator/go/adapter/gin/v2` (tag `go/adapter/gin/vX.Y.Z`) and `github.com/montionugera/node-server-decorator/go/adapter/pgxlock/v2` (tag `go/adapter/pgxlock/vX.Y.Z`). Install each with `go get <module>@vX.Y.Z`. The adapter paths end in `/v2` (not `.../v2/go/adapter/...`) because a path under the root module's would be resolved inside the root module. Releases cut before the adapter tags existed declare the old, uninstallable paths. After tagging, the `smoke` job installs all three modules at the tag twice (`scripts/smoke-install-go.sh`): straight from the git tag, then the way an anonymous client does, through `proxy.golang.org` and `sum.golang.org` with no credentials.
 
 ### One-time setup (repo owner, by hand)
 
