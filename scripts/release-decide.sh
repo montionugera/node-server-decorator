@@ -5,6 +5,7 @@
 #   none    nothing but .claude/** and .release.json changed since the last v* tag reachable from HEAD
 #           (zero changes included): release bookkeeping or a manual re-run on an already released
 #           commit. Bumping would publish a new version with no code change.
+#           It is also none when HEAD is already contained in a v* tag.
 #   release otherwise, and always when FORCE_RELEASE=true (manual trigger with force, to republish
 #           a mirror that failed after the tag was cut).
 set -euo pipefail
@@ -17,6 +18,13 @@ if [ "$(git log -1 --format=%s)" = "chore: bump patch version [skip ci]" ]; then
     2) action=repair ;;
     *) echo "release-decide: git ls-remote failed with status $rc" >&2; exit "$rc" ;;
   esac
+fi
+# A queued run whose commit a finished run already tagged (that run rebased its bump onto the newer
+# main, so its tag contains this commit and its code is published): releasing again would bump an empty
+# version and die red at the rebase on CHANGELOG.md.
+if [ "$action" = release ] && [ "${FORCE_RELEASE:-}" != true ]; then
+  contained=$(git tag --contains HEAD --list 'v[0-9]*')
+  [ -z "$contained" ] || action=none
 fi
 if [ "$action" = release ] && [ "${FORCE_RELEASE:-}" != true ] && last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null); then
   changed=$(git diff --name-only --no-renames "$last" HEAD)  # a git failure aborts here (set -e), never reads as "nothing changed"
