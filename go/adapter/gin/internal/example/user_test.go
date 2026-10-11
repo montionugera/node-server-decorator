@@ -12,11 +12,12 @@ import (
 
 // Drift guard for this hand copy of the root module's go/internal/example.UserSpec.
 func TestUserSpecMatchesContractFixture(t *testing.T) {
-	want, err := os.ReadFile("../../../../../contracts/fixtures/entity-spec.valid-user.json")
-	if errors.Is(err, fs.ErrNotExist) {
-		// The fixture lives outside this module: absent when it is consumed from the module cache.
-		t.Skip("contracts fixture not present (module consumed outside the repo)")
+	const contracts = "../../../../../contracts"
+	if _, err := os.Stat(contracts); errors.Is(err, fs.ErrNotExist) {
+		// contracts/ lives outside this module: absent when it is consumed from the module cache.
+		t.Skip("contracts directory not present (module consumed outside the repo)")
 	}
+	want, err := os.ReadFile(contracts + "/fixtures/entity-spec.valid-user.json")
 	if err != nil {
 		t.Fatal(err)
 	}
