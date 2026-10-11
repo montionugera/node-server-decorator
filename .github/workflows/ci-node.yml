@@ -25,10 +25,10 @@ jobs:
       run:
         working-directory: node
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with: { version: 9.14.2 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -45,10 +45,10 @@ jobs:
       run:
         working-directory: node
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with: { version: 9.14.2 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -74,22 +74,24 @@ jobs:
       # `secrets` is not readable in a step `if:`, so expose only whether the token is set.
       HAS_CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 9.14.2 }
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: node/pnpm-lock.yaml
           registry-url: 'https://npm.pkg.github.com'
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
 
       - name: Install Node dependencies
         working-directory: node
@@ -165,7 +167,7 @@ jobs:
       # "npm publish" allowed). Needs Node >= 22.14 and npm >= 11.5.1, hence
       # the second setup-node.
       - name: Use Node 22 for npmjs.com trusted publishing
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
@@ -270,11 +272,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.publish.outputs.tag }}
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with: { go-version-file: go.mod, cache: false }
 
       - uses: jiro4989/setup-nim-action@v2
@@ -308,11 +310,11 @@ jobs:
     permissions: { contents: write }
     env: { TAG: '${{ needs.publish.outputs.tag }}' }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ needs.publish.outputs.tag }}' }
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: 9.14.2 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: '22' }
       - name: Build docs archive
         id: docs
