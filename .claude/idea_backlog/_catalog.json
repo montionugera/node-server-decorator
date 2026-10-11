@@ -187,5 +187,11 @@
     "title": "Run the release shell tests in CI",
     "created_at": "2026-10-11T05:58:48.760528+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-032",
+    "title": "Stop a newer merge from cancelling a run before its GitHub Release",
+    "created_at": "2026-10-11T05:58:49.124786+00:00",
+    "promoted_to": null
   }
 ]
