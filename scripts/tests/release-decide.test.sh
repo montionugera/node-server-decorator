@@ -25,4 +25,8 @@ git add -A; git commit -qm 'fix: mixed (#2)'
 check ".claude/ plus a real file since the last tag -> release" "$(bash "$S" 2>&1)" "action=release"
 git reset -q --hard HEAD~1; git commit -q --allow-empty -m 'docs: empty commit'
 check "empty commit since the last tag -> none" "$(bash "$S" 2>&1)" "action=none"
+check "FORCE_RELEASE=true overrides none" "$(FORCE_RELEASE=true bash "$S" 2>&1)" "action=release"
+git reset -q --hard HEAD~1; mkdir -p node; echo r > node/moved.ts; git add -A; git commit -qm 'fix: add file'; git tag v9.9.10
+git mv node/moved.ts .claude/moved.ts; git commit -qm 'refactor: move a published file into .claude'
+check "a real file renamed into .claude/ still counts -> release" "$(bash "$S" 2>&1)" "action=release"
 exit "$fail"

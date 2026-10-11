@@ -10,6 +10,11 @@ on:
   # Manual retrigger for the publish lane (e.g. after fixing registry-side
   # trusted-publisher config) — publishes whatever main currently holds.
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Bump and publish even when nothing but release bookkeeping changed since the last tag'
+        type: boolean
+        default: false
 
 # Runs on main are never cancelled: a newer merge could otherwise cancel a run after
 # publish but before the release job. Queued runs on main wait their turn; PR runs
@@ -87,6 +92,8 @@ jobs:
 
       - name: Decide release or repair
         id: decide
+        env:
+          FORCE_RELEASE: ${{ inputs.force }}
         run: |
           out=$(bash scripts/release-decide.sh)
           echo "$out" | tee -a "$GITHUB_OUTPUT"

@@ -68,7 +68,7 @@ check "skip-existing: true for repair" "$(skip_for repair)" "true"
 check "skip-existing: false for release" "$(skip_for release)" "false"
 check "skip-existing: false when the action is empty" "$(skip_for '')" "false"
 # action=none must reach no step that bumps, builds, publishes or tags, and must skip the smoke and release jobs.
-ungated=$(ruby -ryaml -e 'j=YAML.load_file(ARGV[0])["jobs"]; seen=false; bad=[]; j["publish"]["steps"].each{|s| seen||=(s["id"]=="decide"); next unless seen; next if s["id"]=="decide"; c=s["if"].to_s; bad<<(s["name"]||s["uses"]) unless c.include?("steps.decide.outputs.action") }; puts bad.join(",")' "$WF")
+ungated=$(ruby -ryaml -e 'j=YAML.load_file(ARGV[0])["jobs"]; seen=false; bad=[]; j["publish"]["steps"].each{|s| seen||=(s["id"]=="decide"); next unless seen; next if s["id"]=="decide"; c=s["if"].to_s; bad<<(s["name"]||s["uses"]) unless c =~ /steps\.decide\.outputs\.action (!= |== )."(none|release)"?/ || c =~ /steps\.decide\.outputs\.action (!=|==) .(none|release)./}; puts bad.join(",")' "$WF")
 check "none: every publish step after decide is conditioned on the decided action" "$ungated" ""
 check "none: the publish job exports the action" "$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0])["jobs"]["publish"]["outputs"]["action"]' "$WF")" '${{ steps.decide.outputs.action }}'
 check "none: smoke and release jobs are skipped" "$(ruby -ryaml -e 'j=YAML.load_file(ARGV[0])["jobs"]; puts %w[smoke release].map{|n| j[n]["if"]}.join("|")' "$WF")" "needs.publish.outputs.action != 'none'|needs.publish.outputs.action != 'none'"
