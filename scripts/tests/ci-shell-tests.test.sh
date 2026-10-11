@@ -6,7 +6,11 @@ check(){ if [ "$2" = "$3" ]; then echo "ok - $1"; else echo "FAIL - $1: got '$2'
 [ -f "$WF" ] || { echo "FAIL - $WF is missing"; exit 1; }
 y(){ ruby -ryaml -e "w=YAML.load_file(ARGV[0]); $1" "$WF"; }
 check "triggers on pull_request" "$(y 'puts w[true].key?("pull_request")')" "true"
-check "triggers on scripts/** and its own file" "$(y 'p=w[true]["pull_request"]["paths"]; puts p.include?("scripts/**") && p.include?(".github/workflows/ci-scripts.yml")')" "true"
+check "triggers on scripts/**" "$(y 'puts w[true]["pull_request"]["paths"].include?("scripts/**")')" "true"
+check "pull_request paths cover every workflow file" "$(y 'puts w[true]["pull_request"]["paths"].include?(".github/workflows/**")')" "true"
+check "push paths cover every workflow file" "$(y 'puts w[true]["push"]["paths"].include?(".github/workflows/**")')" "true"
+check "push paths still cover scripts/**" "$(y 'puts w[true]["push"]["paths"].include?("scripts/**")')" "true"
+check "top-level permissions are read-only" "$(y 'puts w["permissions"].inspect')" '{"contents"=>"read"}'
 check "main runs are not cancelled" "$(y 'puts w["concurrency"]["cancel-in-progress"]')" "\${{ github.ref != 'refs/heads/main' }}"
 body="$(y 'puts w["jobs"]["shell-tests"]["steps"].map{|s| s["run"]}.compact.join("\n")')"
 check "a step loops over scripts/tests/*.test.sh" "$(echo "$body" | grep -c 'scripts/tests/\*\.test\.sh')" "1"
