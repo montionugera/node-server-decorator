@@ -29,4 +29,8 @@ check "FORCE_RELEASE=true overrides none" "$(FORCE_RELEASE=true bash "$S" 2>&1)"
 git reset -q --hard HEAD~1; mkdir -p node; echo r > node/moved.ts; git add -A; git commit -qm 'fix: add file'; git tag v9.9.10
 git mv node/moved.ts .claude/moved.ts; git commit -qm 'refactor: move a published file into .claude'
 check "a real file renamed into .claude/ still counts -> release" "$(bash "$S" 2>&1)" "action=release"
+git reset -q --hard v9.9.9; git commit -q --allow-empty -m 'x'; echo n > node/y.ts; git add -A; git commit -qm 'feat: y'
+git tag v9.9.11; git reset -q --hard HEAD~1
+check "HEAD contained in a newer tag (queued run behind a finished one) -> none" "$(bash "$S" 2>&1)" "action=none"
+check "contained in a tag but forced -> release" "$(FORCE_RELEASE=true bash "$S" 2>&1)" "action=release"
 exit "$fail"
