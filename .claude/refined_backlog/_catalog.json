@@ -427,9 +427,11 @@
     "from_idea": "I-037",
     "created_at": "2026-10-11T16:42:24.124542+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "claimed",
-    "release_version": null,
-    "claimed_at": "2026-10-11T16:42:28.086313+00:00"
+    "status": "shipped",
+    "release_version": "2.12",
+    "claimed_at": "2026-10-11T16:42:28.086313+00:00",
+    "shipped_at": "2026-10-11T17:09:14.591459+00:00",
+    "shipped_sha": "582c1de709ae1352b5a2f1a73621bdb50f759153"
   },
   {
     "id": "F-036",
