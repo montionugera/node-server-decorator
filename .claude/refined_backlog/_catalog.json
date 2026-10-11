@@ -349,8 +349,9 @@
     "title": "Run the release shell tests in CI",
     "from_idea": "I-031",
     "created_at": "2026-10-11T06:01:55.336984+00:00",
-    "claimed_by": null,
-    "status": "open",
-    "release_version": null
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
+    "release_version": null,
+    "claimed_at": "2026-10-11T06:01:58.289286+00:00"
   }
 ]
