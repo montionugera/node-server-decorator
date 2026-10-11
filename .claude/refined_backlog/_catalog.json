@@ -373,8 +373,9 @@
     "title": "Tighten the script-test workflow and correct the release queue note",
     "from_idea": "I-035",
     "created_at": "2026-10-11T06:46:27.790678+00:00",
-    "claimed_by": null,
-    "status": "open",
-    "release_version": null
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
+    "release_version": null,
+    "claimed_at": "2026-10-11T06:46:32.288008+00:00"
   }
 ]
