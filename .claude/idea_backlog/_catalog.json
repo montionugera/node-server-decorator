@@ -217,5 +217,11 @@
     "title": "A second merge during a running release ends in a red run; make back-to-back merges release cleanly",
     "created_at": "2026-10-11T07:00:45.717889+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-037",
+    "title": "Add local pre-ship and integration check scripts so the release tool's two gates stop being skipped",
+    "created_at": "2026-10-11T07:00:46.366060+00:00",
+    "promoted_to": null
   }
 ]
