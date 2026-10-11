@@ -11,8 +11,18 @@ check "normal commit -> release" "$(bash "$S" 2>&1)" "action=release"
 git commit -q --allow-empty -m 'chore: bump patch version [skip ci]'
 check "bump commit, no tag on origin -> repair" "$(bash "$S" 2>&1)" "action=repair"
 git tag v9.9.9; git push -q origin v9.9.9
-check "bump commit, tag on origin -> release" "$(bash "$S" 2>&1)" "action=release"
+check "bump commit that is already tagged (manual re-run) -> none" "$(bash "$S" 2>&1)" "action=none"
 git remote set-url origin "$T/missing.git"
 out=$(bash "$S" 2>/dev/null); rc=$?
 check "unreachable origin -> fails and prints no action" "$rc:$out" "128:"
+mkdir -p .claude/refined_backlog; echo x > .claude/refined_backlog/a.md; echo '{}' > .release.json
+git add -A; git commit -qm 'chore(release): finalize 9.9 cleanup on main'
+check "only .claude/ and .release.json changed since the last tag -> none" "$(bash "$S" 2>&1)" "action=none"
+mkdir -p src/.claude; echo x > src/.claude/b.md; git add -A; git commit -qm 'fix: nested .claude is real code'
+check "a nested .claude/ path is not exempt -> release" "$(bash "$S" 2>&1)" "action=release"
+git reset -q --hard HEAD~1; echo y >> .claude/refined_backlog/a.md; echo node > node/x.ts
+git add -A; git commit -qm 'fix: mixed (#2)'
+check ".claude/ plus a real file since the last tag -> release" "$(bash "$S" 2>&1)" "action=release"
+git reset -q --hard HEAD~1; git commit -q --allow-empty -m 'docs: empty commit'
+check "empty commit since the last tag -> none" "$(bash "$S" 2>&1)" "action=none"
 exit "$fail"
