@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.27 - 2026-10-11
+
+- chore(release): finalize 2.11 cleanup on main
+- fix(go): make the gin and pgxlock adapter modules installable (#23)
+
 ## 2.0.26 - 2026-10-11
 
 - chore(release): finalize 2.10 cleanup on main

@@ -6,7 +6,7 @@ replace github.com/montionugera/node-server-decorator/v2 => ../../../
 
 require (
 	github.com/gin-gonic/gin v1.10.0
-	github.com/montionugera/node-server-decorator/v2 v2.0.26
+	github.com/montionugera/node-server-decorator/v2 v2.0.27
 )
 
 require (
