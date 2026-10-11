@@ -43,8 +43,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with: { node-version: '20' }
       - run: npm i -g ajv-cli@5
       - name: Validate fixtures against schemas
@@ -68,14 +68,16 @@ jobs:
   entity-parity:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with: { version: 9.14.2 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: '20', cache: 'pnpm', cache-dependency-path: node/pnpm-lock.yaml }
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
       # check-entity-parity.sh runs the Go producer too (I-006).
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with: { go-version-file: go.mod, cache: false }
       # check-entity-parity.sh and check-openapi-parity.sh run the Nim producers too (F-006).
       - uses: jiro4989/setup-nim-action@v2

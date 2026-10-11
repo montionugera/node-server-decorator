@@ -1,6 +1,6 @@
 {
   "name": "@montionugera/entity-spec-gen-zod",
-  "version": "2.0.24",
+  "version": "2.0.26",
   "description": "IR-derived create/update/read/action zod validation schemas (contracts/schemas/entity-spec.schema.json).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

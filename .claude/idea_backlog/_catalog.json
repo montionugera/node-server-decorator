@@ -181,5 +181,59 @@
     "title": "Adopt release notes, GitHub Release with docs archive, and portal signal in the publish pipeline",
     "created_at": "2026-10-09T12:46:17.830534+00:00",
     "promoted_to": "F-027"
+  },
+  {
+    "id": "I-031",
+    "title": "Run the release shell tests in CI",
+    "created_at": "2026-10-11T05:58:48.760528+00:00",
+    "promoted_to": "F-029"
+  },
+  {
+    "id": "I-032",
+    "title": "Stop a newer merge from cancelling a run before its GitHub Release",
+    "created_at": "2026-10-11T05:58:49.124786+00:00",
+    "promoted_to": "F-028"
+  },
+  {
+    "id": "I-033",
+    "title": "Move CI actions off retired Node 20 majors and pin ubuntu runner",
+    "created_at": "2026-10-11T05:58:49.486186+00:00",
+    "promoted_to": "F-030"
+  },
+  {
+    "id": "I-034",
+    "title": "Delete stray plain SLACK_WEBHOOK_URL repo variable (secret exists)",
+    "created_at": "2026-10-11T05:58:49.784689+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-035",
+    "title": "Tighten the script-test workflow and correct the release queue note",
+    "created_at": "2026-10-11T06:46:18.349484+00:00",
+    "promoted_to": "F-031"
+  },
+  {
+    "id": "I-036",
+    "title": "A second merge during a running release ends in a red run; make back-to-back merges release cleanly",
+    "created_at": "2026-10-11T07:00:45.717889+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-037",
+    "title": "Add local pre-ship and integration check scripts so the release tool's two gates stop being skipped",
+    "created_at": "2026-10-11T07:00:46.366060+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-038",
+    "title": "Check whether release cleanup commits on main trigger an extra version bump and publish (2.0.23 and 2.0.24 appeared without a feature release)",
+    "created_at": "2026-10-11T07:00:47.418681+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-039",
+    "title": "docs archive carries version.json for the portal",
+    "created_at": "2026-10-11T09:42:38.982765+00:00",
+    "promoted_to": "F-032"
   }
 ]

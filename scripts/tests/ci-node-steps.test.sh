@@ -4,7 +4,7 @@ set -uo pipefail
 R="$(cd "$(dirname "$0")/../.." && pwd)"; WF="$R/.github/workflows/ci-node.yml"; T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; fail=0
 check(){ if [ "$2" = "$3" ]; then echo "ok - $1"; else echo "FAIL - $1: got '$2', want '$3'"; fail=1; fi; }
 run_of(){ ruby -ryaml -e 's=YAML.load_file(ARGV[0])["jobs"][ARGV[1]]["steps"].find{|x|x["name"]==ARGV[2]} or abort "no step: #{ARGV[2]}"; puts s["run"]' "$WF" "$1" "$2"; }
-command -v ruby >/dev/null || { echo "FAIL - this test needs ruby (it is run locally only, never in CI)"; exit 1; }
+command -v ruby >/dev/null || { echo "FAIL - this test needs ruby (CI runs it via ci-scripts.yml; ruby is preinstalled on ubuntu runners)"; exit 1; }
 # GitHub runs a step that has no `shell:` key as `bash -e` WITHOUT pipefail; run the bodies the same way.
 step(){ bash -e -c "$(run_of "$1" "$2")"; }
 export LOG="$T/log" RUNNER_TEMP="$T/rt" GITHUB_OUTPUT="$T/out"; : > "$LOG"; mkdir -p "$T/bin" "$RUNNER_TEMP"
@@ -27,6 +27,11 @@ GH_VIEW_RC=0 step release 'Create GitHub Release' >/dev/null
 check "release: existing release gets the asset re-uploaded, not re-created" "$(grep -c '^gh release upload v9.9.10 docs-site.tgz --clobber$' "$LOG"):$(grep -c '^gh release create' "$LOG")" "1:1"
 : > "$LOG"; out=$(ASSET="" GH_VIEW_RC=1 step release 'Create GitHub Release')
 check "release: without the archive it still creates the release, and warns" "$(grep -c '^gh release create v9.9.10 --verify-tag --title v9.9.10 --notes-file notes.md$' "$LOG"):$(echo "$out" | grep -c '::warning::')" "1:1"
+# Docs archive: the portal checks a root version.json against the release tag. Stub pnpm only makes website/dist.
+mkdir -p "$T/dbin"; printf '#!/bin/sh\n[ "$1" = build ] && mkdir -p dist && echo "<html></html>" > dist/index.html\nexit 0\n' > "$T/dbin/pnpm"; chmod +x "$T/dbin/pnpm"
+mkdir -p website; : > "$GITHUB_OUTPUT"; PATH="$T/dbin:$PATH" TAG=v9.9.10 step release 'Build docs archive' >/dev/null; mkdir -p "$T/x"; tar -xzf docs-site.tgz -C "$T/x"
+check "docs archive: root version.json is exactly the tag version, no leading v" "$(cat "$T/x/version.json" 2>/dev/null)" '{"version":"9.9.10"}'
+check "docs archive: site files stay at the archive root" "$(test -f "$T/x/index.html" && echo yes)" "yes"
 out=$(GH_TOKEN="" step release 'Signal the developer portal')
 check "portal: warns and sends nothing while the secret is unset" "$(echo "$out" | grep -c 'PORTAL_DISPATCH_TOKEN is not set'):$(grep -c 'workflow run' "$LOG")" "1:0"
 git tag -d v9.9.9 >/dev/null; out=$(step publish 'Write CHANGELOG entry'); rc=$?
@@ -62,4 +67,7 @@ skip_for(){ ruby -ryaml -e 's=YAML.load_file(ARGV[0])["jobs"]["publish"]["steps"
 check "skip-existing: true for repair" "$(skip_for repair)" "true"
 check "skip-existing: false for release" "$(skip_for release)" "false"
 check "skip-existing: false when the action is empty" "$(skip_for '')" "false"
+# Concurrency: main runs are never cancelled mid-flight (publish then release); PR runs still cancel superseded runs.
+cip=$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0])["concurrency"]["cancel-in-progress"]' "$WF")
+check "concurrency: cancel-in-progress is false on main, true elsewhere" "$cip" "\${{ github.ref != 'refs/heads/main' }}"
 exit "$fail"
