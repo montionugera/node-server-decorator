@@ -1,4 +1,4 @@
-module github.com/montionugera/node-server-decorator/v2/go/adapter/gin
+module github.com/montionugera/node-server-decorator/go/adapter/gin/v2
 
 go 1.22
 
@@ -6,7 +6,7 @@ replace github.com/montionugera/node-server-decorator/v2 => ../../../
 
 require (
 	github.com/gin-gonic/gin v1.10.0
-	github.com/montionugera/node-server-decorator/v2 v2.0.0-00010101000000-000000000000
+	github.com/montionugera/node-server-decorator/v2 v2.0.24
 )
 
 require (

@@ -37,6 +37,11 @@ done
 go_version_file=go/entity/version.go
 sed -i.bak -E "s/^const Version = \"[^\"]+\"$/const Version = \"$new_version\"/" "$go_version_file" \
   && rm "$go_version_file.bak"
+# The gin adapter is its own Go module and requires the root module by version; keep that pin
+# in lockstep so the adapter tagged go/adapter/gin/vX.Y.Z resolves the root at the same vX.Y.Z.
+gin_mod_file=go/adapter/gin/go.mod
+sed -i.bak -E "s#^([[:space:]]*github.com/montionugera/node-server-decorator/v2 )v[0-9]+\\.[0-9]+\\.[0-9]+\$#\\1v$new_version#" "$gin_mod_file" \
+  && rm "$gin_mod_file.bak"
 # Mirror into the Nim package manifest (F-006) — nimble reads `version` from it and
 # check-versions.sh asserts it. The capture group keeps the manifest's own spacing.
 nimble_file=nim/server_decorator.nimble

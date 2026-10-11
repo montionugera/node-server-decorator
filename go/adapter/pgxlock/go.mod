@@ -1,4 +1,4 @@
-module github.com/montionugera/node-server-decorator/v2/go/adapter/pgxlock
+module github.com/montionugera/node-server-decorator/go/adapter/pgxlock/v2
 
 go 1.22
 

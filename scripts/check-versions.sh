@@ -25,6 +25,12 @@ go_v=$(grep -oE '^const Version = "[^"]+"' go/entity/version.go | grep -oE '"[^"
   || { echo "FAIL: no 'const Version = \"x.y.z\"' in go/entity/version.go" >&2; exit 1; }
 versions+="go/entity/version.go=$go_v\n"
 
+# go/adapter/gin is its own module; its `require` of the root module must name this release,
+# or the adapter tagged go/adapter/gin/vX.Y.Z would pull a different root version.
+gin_v=$(grep -oE '^[[:space:]]*github.com/montionugera/node-server-decorator/v2 v[^[:space:]]+' go/adapter/gin/go.mod | grep -oE '[^[:space:]]+$' | sed 's/^v//') \
+  || { echo "FAIL: no 'require github.com/montionugera/node-server-decorator/v2 vX.Y.Z' in go/adapter/gin/go.mod" >&2; exit 1; }
+versions+="go/adapter/gin/go.mod[require root]=$gin_v\n"
+
 # nim/server_decorator.nimble is the Nim package's only version source (F-006); nimble reads it.
 nim_v=$(grep -oE '^version[[:space:]]*=[[:space:]]*"[^"]+"' nim/server_decorator.nimble | grep -oE '"[^"]+"' | tr -d '"') \
   || { echo "FAIL: no 'version = \"x.y.z\"' in nim/server_decorator.nimble" >&2; exit 1; }

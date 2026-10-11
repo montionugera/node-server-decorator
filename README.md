@@ -129,7 +129,7 @@ The crates.io step is non-blocking and stops at the first crate that fails, so a
 
 Go and Nim have no registry: clients install straight from the git tag, so **public Go and Nim installs require this GitHub repository to be public**. While it is private, only clients with repo access (and `GOPRIVATE=github.com/montionugera/*`) can install.
 
-Go caveat: only the root module `github.com/montionugera/node-server-decorator/v2` (every package under `go/` except the two below) is installable at a tag. The nested modules `go/adapter/gin` and `go/adapter/pgxlock` are **not installable by any client today**: their module paths put `/v2` in the middle (`.../v2/go/adapter/gin`), so Go looks for them inside the root module and reports "does not contain package". No tag can fix that; it needs a module-path rename (for example `.../go/adapter/gin/v2`, tagged `go/adapter/gin/vX.Y.Z`) or folding them into the root module.
+Go ships three modules, tagged in lock-step on the same commit: the root module `github.com/montionugera/node-server-decorator/v2` (every package under `go/` except the two adapters below, tag `vX.Y.Z`), `github.com/montionugera/node-server-decorator/go/adapter/gin/v2` (tag `go/adapter/gin/vX.Y.Z`) and `github.com/montionugera/node-server-decorator/go/adapter/pgxlock/v2` (tag `go/adapter/pgxlock/vX.Y.Z`). Install each with `go get <module>@vX.Y.Z`. The adapter paths end in `/v2` (not `.../v2/go/adapter/...`) because a path under the root module's would be resolved inside the root module. Releases cut before the adapter tags existed declare the old, uninstallable paths.
 
 ### One-time setup (repo owner, by hand)
 
