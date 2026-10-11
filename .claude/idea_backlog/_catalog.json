@@ -235,5 +235,11 @@
     "title": "docs archive carries version.json for the portal",
     "created_at": "2026-10-11T09:42:38.982765+00:00",
     "promoted_to": "F-032"
+  },
+  {
+    "id": "I-040",
+    "title": "Make core rate-limit and distributed-lock unit specs deterministic under load (3 timing failures in a full run, green alone)",
+    "created_at": "2026-10-11T16:47:17.487783+00:00",
+    "promoted_to": null
   }
 ]
