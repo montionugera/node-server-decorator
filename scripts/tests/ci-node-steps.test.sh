@@ -62,4 +62,7 @@ skip_for(){ ruby -ryaml -e 's=YAML.load_file(ARGV[0])["jobs"]["publish"]["steps"
 check "skip-existing: true for repair" "$(skip_for repair)" "true"
 check "skip-existing: false for release" "$(skip_for release)" "false"
 check "skip-existing: false when the action is empty" "$(skip_for '')" "false"
+# Concurrency: main runs are never cancelled mid-flight (publish then release); PR runs still cancel superseded runs.
+cip=$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0])["concurrency"]["cancel-in-progress"]' "$WF")
+check "concurrency: cancel-in-progress is false on main, true elsewhere" "$cip" "\${{ github.ref != 'refs/heads/main' }}"
 exit "$fail"
