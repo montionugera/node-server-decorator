@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.28 - 2026-10-11
+
+- release 2.12 (#24)
+
 ## 2.0.27 - 2026-10-11
 
 - chore(release): finalize 2.11 cleanup on main

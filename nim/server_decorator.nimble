@@ -1,4 +1,4 @@
-version       = "2.0.27"
+version       = "2.0.28"
 author        = "montionugera"
 description   = "server-decorator: entity IR + OpenAPI (Nim lane)"
 license       = "MIT"
