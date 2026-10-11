@@ -7,7 +7,7 @@ for f in precheck integration; do
   check "$f.sh exists and is executable" "$([ -x "$R/scripts/$f.sh" ] && echo yes)" "yes"
 done
 check "integration.sh runs precheck.sh" "$(grep -c 'precheck.sh' "$R/scripts/integration.sh")" "1"
-run(){ bash -c 'source "$1"; shift; eval "$*"; finish gate' _ "$R/scripts/lib-stages.sh" "$@"; }
+run(){ bash -c 'set -u; source "$1"; shift; eval "$*"; finish gate' _ "$R/scripts/lib-stages.sh" "$@"; }
 out=$(run 'stage a true; stage b true'); rc=$?
 check "all stages pass -> exit 0 and one-line summary" "$rc:$(echo "$out" | tail -1 | sed 's/ in [0-9]*s$//')" "0:gate: 2 passed, 0 failed, 0 skipped"
 out=$(run 'stage a true; stage b false; stage c true'); rc=$?
@@ -16,5 +16,7 @@ out=$(run 'stage a true; skip docs "no docker"'); rc=$?
 check "a skipped stage is reported, not counted as passed" "$rc:$(echo "$out" | tail -1 | sed 's/ in [0-9]*s//')" "0:gate: 1 passed, 0 failed, 1 skipped (docs: no docker)"
 out=$(run 'stage noisy bash -c "seq 1 200; exit 3"'); rc=$?
 check "failure output is bounded to the tail" "$rc:$(echo "$out" | grep -c '^[0-9]')" "1:25"
+out=$(run 'stage w bash -c "echo WARN: flaky"'); rc=$?
+check "a WARN line on a passing stage is shown and counted" "$rc:$(echo "$out" | grep -c '^WARN: flaky'):$(echo "$out" | tail -1 | sed 's/ in [0-9]*s//')" "0:1:gate: 1 passed, 0 failed, 0 skipped, 1 warned"
 out=$(run 'stage a true; skip x y; stage b false'); check "summary is the last line and a single line" "$(echo "$out" | tail -1 | grep -c '^gate: ')" "1"
 exit "$fail"

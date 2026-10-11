@@ -5,8 +5,16 @@ set -u
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.nimble/bin:$HOME/.cargo/bin:$PATH"
 source scripts/lib-stages.sh
-go_hygiene(){ [ -z "$(gofmt -l go)" ] && go vet ./go/...; }
+go_hygiene(){
+  local files m; files=$(gofmt -l go) || return 1
+  [ -z "$files" ] || { echo "gofmt needed:"; echo "$files"; return 1; }
+  go vet ./go/... || return 1
+  for m in go/adapter/gin go/adapter/pgxlock; do [ -f "$m/go.mod" ] && { (cd "$m" && go vet ./...) || return 1; }; done
+  return 0
+}
 stage "precheck (gate 1)" bash scripts/precheck.sh
+# precheck's own skips must not vanish inside its single "ok" line.
+inner=$(printf '%s\n' "$LAST_OUT" | tail -n 1 | sed -n 's/.*skipped (\(.*\)) in [0-9]*s$/\1/p'); [ -z "$inner" ] || skip "precheck sub-stages" "$inner"
 if command -v go >/dev/null; then
   stage "go hygiene" go_hygiene
   stage "go tests + coverage gate" bash scripts/check-go-coverage.sh
