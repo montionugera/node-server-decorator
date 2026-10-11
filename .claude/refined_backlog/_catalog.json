@@ -361,8 +361,9 @@
     "title": "Move CI actions off retired Node 20 majors and pin ubuntu runner",
     "from_idea": "I-033",
     "created_at": "2026-10-11T06:04:01.066950+00:00",
-    "claimed_by": null,
-    "status": "open",
-    "release_version": null
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
+    "release_version": null,
+    "claimed_at": "2026-10-11T06:05:01.164279+00:00"
   }
 ]
