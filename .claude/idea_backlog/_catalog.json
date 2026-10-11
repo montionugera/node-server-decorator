@@ -181,5 +181,11 @@
     "title": "Adopt release notes, GitHub Release with docs archive, and portal signal in the publish pipeline",
     "created_at": "2026-10-09T12:46:17.830534+00:00",
     "promoted_to": "F-027"
+  },
+  {
+    "id": "I-031",
+    "title": "Run the release shell tests in CI",
+    "created_at": "2026-10-11T05:58:48.760528+00:00",
+    "promoted_to": null
   }
 ]
