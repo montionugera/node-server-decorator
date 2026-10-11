@@ -8,19 +8,21 @@ status: idea
 
 ## Problem
 
-(what hurts; concrete examples)
+scripts/tests/*.test.sh run in no workflow.
 
 ## Why now
 
-(opportunity; deadline; constraint)
+Debt filed in release 2.10; Node 20 retirement and Ubuntu 26 move on 2026-10-19 make CI fragile.
 
 ## Sketch
 
-(rough shape; not a design yet)
+Test first (shell structural test), then minimal workflow edit.
 
 ## Acceptance criteria
 
-- [ ] (one observable, testable outcome per item; refine refuses a spec without any)
+- [ ] pull-request CI has a job that runs every scripts/tests/*.test.sh and fails if any fails
+- [ ] a structural test asserts the job exists and loops over all test files
+- [ ] SETUP.md no longer says 'not run in CI'
 
 ## Finding (verified 2026-10-11)
 scripts/tests/*.test.sh (3 files) are run by no workflow: grep of .github/ finds only a note at .github/SETUP.md:60 saying "not run in CI".

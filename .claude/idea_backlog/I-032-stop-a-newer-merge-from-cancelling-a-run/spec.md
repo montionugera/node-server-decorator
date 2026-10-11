@@ -8,19 +8,22 @@ status: idea
 
 ## Problem
 
-(what hurts; concrete examples)
+Runs on main must never be cancelled mid-flight; PR runs still cancel superseded runs.
 
 ## Why now
 
-(opportunity; deadline; constraint)
+Debt filed in release 2.10; Node 20 retirement and Ubuntu 26 move on 2026-10-19 make CI fragile.
 
 ## Sketch
 
-(rough shape; not a design yet)
+Test first (shell structural test), then minimal workflow edit.
 
 ## Acceptance criteria
 
-- [ ] (one observable, testable outcome per item; refine refuses a spec without any)
+- [ ] ci-node.yml concurrency.cancel-in-progress is `${{ github.ref != 'refs/heads/main' }}`
+- [ ] structural test in scripts/tests/ci-node-steps.test.sh asserts it and fails on literal true
+- [ ] SETUP.md known-limitation (line 59) replaced with description of new behaviour
+- [ ] other workflows checked: none publish or deploy
 
 ## Finding (verified 2026-10-11)
 .github/workflows/ci-node.yml:14-16 has workflow-level concurrency with cancel-in-progress: true; the release job (line 272) needs publish (line 274), so a newer merge can cancel after publish and before release, leaving a version with no GitHub Release. Documented as a known limitation at .github/SETUP.md:59.
