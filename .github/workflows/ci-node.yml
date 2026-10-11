@@ -67,7 +67,7 @@ jobs:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+      tag: ${{ steps.tag.outputs.tag || steps.missing.outputs.tag }}
       action: ${{ steps.decide.outputs.action }}
     # PyPI trusted publisher for server-decorator-gen-pydantic is registered against
     # this GitHub environment; the other publishers accept any environment.
@@ -101,6 +101,15 @@ jobs:
       - name: Nothing to release
         if: steps.decide.outputs.action == 'none'
         run: echo "::notice::Only release bookkeeping changed since the last release tag (or nothing did); not bumping or publishing."
+
+      # A run repeated with "Re-run all jobs" after `release` failed lands here too: the tag exists, the Release
+      # does not. Outputting the tag lets the (idempotent) release job repair it; nothing is re-published.
+      - name: Check the contained tag has its GitHub Release
+        id: missing
+        if: steps.decide.outputs.action == 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release-missing.sh >> "$GITHUB_OUTPUT"
 
       - uses: pnpm/action-setup@v6
         if: steps.decide.outputs.action != 'none'
@@ -345,7 +354,7 @@ jobs:
   release:
     name: GitHub Release + docs archive
     needs: [publish]
-    if: needs.publish.outputs.action != 'none'
+    if: needs.publish.outputs.action != 'none' || needs.publish.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions: { contents: write }
     env: { TAG: '${{ needs.publish.outputs.tag }}' }
