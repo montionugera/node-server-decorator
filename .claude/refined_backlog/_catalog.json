@@ -338,11 +338,12 @@
     "from_idea": "I-032",
     "created_at": "2026-10-11T05:59:59.495784+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.10",
     "claimed_at": "2026-10-11T06:00:11.563330+00:00",
     "shipped_at": "2026-10-11T06:01:43.412355+00:00",
-    "shipped_sha": "e6c2a9c8e602c88e49c7fcada7daad079a709e5f"
+    "shipped_sha": "e6c2a9c8e602c88e49c7fcada7daad079a709e5f",
+    "promoted_at": "2026-10-11T07:00:09.309793+00:00"
   },
   {
     "id": "F-029",
@@ -350,11 +351,12 @@
     "from_idea": "I-031",
     "created_at": "2026-10-11T06:01:55.336984+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.10",
     "claimed_at": "2026-10-11T06:01:58.289286+00:00",
     "shipped_at": "2026-10-11T06:02:51.601693+00:00",
-    "shipped_sha": "4373f75f0e06a5358a11b2ae1728c98929330057"
+    "shipped_sha": "4373f75f0e06a5358a11b2ae1728c98929330057",
+    "promoted_at": "2026-10-11T07:00:13.128711+00:00"
   },
   {
     "id": "F-030",
@@ -362,11 +364,12 @@
     "from_idea": "I-033",
     "created_at": "2026-10-11T06:04:01.066950+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.10",
     "claimed_at": "2026-10-11T06:05:01.164279+00:00",
     "shipped_at": "2026-10-11T06:06:32.061558+00:00",
-    "shipped_sha": "cf7174cc2ba5a76774c277b7152ce6cda5a56431"
+    "shipped_sha": "cf7174cc2ba5a76774c277b7152ce6cda5a56431",
+    "promoted_at": "2026-10-11T07:00:17.656604+00:00"
   },
   {
     "id": "F-031",
@@ -374,10 +377,11 @@
     "from_idea": "I-035",
     "created_at": "2026-10-11T06:46:27.790678+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "2.10",
     "claimed_at": "2026-10-11T06:46:32.288008+00:00",
     "shipped_at": "2026-10-11T06:47:54.053880+00:00",
-    "shipped_sha": "b1b323ebd40a1461806bc7499c18bf49ec6a128e"
+    "shipped_sha": "b1b323ebd40a1461806bc7499c18bf49ec6a128e",
+    "promoted_at": "2026-10-11T07:00:23.631988+00:00"
   }
 ]
