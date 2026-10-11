@@ -241,5 +241,11 @@
     "title": "Make core rate-limit and distributed-lock unit specs deterministic under load (3 timing failures in a full run, green alone)",
     "created_at": "2026-10-11T16:47:17.487783+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-041",
+    "title": "Pass the released tag to the developer portal signal as decorator_docs_tag",
+    "created_at": "2026-10-11T16:59:10.391496+00:00",
+    "promoted_to": null
   }
 ]
