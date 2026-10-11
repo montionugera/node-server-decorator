@@ -2,10 +2,13 @@ name: CI - Scripts
 
 on:
   pull_request:
-    paths: ['scripts/**', '.github/workflows/ci-scripts.yml', '.github/workflows/ci-node.yml']
+    paths: ['scripts/**', '.github/workflows/**']
   push:
     branches: [main]
-    paths: ['scripts/**', '.github/workflows/ci-scripts.yml', '.github/workflows/ci-node.yml']
+    paths: ['scripts/**', '.github/workflows/**']
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
