@@ -430,5 +430,14 @@
     "status": "claimed",
     "release_version": null,
     "claimed_at": "2026-10-11T16:42:28.086313+00:00"
+  },
+  {
+    "id": "F-036",
+    "title": "Pass the released tag to the developer portal signal as decorator_docs_tag",
+    "from_idea": "I-041",
+    "created_at": "2026-10-11T16:59:16.772017+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
