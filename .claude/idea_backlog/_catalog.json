@@ -229,5 +229,11 @@
     "title": "Check whether release cleanup commits on main trigger an extra version bump and publish (2.0.23 and 2.0.24 appeared without a feature release)",
     "created_at": "2026-10-11T07:00:47.418681+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-039",
+    "title": "docs archive carries version.json for the portal",
+    "created_at": "2026-10-11T09:42:38.982765+00:00",
+    "promoted_to": null
   }
 ]
