@@ -4,7 +4,7 @@ set -uo pipefail
 R="$(cd "$(dirname "$0")/../.." && pwd)"; WF="$R/.github/workflows/ci-node.yml"; T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; fail=0
 check(){ if [ "$2" = "$3" ]; then echo "ok - $1"; else echo "FAIL - $1: got '$2', want '$3'"; fail=1; fi; }
 run_of(){ ruby -ryaml -e 's=YAML.load_file(ARGV[0])["jobs"][ARGV[1]]["steps"].find{|x|x["name"]==ARGV[2]} or abort "no step: #{ARGV[2]}"; puts s["run"]' "$WF" "$1" "$2"; }
-command -v ruby >/dev/null || { echo "FAIL - this test needs ruby (it is run locally only, never in CI)"; exit 1; }
+command -v ruby >/dev/null || { echo "FAIL - this test needs ruby (CI runs it via ci-scripts.yml; ruby is preinstalled on ubuntu runners)"; exit 1; }
 # GitHub runs a step that has no `shell:` key as `bash -e` WITHOUT pipefail; run the bodies the same way.
 step(){ bash -e -c "$(run_of "$1" "$2")"; }
 export LOG="$T/log" RUNNER_TEMP="$T/rt" GITHUB_OUTPUT="$T/out"; : > "$LOG"; mkdir -p "$T/bin" "$RUNNER_TEMP"
@@ -62,4 +62,7 @@ skip_for(){ ruby -ryaml -e 's=YAML.load_file(ARGV[0])["jobs"]["publish"]["steps"
 check "skip-existing: true for repair" "$(skip_for repair)" "true"
 check "skip-existing: false for release" "$(skip_for release)" "false"
 check "skip-existing: false when the action is empty" "$(skip_for '')" "false"
+# Concurrency: main runs are never cancelled mid-flight (publish then release); PR runs still cancel superseded runs.
+cip=$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0])["concurrency"]["cancel-in-progress"]' "$WF")
+check "concurrency: cancel-in-progress is false on main, true elsewhere" "$cip" "\${{ github.ref != 'refs/heads/main' }}"
 exit "$fail"

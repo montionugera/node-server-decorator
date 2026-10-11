@@ -17,7 +17,7 @@ jobs:
     defaults:
       run: { working-directory: nim }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Pinned to the version in nim/README.md / CLAUDE.md; the package has no third-party deps,
       # so there is no lockfile and nothing to cache.
       - uses: jiro4989/setup-nim-action@v2
