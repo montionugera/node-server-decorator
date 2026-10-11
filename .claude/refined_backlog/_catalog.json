@@ -331,5 +331,14 @@
     "shipped_at": "2026-10-09T15:04:40.535998+00:00",
     "shipped_sha": "2d31f57f7467d2e3932c803884105b8456b4d016",
     "promoted_at": "2026-10-09T15:13:16.038305+00:00"
+  },
+  {
+    "id": "F-028",
+    "title": "Stop a newer merge from cancelling a run before its GitHub Release",
+    "from_idea": "I-032",
+    "created_at": "2026-10-11T05:59:59.495784+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
