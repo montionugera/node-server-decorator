@@ -8,16 +8,17 @@ status: idea
 
 ## Problem
 
-(what hurts; concrete examples)
+ci-scripts.yml only triggers on a narrow paths filter although the tests scan every workflow file; it has no permissions block; SETUP.md claims a second run on main "waits in the queue", which is misleading.
 
 ## Why now
 
-(opportunity; deadline; constraint)
+Review findings on release 2.10.
 
 ## Sketch
 
-(rough shape; not a design yet)
+Widen paths to .github/workflows/**, add contents: read, rewrite the SETUP.md note, extend ci-shell-tests.test.sh.
 
 ## Acceptance criteria
 
-- [ ] (one observable, testable outcome per item; refine refuses a spec without any)
+- [ ] ci-scripts.yml triggers on .github/workflows/** and has top-level permissions contents: read, asserted by scripts/tests/ci-shell-tests.test.sh
+- [ ] SETUP.md describes the real serialised-run behaviour
