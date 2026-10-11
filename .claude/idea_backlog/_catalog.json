@@ -216,24 +216,42 @@
     "id": "I-036",
     "title": "A second merge during a running release ends in a red run; make back-to-back merges release cleanly",
     "created_at": "2026-10-11T07:00:45.717889+00:00",
-    "promoted_to": null
+    "promoted_to": "F-034"
   },
   {
     "id": "I-037",
     "title": "Add local pre-ship and integration check scripts so the release tool's two gates stop being skipped",
     "created_at": "2026-10-11T07:00:46.366060+00:00",
-    "promoted_to": null
+    "promoted_to": "F-035"
   },
   {
     "id": "I-038",
     "title": "Check whether release cleanup commits on main trigger an extra version bump and publish (2.0.23 and 2.0.24 appeared without a feature release)",
     "created_at": "2026-10-11T07:00:47.418681+00:00",
-    "promoted_to": null
+    "promoted_to": "F-033"
   },
   {
     "id": "I-039",
     "title": "docs archive carries version.json for the portal",
     "created_at": "2026-10-11T09:42:38.982765+00:00",
     "promoted_to": "F-032"
+  },
+  {
+    "id": "I-040",
+    "title": "Make core rate-limit and distributed-lock unit specs deterministic under load (3 timing failures in a full run, green alone)",
+    "created_at": "2026-10-11T16:47:17.487783+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-041",
+    "title": "Pass the released tag to the developer portal signal as decorator_docs_tag",
+    "created_at": "2026-10-11T16:59:10.391496+00:00",
+    "promoted_to": "F-036"
+  },
+  {
+    "id": "I-042",
+    "title": "Warn when a skipped release run finds a tag that has no GitHub Release",
+    "created_at": "2026-10-11T17:21:49.041808+00:00",
+    "promoted_to": "F-037"
   }
 ]

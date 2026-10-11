@@ -10,11 +10,11 @@ step(){ bash -e -c "$(run_of "$1" "$2")"; }
 export LOG="$T/log" RUNNER_TEMP="$T/rt" GITHUB_OUTPUT="$T/out"; : > "$LOG"; mkdir -p "$T/bin" "$RUNNER_TEMP"
 printf '#!/bin/sh\necho "npm $*" >> "$LOG"\n[ "$1" = view ] && [ "$2" = "@x/a@1.0.0" ] && echo 1.0.0\nexit 0\n' > "$T/bin/npm"
 printf '#!/bin/sh\nmkdir -p .t/package && cp package.json .t/package/ && tar -czf "$3/$(basename "$PWD").tgz" -C .t package && rm -rf .t\n' > "$T/bin/pnpm"
-printf '#!/bin/sh\necho "gh $*" >> "$LOG"\n[ "$1 $2" = "release view" ] && exit "${GH_VIEW_RC:-1}"\nexit 0\n' > "$T/bin/gh"
+printf '#!/bin/sh\necho "gh $*" >> "$LOG"\nif [ "$1 $2" = "release view" ]; then case "$*" in *--json*) [ "${GH_VIEW_RC:-1}" -eq 0 ] && printf "%%s\\n" $GH_ASSETS;; esac; exit "${GH_VIEW_RC:-1}"; fi\nexit 0\n' > "$T/bin/gh"
 chmod +x "$T/bin"/*; export PATH="$T/bin:$PATH"
 mk(){ git init -q "$1"; cd "$1" || exit 1; git config user.email t@t; git config user.name t; git config commit.gpgsign false; }
 mk "$T/w"; cp -R "$R/scripts" .; mkdir -p node/packages/core; echo '{"version":"9.9.10"}' > node/packages/core/package.json
-printf '# Changelog\n\n## 9.9.9 - 2026-01-01\n\n- old: thing (#1)\n' > CHANGELOG.md; git add -A; git commit -qm 'feat: base'; git tag v9.9.9; git commit -q --allow-empty -m 'feat: thing (#7)'
+printf '# Changelog\n\n## 9.9.9 - 2026-01-01\n\n- old: thing (#1)\n' > CHANGELOG.md; git add -A; git commit -qm 'feat: base'; git tag v9.9.9; echo x > feature.txt; git add -A; git commit -qm 'feat: thing (#7)'
 : > "$GITHUB_OUTPUT"; step publish 'Decide release or repair' >/dev/null; rc=$?
 check "decide: writes the action to the step output" "$rc:$(cat "$GITHUB_OUTPUT")" "0:action=release"
 step publish 'Write CHANGELOG entry' >/dev/null
@@ -34,6 +34,14 @@ check "docs archive: root version.json is exactly the tag version, no leading v"
 check "docs archive: site files stay at the archive root" "$(test -f "$T/x/index.html" && echo yes)" "yes"
 out=$(GH_TOKEN="" step release 'Signal the developer portal')
 check "portal: warns and sends nothing while the secret is unset" "$(echo "$out" | grep -c 'PORTAL_DISPATCH_TOKEN is not set'):$(grep -c 'workflow run' "$LOG")" "1:0"
+PORTAL_CMD='gh workflow run ci.yml -R montionugera/joy-design --ref main -f decorator_docs_tag=v9.9.10'
+: > "$LOG"; GH_TOKEN=secret RELEASE_TOKEN=job GH_VIEW_RC=0 GH_ASSETS="notes.txt docs-site.tgz" step release 'Signal the developer portal' >/dev/null
+check "portal: release with docs archive -> dispatch carries decorator_docs_tag=<tag>" "$(grep -c "^$PORTAL_CMD\$" "$LOG")" "1"
+: > "$LOG"; out=$(GH_TOKEN=secret RELEASE_TOKEN=job GH_VIEW_RC=0 GH_ASSETS="notes.txt" step release 'Signal the developer portal')
+check "portal: release without the archive -> warns, no dispatch" "$(echo "$out" | grep -c '::warning::'):$(grep -c 'workflow run' "$LOG")" "1:0"
+: > "$LOG"; out=$(GH_TOKEN=secret RELEASE_TOKEN=job GH_VIEW_RC=1 step release 'Signal the developer portal')
+check "portal: release missing -> warns, no dispatch" "$(echo "$out" | grep -c '::warning::'):$(grep -c 'workflow run' "$LOG")" "1:0"
+check "portal: no GitHub expression inside run:" "$(run_of release 'Signal the developer portal' | grep -c '\${{')" "0"
 git tag -d v9.9.9 >/dev/null; out=$(step publish 'Write CHANGELOG entry'); rc=$?
 check "changelog: failure warns, writes placeholder, exits 0" "$rc:$(echo "$out" | grep -c '::warning::'):$(sed -n 5p CHANGELOG.md)" "0:1:- Release 9.9.10"
 mk "$T/d"; cp -R "$R/scripts" .; mkdir -p node/packages/core; echo '{"version":"9.9.9"}' > node/packages/core/package.json
@@ -67,6 +75,12 @@ skip_for(){ ruby -ryaml -e 's=YAML.load_file(ARGV[0])["jobs"]["publish"]["steps"
 check "skip-existing: true for repair" "$(skip_for repair)" "true"
 check "skip-existing: false for release" "$(skip_for release)" "false"
 check "skip-existing: false when the action is empty" "$(skip_for '')" "false"
+# action=none must reach no step that bumps, builds, publishes or tags, and must skip the smoke and release jobs.
+ungated=$(ruby -ryaml -e 'j=YAML.load_file(ARGV[0])["jobs"]; seen=false; bad=[]; j["publish"]["steps"].each{|s| seen||=(s["id"]=="decide"); next unless seen; next if s["id"]=="decide"; c=s["if"].to_s; bad<<(s["name"]||s["uses"]) unless c =~ /steps\.decide\.outputs\.action (!= |== )."(none|release)"?/ || c =~ /steps\.decide\.outputs\.action (!=|==) .(none|release)./}; puts bad.join(",")' "$WF")
+check "none: every publish step after decide is conditioned on the decided action" "$ungated" ""
+check "none: the publish job exports the action" "$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0])["jobs"]["publish"]["outputs"]["action"]' "$WF")" '${{ steps.decide.outputs.action }}'
+check "none: smoke is skipped; release runs only for a tag lacking its Release (see release-missing.test.sh)" "$(ruby -ryaml -e 'j=YAML.load_file(ARGV[0])["jobs"]; puts %w[smoke release].map{|n| j[n]["if"]}.join("|")' "$WF")" "needs.publish.outputs.action != 'none'|needs.publish.outputs.action != 'none' || needs.publish.outputs.tag != ''"
+check "none: nothing runs before decide except checkout and git config" "$(ruby -ryaml -e 'st=YAML.load_file(ARGV[0])["jobs"]["publish"]["steps"]; puts st.take_while{|s| s["id"]!="decide"}.map{|s| s["name"]||s["uses"]}.join("|")' "$WF")" "actions/checkout@v7|Configure git"
 # Concurrency: main runs are never cancelled mid-flight (publish then release); PR runs still cancel superseded runs.
 cip=$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0])["concurrency"]["cancel-in-progress"]' "$WF")
 check "concurrency: cancel-in-progress is false on main, true elsewhere" "$cip" "\${{ github.ref != 'refs/heads/main' }}"
