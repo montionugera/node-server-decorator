@@ -27,6 +27,11 @@ GH_VIEW_RC=0 step release 'Create GitHub Release' >/dev/null
 check "release: existing release gets the asset re-uploaded, not re-created" "$(grep -c '^gh release upload v9.9.10 docs-site.tgz --clobber$' "$LOG"):$(grep -c '^gh release create' "$LOG")" "1:1"
 : > "$LOG"; out=$(ASSET="" GH_VIEW_RC=1 step release 'Create GitHub Release')
 check "release: without the archive it still creates the release, and warns" "$(grep -c '^gh release create v9.9.10 --verify-tag --title v9.9.10 --notes-file notes.md$' "$LOG"):$(echo "$out" | grep -c '::warning::')" "1:1"
+# Docs archive: the portal checks a root version.json against the release tag. Stub pnpm only makes website/dist.
+mkdir -p "$T/dbin"; printf '#!/bin/sh\n[ "$1" = build ] && mkdir -p dist && echo "<html></html>" > dist/index.html\nexit 0\n' > "$T/dbin/pnpm"; chmod +x "$T/dbin/pnpm"
+mkdir -p website; : > "$GITHUB_OUTPUT"; PATH="$T/dbin:$PATH" TAG=v9.9.10 step release 'Build docs archive' >/dev/null; mkdir -p "$T/x"; tar -xzf docs-site.tgz -C "$T/x"
+check "docs archive: root version.json is exactly the tag version, no leading v" "$(cat "$T/x/version.json" 2>/dev/null)" '{"version":"9.9.10"}'
+check "docs archive: site files stay at the archive root" "$(test -f "$T/x/index.html" && echo yes)" "yes"
 out=$(GH_TOKEN="" step release 'Signal the developer portal')
 check "portal: warns and sends nothing while the secret is unset" "$(echo "$out" | grep -c 'PORTAL_DISPATCH_TOKEN is not set'):$(grep -c 'workflow run' "$LOG")" "1:0"
 git tag -d v9.9.9 >/dev/null; out=$(step publish 'Write CHANGELOG entry'); rc=$?
