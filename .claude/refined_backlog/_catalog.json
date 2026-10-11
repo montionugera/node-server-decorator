@@ -355,5 +355,14 @@
     "claimed_at": "2026-10-11T06:01:58.289286+00:00",
     "shipped_at": "2026-10-11T06:02:51.601693+00:00",
     "shipped_sha": "4373f75f0e06a5358a11b2ae1728c98929330057"
+  },
+  {
+    "id": "F-030",
+    "title": "Move CI actions off retired Node 20 majors and pin ubuntu runner",
+    "from_idea": "I-033",
+    "created_at": "2026-10-11T06:04:01.066950+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
