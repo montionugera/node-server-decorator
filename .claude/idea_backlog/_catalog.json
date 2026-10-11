@@ -222,7 +222,7 @@
     "id": "I-037",
     "title": "Add local pre-ship and integration check scripts so the release tool's two gates stop being skipped",
     "created_at": "2026-10-11T07:00:46.366060+00:00",
-    "promoted_to": null
+    "promoted_to": "F-035"
   },
   {
     "id": "I-038",
