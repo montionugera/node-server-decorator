@@ -59,6 +59,7 @@ Node lives at `node/packages/core` under a pnpm workspace rooted at `node/`; Pyt
 | Entity-spec parity | `bash scripts/check-entity-parity.sh` (asserts Node, Python, Go and Nim `entity` packages emit byte-identical IR, equal to `contracts/fixtures/entity-spec.valid-user.json`) |
 | Cross-version assert | `bash scripts/check-versions.sh` (fails if Node, Python, Go, Nim or Rust package versions diverge, including the Rust internal dep versions) |
 | Go/Nim install smoke test | `bash scripts/smoke-install-go.sh vX.Y.Z` / `bash scripts/smoke-install-nim.sh vX.Y.Z` (post-tag; the `smoke` job in `ci-node.yml` runs both) |
+| Local release gates | `bash scripts/precheck.sh` (Gate 1 of `psrw ship`: shell tests, actionlint, version lockstep, Node build + unit tests; ~1.5-3 min) and `bash scripts/integration.sh` (Gate 2 of `psrw promote`: precheck + Go, Python, contract validation, entity/OpenAPI parity; ~4 min; stages whose toolchain is missing are reported as skipped). Both exit non-zero on any failure and end with one summary line. |
 | Lockstep version bump | `bash scripts/bump-version.sh patch\|minor\|major` then commit + `git push --tags` |
 
 Node uses **pnpm** (pinned `pnpm@9.14.2`, `packageManager` field). Python uses **uv** as the dev runner. `package-lock.json` and `yarn.lock` are gitignored on purpose — do not create them.
