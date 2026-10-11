@@ -384,9 +384,15 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
+          RELEASE_TOKEN: ${{ github.token }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
             echo "::warning::PORTAL_DISPATCH_TOKEN is not set; the developer portal was not signalled"
             exit 0
           fi
-          gh workflow run ci.yml -R montionugera/joy-design --ref main
+          # Tell the portal exactly which release to pull, and only once that release really carries the archive.
+          if ! GH_TOKEN="$RELEASE_TOKEN" gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx 'docs-site.tgz'; then
+            echo "::warning::release $TAG has no docs-site.tgz; the developer portal was not signalled"
+            exit 0
+          fi
+          gh workflow run ci.yml -R montionugera/joy-design --ref main -f decorator_docs_tag="$TAG"

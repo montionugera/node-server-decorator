@@ -10,7 +10,7 @@ step(){ bash -e -c "$(run_of "$1" "$2")"; }
 export LOG="$T/log" RUNNER_TEMP="$T/rt" GITHUB_OUTPUT="$T/out"; : > "$LOG"; mkdir -p "$T/bin" "$RUNNER_TEMP"
 printf '#!/bin/sh\necho "npm $*" >> "$LOG"\n[ "$1" = view ] && [ "$2" = "@x/a@1.0.0" ] && echo 1.0.0\nexit 0\n' > "$T/bin/npm"
 printf '#!/bin/sh\nmkdir -p .t/package && cp package.json .t/package/ && tar -czf "$3/$(basename "$PWD").tgz" -C .t package && rm -rf .t\n' > "$T/bin/pnpm"
-printf '#!/bin/sh\necho "gh $*" >> "$LOG"\n[ "$1 $2" = "release view" ] && exit "${GH_VIEW_RC:-1}"\nexit 0\n' > "$T/bin/gh"
+printf '#!/bin/sh\necho "gh $*" >> "$LOG"\nif [ "$1 $2" = "release view" ]; then case "$*" in *--json*) [ "${GH_VIEW_RC:-1}" -eq 0 ] && printf "%%s\\n" $GH_ASSETS;; esac; exit "${GH_VIEW_RC:-1}"; fi\nexit 0\n' > "$T/bin/gh"
 chmod +x "$T/bin"/*; export PATH="$T/bin:$PATH"
 mk(){ git init -q "$1"; cd "$1" || exit 1; git config user.email t@t; git config user.name t; git config commit.gpgsign false; }
 mk "$T/w"; cp -R "$R/scripts" .; mkdir -p node/packages/core; echo '{"version":"9.9.10"}' > node/packages/core/package.json
@@ -34,6 +34,14 @@ check "docs archive: root version.json is exactly the tag version, no leading v"
 check "docs archive: site files stay at the archive root" "$(test -f "$T/x/index.html" && echo yes)" "yes"
 out=$(GH_TOKEN="" step release 'Signal the developer portal')
 check "portal: warns and sends nothing while the secret is unset" "$(echo "$out" | grep -c 'PORTAL_DISPATCH_TOKEN is not set'):$(grep -c 'workflow run' "$LOG")" "1:0"
+PORTAL_CMD='gh workflow run ci.yml -R montionugera/joy-design --ref main -f decorator_docs_tag=v9.9.10'
+: > "$LOG"; GH_TOKEN=secret RELEASE_TOKEN=job GH_VIEW_RC=0 GH_ASSETS="notes.txt docs-site.tgz" step release 'Signal the developer portal' >/dev/null
+check "portal: release with docs archive -> dispatch carries decorator_docs_tag=<tag>" "$(grep -c "^$PORTAL_CMD\$" "$LOG")" "1"
+: > "$LOG"; out=$(GH_TOKEN=secret RELEASE_TOKEN=job GH_VIEW_RC=0 GH_ASSETS="notes.txt" step release 'Signal the developer portal')
+check "portal: release without the archive -> warns, no dispatch" "$(echo "$out" | grep -c '::warning::'):$(grep -c 'workflow run' "$LOG")" "1:0"
+: > "$LOG"; out=$(GH_TOKEN=secret RELEASE_TOKEN=job GH_VIEW_RC=1 step release 'Signal the developer portal')
+check "portal: release missing -> warns, no dispatch" "$(echo "$out" | grep -c '::warning::'):$(grep -c 'workflow run' "$LOG")" "1:0"
+check "portal: no GitHub expression inside run:" "$(run_of release 'Signal the developer portal' | grep -c '\${{')" "0"
 git tag -d v9.9.9 >/dev/null; out=$(step publish 'Write CHANGELOG entry'); rc=$?
 check "changelog: failure warns, writes placeholder, exits 0" "$rc:$(echo "$out" | grep -c '::warning::'):$(sed -n 5p CHANGELOG.md)" "0:1:- Release 9.9.10"
 mk "$T/d"; cp -R "$R/scripts" .; mkdir -p node/packages/core; echo '{"version":"9.9.9"}' > node/packages/core/package.json
