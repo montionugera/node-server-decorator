@@ -11,9 +11,12 @@ on:
   # trusted-publisher config) — publishes whatever main currently holds.
   workflow_dispatch:
 
+# Runs on main are never cancelled: a newer merge could otherwise cancel a run after
+# publish but before the release job. Queued runs on main wait their turn; PR runs
+# still cancel superseded runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   test:
