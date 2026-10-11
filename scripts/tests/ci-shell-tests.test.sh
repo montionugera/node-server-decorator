@@ -15,5 +15,6 @@ check "main runs are not cancelled" "$(y 'puts w["concurrency"]["cancel-in-progr
 body="$(y 'puts w["jobs"]["shell-tests"]["steps"].map{|s| s["run"]}.compact.join("\n")')"
 check "a step loops over scripts/tests/*.test.sh" "$(echo "$body" | grep -c 'scripts/tests/\*\.test\.sh')" "1"
 check "the loop fails the job when any test fails" "$(echo "$body" | grep -c 'exit "\$fail"\|exit 1')" "1"
+check "checkout fetches full history and tags (release-notes test reads real tags)" "$(y 'puts w["jobs"]["shell-tests"]["steps"][0]["with"].to_h["fetch-depth"]')" "0"
 check "SETUP.md no longer says not run in CI" "$(grep -c 'not run in CI' "$R/.github/SETUP.md")" "0"
 exit "$fail"

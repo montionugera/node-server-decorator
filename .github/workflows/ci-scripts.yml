@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # release-notes.test.sh reads real tags and history
       - name: Run every scripts/tests/*.test.sh
         run: |
           fail=0
