@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	ginadapter "github.com/montionugera/node-server-decorator/v2/go/adapter/gin"
+	ginadapter "github.com/montionugera/node-server-decorator/go/adapter/gin/v2"
 	httpserver "github.com/montionugera/node-server-decorator/v2/go/http"
 )
 

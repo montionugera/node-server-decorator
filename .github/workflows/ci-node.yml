@@ -137,7 +137,7 @@ jobs:
       - name: Commit version bump
         if: steps.decide.outputs.action == 'release'
         run: |
-          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go nim/server_decorator.nimble rust/Cargo.toml rust/Cargo.lock CHANGELOG.md
+          git add node/packages/*/package.json node/pnpm-lock.yaml python/packages/*/pyproject.toml python/packages/*/src/*/_version.py python/uv.lock go/entity/version.go go/adapter/gin/go.mod nim/server_decorator.nimble rust/Cargo.toml rust/Cargo.lock CHANGELOG.md
           git commit -m "chore: bump patch version [skip ci]"
           # main can move while this job runs (e.g. a follow-up commit pushed right
           # after a release merge), which rejects a plain push as non-fast-forward.
@@ -250,16 +250,25 @@ jobs:
       # Go resolves module versions only from vX.Y.Z tags (I-006); this also gives Node and
       # Python releases the single tag ADR 0002 assumes. Last step, so a tag marks only a
       # fully published version; skipped when the tag already exists (idempotent re-runs).
+      # The nested Go modules go/adapter/gin and go/adapter/pgxlock resolve only from their own
+      # path-prefixed tags, cut in lock-step on the same commit. One atomic push for all missing
+      # tags, so origin never ends up with vX.Y.Z but without the adapter tags gin needs.
       - name: Tag release
         id: tag
         run: |
           tag="v$(node -p "require('./node/packages/core/package.json').version")"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            echo "Tag $tag already exists on origin; skipping."
-          else
-            git tag "$tag"
-            git push origin "$tag"
+          missing=()
+          for t in "$tag" "go/adapter/gin/$tag" "go/adapter/pgxlock/$tag"; do
+            if git ls-remote --exit-code --tags origin "refs/tags/$t" >/dev/null; then
+              echo "Tag $t already exists on origin; skipping."
+            else
+              git tag "$t"
+              missing+=("$t")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            git push --atomic origin "${missing[@]}"
           fi
 
   # Go and Nim have no registry push: "published" means the tag installs (F-007). Separate
@@ -284,10 +293,14 @@ jobs:
           nim-version: '2.2.12'
           repo-token: ${{ secrets.GITHUB_TOKEN }}  # avoids GitHub API rate-limit flakes when resolving the toolchain
 
-      # The repo is private and scratch-dir fetches carry no checkout auth header. The rewrite
-      # lives in step env (not `git config --global`), so the token never lands in ~/.gitconfig
-      # and never touches the checkout step.
-      - name: Go module installs at tag
+      # Covers the root module and the nested adapter modules (go/adapter/gin, go/adapter/pgxlock),
+      # twice: straight from the git tag, then anonymously through proxy.golang.org and
+      # sum.golang.org (retried while the proxy catches up; the script drops this rewrite for it).
+      # The repo is public; the token rewrite only authenticates the git-tag pass and the Nim
+      # install, sparing them anonymous rate limits. It lives in step env (not
+      # `git config --global`), so the token never lands in ~/.gitconfig and never touches the
+      # checkout step.
+      - name: Go modules install at tag
         env:
           GIT_CONFIG_COUNT: '1'
           GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/montionugera/.insteadOf
