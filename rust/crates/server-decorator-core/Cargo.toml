@@ -18,3 +18,11 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
+redis = { workspace = true, optional = true }
+
+[features]
+# Off by default: RedisFixedWindowLimiter, a rate limiter shared across replicas.
+redis = ["dep:redis"]
+
+[dev-dependencies]
+testcontainers = { workspace = true }
