@@ -45,12 +45,15 @@ impl JwtConfig {
 
     pub fn with_issuer(mut self, iss: &[&str]) -> Self {
         self.validation.set_issuer(iss);
+        // jsonwebtoken skips the check when the claim is absent; make it required.
+        self.validation.required_spec_claims.insert("iss".into());
         self
     }
 
     pub fn with_audience(mut self, aud: &[&str]) -> Self {
         self.validation.set_audience(aud);
         self.validation.validate_aud = true;
+        self.validation.required_spec_claims.insert("aud".into());
         self
     }
 
@@ -317,6 +320,24 @@ mod tests {
             .with_audience(&["a"])
             .with_issuer(&["i"]);
         assert!(ok.verify::<Claims>(&tok).is_ok());
+    }
+
+    #[test]
+    fn issuer_and_audience_become_required_once_set() {
+        let bare = mint(
+            Algorithm::HS256,
+            SECRET,
+            json!({"exp": now() + 3600, "id": 1}),
+        );
+        for strict in [
+            JwtConfig::hs256(SECRET).with_issuer(&["x"]),
+            JwtConfig::hs256(SECRET).with_audience(&["b"]),
+        ] {
+            assert_eq!(
+                strict.verify::<Claims>(&bare).unwrap_err(),
+                JwtRejection::Invalid
+            );
+        }
     }
 
     #[test]
