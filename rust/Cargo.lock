@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "axum-entity-server"
-version = "2.0.28"
+version = "2.0.29"
 dependencies = [
  "async-trait",
  "axum 0.7.9",
@@ -2053,7 +2053,7 @@ dependencies = [
 
 [[package]]
 name = "server-decorator-axum"
-version = "2.0.28"
+version = "2.0.29"
 dependencies = [
  "async-trait",
  "axum 0.7.9",
@@ -2071,7 +2071,7 @@ dependencies = [
 
 [[package]]
 name = "server-decorator-core"
-version = "2.0.28"
+version = "2.0.29"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2088,7 +2088,7 @@ dependencies = [
 
 [[package]]
 name = "server-decorator-dto"
-version = "2.0.28"
+version = "2.0.29"
 dependencies = [
  "chrono",
  "regex",
@@ -2100,7 +2100,7 @@ dependencies = [
 
 [[package]]
 name = "server-decorator-entity"
-version = "2.0.28"
+version = "2.0.29"
 dependencies = [
  "regex",
  "serde",
@@ -2110,7 +2110,7 @@ dependencies = [
 
 [[package]]
 name = "server-decorator-openapi"
-version = "2.0.28"
+version = "2.0.29"
 dependencies = [
  "serde",
  "serde_json",
