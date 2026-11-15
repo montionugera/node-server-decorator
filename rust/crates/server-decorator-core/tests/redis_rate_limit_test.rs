@@ -18,6 +18,13 @@ async fn start_redis() -> (ContainerAsync<GenericImage>, redis::Client) {
         .expect("start redis container");
     let port = container.get_host_port_ipv4(6379).await.unwrap();
     let client = redis::Client::open(format!("redis://127.0.0.1:{port}")).unwrap();
+    // The mapped port can refuse connections for a moment after Redis logs "Ready" (Docker Desktop).
+    for _ in 0..50 {
+        if client.get_multiplexed_async_connection().await.is_ok() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
     (container, client)
 }
 
