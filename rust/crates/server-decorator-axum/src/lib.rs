@@ -1,3 +1,5 @@
+#[cfg(feature = "jwt")]
+pub mod jwt;
 pub mod problem;
 pub mod router;
 

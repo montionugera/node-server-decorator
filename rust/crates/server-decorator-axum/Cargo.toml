@@ -19,3 +19,12 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 async-trait = { workspace = true }
+# Off by default: HS256 only, so ring is enough and the PEM parser (`use_pem`) stays out.
+jsonwebtoken = { version = "9.3", optional = true, default-features = false }
+
+[features]
+default = []
+jwt = ["dep:jsonwebtoken"]
+
+[dev-dependencies]
+tokio = { workspace = true }
