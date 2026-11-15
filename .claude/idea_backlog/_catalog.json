@@ -253,5 +253,11 @@
     "title": "Warn when a skipped release run finds a tag that has no GitHub Release",
     "created_at": "2026-10-11T17:21:49.041808+00:00",
     "promoted_to": "F-037"
+  },
+  {
+    "id": "I-043",
+    "title": "Rust axum BearerJwt extractor behind jwt feature",
+    "created_at": "2026-11-15T01:54:18.884156+00:00",
+    "promoted_to": null
   }
 ]
