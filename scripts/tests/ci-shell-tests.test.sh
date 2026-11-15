@@ -10,7 +10,7 @@ check "triggers on scripts/**" "$(y 'puts w[true]["pull_request"]["paths"].inclu
 check "pull_request paths cover every workflow file" "$(y 'puts w[true]["pull_request"]["paths"].include?(".github/workflows/**")')" "true"
 check "push paths cover every workflow file" "$(y 'puts w[true]["push"]["paths"].include?(".github/workflows/**")')" "true"
 check "push paths still cover scripts/**" "$(y 'puts w[true]["push"]["paths"].include?("scripts/**")')" "true"
-check "top-level permissions are read-only" "$(y 'puts w["permissions"].inspect')" '{"contents"=>"read"}'
+check "top-level permissions are read-only" "$(y 'puts w["permissions"].to_a.flatten.join("=")')" 'contents=read'
 check "main runs are not cancelled" "$(y 'puts w["concurrency"]["cancel-in-progress"]')" "\${{ github.ref != 'refs/heads/main' }}"
 body="$(y 'puts w["jobs"]["shell-tests"]["steps"].map{|s| s["run"]}.compact.join("\n")')"
 check "a step loops over scripts/tests/*.test.sh" "$(echo "$body" | grep -c 'scripts/tests/\*\.test\.sh')" "1"

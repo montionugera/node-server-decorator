@@ -171,3 +171,39 @@ let app = mount_entity_routes(app, Arc::new(user_spec), Arc::new(my_handler));
 // - DELETE /users/{id}             (returns 204 No Content or 404 Problem)
 // - POST   /users/{id}/actions/:act(validates action input DTO, returns 200 or 400/404 Problem)
 ```
+
+### HS256 Bearer JWT extractor (`jwt` feature, off by default)
+
+```toml
+server-decorator-axum = { version = "2", features = ["jwt"] }
+```
+
+```rust
+use axum::{routing::get, Json, Router};
+use server_decorator_axum::jwt::{BearerJwt, JwtConfig, JwtRejection};
+
+#[derive(serde::Deserialize)]
+struct Claims { exp: i64, id: serde_json::Value } // id: number or UUID string
+
+async fn me(BearerJwt(c): BearerJwt<Claims>) -> Json<serde_json::Value> { Json(c.id) }
+
+// HS256 only; exp required, leeway 0, nbf checked if present, no iss/aud unless set
+// (.with_leeway(s), .with_issuer(&[..]), .with_audience(&[..]); once set, iss/aud become required).
+let app = Router::new().route("/me", get(me)).with_state(JwtConfig::hs256(secret));
+// App state struct: impl FromRef<AppState> for JwtConfig (or #[derive(FromRef)]).
+// Outside axum (e.g. a WebSocket connect): jwt_config.verify::<Claims>(raw_token)?
+```
+
+Any failure is a `JwtRejection` (`Missing`, `Invalid`, `Expired`) and renders as `401`,
+`content-type: application/problem+json`, `www-authenticate: Bearer`:
+
+```json
+{"type":"about:blank","title":"Unauthorized","status":401,"detail":"token expired"}
+```
+
+The detail never echoes the token, the secret or the `jsonwebtoken` error. For a different wire
+body, take `Result<BearerJwt<C>, JwtRejection>` in the handler and map it yourself.
+
+**Parity: Rust-only.** No other lane verifies JWTs (Go's `go/http` takes a pluggable
+`ScopeExtractor`; the Node/Python `security` metadata is IR only), and this feature changes no
+contract, IR, fixture or OpenAPI output, so the entity/OpenAPI parity checks are unaffected.
