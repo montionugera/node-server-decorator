@@ -481,5 +481,14 @@
     "status": "claimed",
     "release_version": null,
     "claimed_at": "2026-11-15T01:58:06.491293+00:00"
+  },
+  {
+    "id": "F-040",
+    "title": "Rust core RedisFixedWindowLimiter behind redis feature",
+    "from_idea": "I-044",
+    "created_at": "2026-11-15T07:49:03.669406+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null
   }
 ]
