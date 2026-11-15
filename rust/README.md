@@ -188,7 +188,7 @@ struct Claims { exp: i64, id: serde_json::Value } // id: number or UUID string
 async fn me(BearerJwt(c): BearerJwt<Claims>) -> Json<serde_json::Value> { Json(c.id) }
 
 // HS256 only; exp required, leeway 0, nbf checked if present, no iss/aud unless set
-// (.with_leeway(s), .with_issuer(&[..]), .with_audience(&[..])).
+// (.with_leeway(s), .with_issuer(&[..]), .with_audience(&[..]); once set, iss/aud become required).
 let app = Router::new().route("/me", get(me)).with_state(JwtConfig::hs256(secret));
 // App state struct: impl FromRef<AppState> for JwtConfig (or #[derive(FromRef)]).
 // Outside axum (e.g. a WebSocket connect): jwt_config.verify::<Claims>(raw_token)?
