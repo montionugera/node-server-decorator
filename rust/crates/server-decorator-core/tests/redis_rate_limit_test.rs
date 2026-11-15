@@ -33,11 +33,15 @@ async fn pttl(conn: &mut MultiplexedConnection, key: &str) -> i64 {
 async fn fixed_window_counts_blocks_and_resets() {
     let (_container, client) = start_redis().await;
     let mut probe = connect(&client).await;
-    let window = Duration::from_millis(400);
+    let window = Duration::from_millis(600);
     let limiter = RedisFixedWindowLimiter::new(connect(&client).await, 3, window);
 
     let mut first_pttl = 0;
     for i in 1..=3u64 {
+        if i == 2 {
+            // Real time between hits, so a sliding (re-PEXPIRE per hit) TTL would show up.
+            tokio::time::sleep(Duration::from_millis(150)).await;
+        }
         let d = limiter.hit("user:1").await.unwrap();
         assert!(d.allowed, "hit {i} allowed");
         assert_eq!(d.limit, 3);
@@ -48,7 +52,11 @@ async fn fixed_window_counts_blocks_and_resets() {
         if i == 1 {
             first_pttl = t;
         } else {
-            assert!(t <= first_pttl, "later hits must not extend the window");
+            assert!(
+                t <= first_pttl - 100,
+                "later hits must not extend the window: first {first_pttl}, hit {i} {t}"
+            );
+            assert!(d.reset_after <= window - Duration::from_millis(100));
         }
     }
 
@@ -68,6 +76,15 @@ async fn fixed_window_counts_blocks_and_resets() {
     assert!(again.allowed, "new window allows again");
     assert_eq!(again.remaining, 2);
     assert!(pttl(&mut probe, "ratelimit:user:1").await > 0);
+}
+
+#[tokio::test]
+async fn huge_window_still_leaves_a_ttl() {
+    let (_container, client) = start_redis().await;
+    let mut probe = connect(&client).await;
+    let limiter = RedisFixedWindowLimiter::new(connect(&client).await, 5, Duration::MAX);
+    assert!(limiter.hit("huge").await.unwrap().allowed);
+    assert!(pttl(&mut probe, "ratelimit:huge").await > 0);
 }
 
 #[tokio::test]

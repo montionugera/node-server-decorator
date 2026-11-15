@@ -12,6 +12,9 @@ end
 return {count, ttl}
 ";
 
+// A 0 ms TTL would delete the key; a TTL PEXPIRE rejects would leave the INCRed key without one.
+const MAX_WINDOW: Duration = Duration::from_secs(10 * 365 * 24 * 3600);
+
 /// Fixed-window rate limiter whose counts live in Redis, so every replica shares one limit.
 #[derive(Clone)]
 pub struct RedisFixedWindowLimiter<C> {
@@ -42,8 +45,7 @@ impl<C: redis::aio::ConnectionLike + Clone + Send + Sync> RedisFixedWindowLimite
         Self {
             conn,
             limit,
-            // A 0 ms TTL would delete the key, so clamp to 1 ms.
-            window: window.max(Duration::from_millis(1)),
+            window: window.clamp(Duration::from_millis(1), MAX_WINDOW),
             prefix: "ratelimit:".to_string(),
             fail_open: false,
             script: redis::Script::new(SCRIPT),
@@ -61,7 +63,7 @@ impl<C: redis::aio::ConnectionLike + Clone + Send + Sync> RedisFixedWindowLimite
     }
 
     pub async fn hit(&self, key: &str) -> Result<RateLimitDecision, RateLimitError> {
-        let window_ms = u64::try_from(self.window.as_millis()).unwrap_or(u64::MAX);
+        let window_ms = self.window.as_millis() as u64; // clamped in new(), always fits
         let mut conn = self.conn.clone();
         let result: redis::RedisResult<(u64, i64)> = self
             .script
@@ -77,7 +79,7 @@ impl<C: redis::aio::ConnectionLike + Clone + Send + Sync> RedisFixedWindowLimite
                 reset_after: Duration::from_millis(pttl.max(0) as u64),
             }),
             Err(err) if self.fail_open => {
-                tracing::warn!(error = %err, key, "redis rate limiter failed open");
+                tracing::warn!(error = %err, "redis rate limiter failed open");
                 Ok(RateLimitDecision {
                     allowed: true,
                     limit: self.limit,
@@ -87,5 +89,101 @@ impl<C: redis::aio::ConnectionLike + Clone + Send + Sync> RedisFixedWindowLimite
             }
             Err(err) => Err(err.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use redis::{aio::ConnectionLike, Arg, Cmd, ErrorKind, Pipeline, RedisFuture, Value};
+    use std::sync::{Arc, Mutex};
+
+    // Answers every script call with `reply` (or an IO error) and records the TTL argument sent.
+    #[derive(Clone)]
+    struct Fake {
+        reply: Option<(i64, i64)>,
+        sent_ms: Arc<Mutex<Option<u64>>>,
+    }
+
+    impl ConnectionLike for Fake {
+        fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
+            if let Some(Arg::Simple(ms)) = cmd.args_iter().last() {
+                *self.sent_ms.lock().unwrap() = std::str::from_utf8(ms).unwrap().parse().ok();
+            }
+            let r = match self.reply {
+                Some((c, t)) => Ok(Value::Array(vec![Value::Int(c), Value::Int(t)])),
+                None => Err((ErrorKind::Io, "down").into()),
+            };
+            Box::pin(async move { r })
+        }
+        fn req_packed_commands<'a>(
+            &'a mut self,
+            _: &'a Pipeline,
+            _: usize,
+            _: usize,
+        ) -> RedisFuture<'a, Vec<Value>> {
+            unimplemented!()
+        }
+        fn get_db(&self) -> i64 {
+            0
+        }
+    }
+
+    fn fake(reply: Option<(i64, i64)>) -> Fake {
+        Fake {
+            reply,
+            sent_ms: Arc::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn maps_count_and_pttl_to_decision() {
+        let l = RedisFixedWindowLimiter::new(fake(Some((3, 250))), 2, Duration::from_secs(1));
+        let d = l.hit("k").await.unwrap();
+        assert_eq!(
+            d,
+            RateLimitDecision {
+                allowed: false,
+                limit: 2,
+                remaining: 0,
+                reset_after: Duration::from_millis(250)
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn window_is_clamped_to_what_pexpire_accepts() {
+        for (window, want) in [
+            (Duration::ZERO, 1),
+            (Duration::MAX, MAX_WINDOW.as_millis() as u64),
+            (Duration::from_secs(60), 60_000),
+        ] {
+            let f = fake(Some((1, 1)));
+            RedisFixedWindowLimiter::new(f.clone(), 5, window)
+                .hit("k")
+                .await
+                .unwrap();
+            assert_eq!(*f.sent_ms.lock().unwrap(), Some(want), "{window:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn redis_error_fails_closed_by_default_and_open_when_asked() {
+        let w = Duration::from_secs(5);
+        let closed = RedisFixedWindowLimiter::new(fake(None), 2, w);
+        assert!(matches!(
+            closed.hit("k").await,
+            Err(RateLimitError::Redis(_))
+        ));
+        let d = closed.with_fail_open(true).hit("k").await.unwrap();
+        assert_eq!(
+            d,
+            RateLimitDecision {
+                allowed: true,
+                limit: 2,
+                remaining: 2,
+                reset_after: w
+            }
+        );
     }
 }

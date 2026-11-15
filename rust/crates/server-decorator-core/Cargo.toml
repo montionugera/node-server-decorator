@@ -24,5 +24,8 @@ redis = { workspace = true, optional = true }
 # Off by default: RedisFixedWindowLimiter, a rate limiter shared across replicas.
 redis = ["dep:redis"]
 
+[package.metadata.docs.rs]
+features = ["redis"]
+
 [dev-dependencies]
 testcontainers = { workspace = true }

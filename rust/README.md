@@ -215,6 +215,8 @@ replica shares one limit.
 
 ```toml
 server-decorator-core = { version = "2", features = ["redis"] }
+# Your own redis dep must be the same major (1.x) as the core's, or the connection type will not match.
+redis = { version = "1", features = ["tokio-comp"] }
 ```
 
 ```rust
